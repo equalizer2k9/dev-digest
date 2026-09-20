@@ -62,8 +62,13 @@ function focusedFindingId(scope: HTMLElement): string | null {
   return hit?.dataset.findingId ?? null;
 }
 
+/** Top row: read-only counter pills. */
 const counters = () => screen.getByRole("group", { name: "Findings by severity" });
-const counter = (name: string) => screen.getByRole("button", { name });
+const pill = (sev: string) => counters().querySelector<HTMLElement>(`[data-severity="${sev}"]`);
+
+/** Bottom row: the severity filter chips, found by their visible label. */
+const filters = () => screen.getByRole("group", { name: "Filter by severity" });
+const chip = (label: string) => within(filters()).getByRole("button", { name: label });
 
 describe("FindingsPanel (smoke)", () => {
   it("renders the toolbar + a finding card", () => {
@@ -81,17 +86,13 @@ describe("FindingsPanel (smoke)", () => {
 describe("FindingsPanel severity counters", () => {
   it("renders one counter per severity present, with its count", () => {
     renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
-    const row = counters();
-    expect(within(row).getByText("Critical")).toBeInTheDocument();
-    expect(within(row).getByText("Warning")).toBeInTheDocument();
-    expect(within(row).getAllByRole("button")).toHaveLength(2);
-    expect(within(counter("Show only Critical findings")).getByText("1")).toBeInTheDocument();
-    expect(within(counter("Show only Warning findings")).getByText("2")).toBeInTheDocument();
+    expect(pill("CRITICAL")).toHaveTextContent("1");
+    expect(pill("WARNING")).toHaveTextContent("2");
   });
 
   it("omits a severity with no findings in this run", () => {
     renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
-    expect(within(counters()).queryByText("Suggestion")).not.toBeInTheDocument();
+    expect(pill("SUGGESTION")).toBeNull();
   });
 
   it("renders no counter row when the run has no findings", () => {
@@ -99,53 +100,124 @@ describe("FindingsPanel severity counters", () => {
     expect(screen.queryByRole("group", { name: "Findings by severity" })).not.toBeInTheDocument();
   });
 
-  it("filters the list to one severity when its counter is clicked", () => {
+  it("draws a counter as icon + number, with no severity label", () => {
     renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
-    fireEvent.click(counter("Show only Critical findings"));
+    expect(within(counters()).queryByText("Critical")).not.toBeInTheDocument();
+    expect(within(counters()).queryByText("Warning")).not.toBeInTheDocument();
+    expect(pill("CRITICAL")!.querySelector("svg")).toBeInTheDocument();
+  });
+
+  it("underlines a counter with a dotted border in its severity colour", () => {
+    renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
+    expect(pill("CRITICAL")!.style.borderBottom).toBe("1px dotted var(--crit)");
+    expect(pill("WARNING")!.style.borderBottom).toBe("1px dotted var(--warn)");
+  });
+
+  it("does not make the counters clickable", () => {
+    renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
+    expect(within(counters()).queryAllByRole("button")).toHaveLength(0);
+  });
+
+  it("counts only high-confidence findings once hide-low-confidence is on", () => {
+    renderWithIntl(<FindingsPanel findings={LOW_CONF} prId="pr1" />);
+    expect(pill("CRITICAL")).toHaveTextContent("2");
+    fireEvent.click(screen.getByRole("switch"));
+    expect(pill("CRITICAL")).toHaveTextContent("1");
+  });
+
+  it("keeps the counts unchanged while a filter is active", () => {
+    renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
+    fireEvent.click(chip("Critical"));
+    expect(pill("CRITICAL")).toHaveTextContent("1");
+    expect(pill("WARNING")).toHaveTextContent("2");
+  });
+});
+
+describe("FindingsPanel severity filter", () => {
+  it("renders all three chips even when a severity has no findings", () => {
+    renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
+    // MIXED has no SUGGESTION, yet its chip is still on offer.
+    expect(chip("Critical")).toBeInTheDocument();
+    expect(chip("Warning")).toBeInTheDocument();
+    expect(chip("Suggestion")).toBeInTheDocument();
+    expect(within(filters()).getAllByRole("button")).toHaveLength(3);
+  });
+
+  it("renders all three chips when the run has no findings at all", () => {
+    renderWithIntl(<FindingsPanel findings={[]} prId="pr1" />);
+    expect(within(filters()).getAllByRole("button")).toHaveLength(3);
+  });
+
+  it("carries no count on a chip — the numbers live in the counter row", () => {
+    renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
+    expect(chip("Warning")).toHaveTextContent(/^Warning$/);
+  });
+
+  it("filters the list to one severity when its chip is clicked", () => {
+    renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
+    fireEvent.click(chip("Critical"));
     expect(screen.getByText("Hardcoded secret")).toBeInTheDocument();
     expect(screen.queryByText("Unhandled rejection")).not.toBeInTheDocument();
     expect(screen.queryByText("Missing timeout")).not.toBeInTheDocument();
   });
 
-  it("clears the filter when the selected counter is clicked again", () => {
+  it("clears the filter when the active chip is clicked again", () => {
     renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
-    fireEvent.click(counter("Show only Critical findings"));
-    fireEvent.click(counter("Show all severities"));
+    fireEvent.click(chip("Critical"));
+    fireEvent.click(chip("Critical"));
     expect(screen.getByText("Hardcoded secret")).toBeInTheDocument();
     expect(screen.getByText("Unhandled rejection")).toBeInTheDocument();
   });
 
-  it("switches the filter when a different counter is clicked", () => {
+  it("switches the filter when a different chip is clicked", () => {
     renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
-    fireEvent.click(counter("Show only Critical findings"));
-    fireEvent.click(counter("Show only Warning findings"));
+    fireEvent.click(chip("Critical"));
+    fireEvent.click(chip("Warning"));
     expect(screen.queryByText("Hardcoded secret")).not.toBeInTheDocument();
     expect(screen.getByText("Unhandled rejection")).toBeInTheDocument();
   });
 
-  it("marks the selected counter as pressed", () => {
+  it("reports the selected chip as pressed, and only that one", () => {
     renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
-    expect(counter("Show only Critical findings")).toHaveAttribute("aria-pressed", "false");
-    fireEvent.click(counter("Show only Critical findings"));
-    expect(counter("Show all severities")).toHaveAttribute("aria-pressed", "true");
+    expect(chip("Critical")).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(chip("Critical"));
+    expect(chip("Critical")).toHaveAttribute("aria-pressed", "true");
+    expect(chip("Warning")).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(chip("Critical"));
+    expect(chip("Critical")).toHaveAttribute("aria-pressed", "false");
   });
 
-  it("counts only high-confidence findings once hide-low-confidence is on", () => {
-    renderWithIntl(<FindingsPanel findings={LOW_CONF} prId="pr1" />);
-    expect(within(counter("Show only Critical findings")).getByText("2")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("switch"));
-    expect(within(counter("Show only Critical findings")).getByText("1")).toBeInTheDocument();
+  it("never presses a chip for a severity with no findings", () => {
+    renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
+    fireEvent.click(chip("Suggestion"));
+    // Derived, not synced: the chip cannot light up for a frame and roll back.
+    expect(chip("Suggestion")).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByText("Hardcoded secret")).toBeInTheDocument();
+    expect(screen.getByText("Unhandled rejection")).toBeInTheDocument();
   });
 
-  it("clears a filter whose severity stops being available", () => {
+  it("drops a filter whose severity stops being available", () => {
     renderWithIntl(<FindingsPanel findings={LOW_CONF} prId="pr1" />);
-    fireEvent.click(counter("Show only Warning findings"));
+    fireEvent.click(chip("Warning"));
     expect(screen.queryByText("Hardcoded secret")).not.toBeInTheDocument();
 
     // The only WARNING is low-confidence, so hiding those removes the severity.
     fireEvent.click(screen.getByRole("switch"));
-    expect(screen.queryByRole("button", { name: "Show all severities" })).not.toBeInTheDocument();
+    expect(chip("Warning")).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByText("Hardcoded secret")).toBeInTheDocument();
+  });
+
+  it("re-applies the filter when its severity comes back", () => {
+    renderWithIntl(<FindingsPanel findings={LOW_CONF} prId="pr1" />);
+    fireEvent.click(chip("Warning"));
+    fireEvent.click(screen.getByRole("switch")); // hides the only WARNING
+    fireEvent.click(screen.getByRole("switch")); // brings it back
+
+    // The reviewer never cleared the filter — the confidence toggle suspended it,
+    // so restoring the finding restores the filter too.
+    expect(chip("Warning")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("Broad catch")).toBeInTheDocument();
+    expect(screen.queryByText("Hardcoded secret")).not.toBeInTheDocument();
   });
 
   it("resets keyboard focus to the top of the list when the filter changes", () => {
@@ -157,7 +229,7 @@ describe("FindingsPanel severity counters", () => {
 
     // Filtering to WARNING leaves [f2, f3]; without a reset the index would
     // still be 2 and nothing would be focused.
-    fireEvent.click(counter("Show only Warning findings"));
+    fireEvent.click(chip("Warning"));
     expect(focusedFindingId(container)).toBe("f2");
   });
 
@@ -171,8 +243,8 @@ describe("FindingsPanel severity counters", () => {
     const [first, second] = [...container.children] as HTMLElement[];
 
     // Two runs filtered to different severities at the same time.
-    fireEvent.click(within(first!).getByRole("button", { name: "Show only Critical findings" }));
-    fireEvent.click(within(second!).getByRole("button", { name: "Show only Warning findings" }));
+    fireEvent.click(within(first!).getByRole("button", { name: "Critical" }));
+    fireEvent.click(within(second!).getByRole("button", { name: "Warning" }));
     // Re-render both panels (every MIXED finding is high-confidence, so this
     // changes nothing on its own). Shared filter state would surface here as
     // one panel adopting the other's severity.
@@ -184,12 +256,5 @@ describe("FindingsPanel severity counters", () => {
 
     expect(within(second!).getByText("Unhandled rejection")).toBeInTheDocument();
     expect(within(second!).queryByText("Hardcoded secret")).not.toBeInTheDocument();
-  });
-
-  it("keeps the counts unchanged while a filter is active", () => {
-    renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
-    fireEvent.click(counter("Show only Critical findings"));
-    expect(within(counter("Show all severities")).getByText("1")).toBeInTheDocument();
-    expect(within(counter("Show only Warning findings")).getByText("2")).toBeInTheDocument();
   });
 });

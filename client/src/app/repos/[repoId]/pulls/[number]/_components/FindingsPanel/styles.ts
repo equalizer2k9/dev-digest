@@ -2,12 +2,13 @@ import type { CSSProperties } from "react";
 
 /** Co-located styles for FindingsPanel (extracted from inline styles). */
 export const s = {
+  /** Two stacked rows: severity counters above, the filter + toggle row below. */
   toolbar: {
     display: "flex",
-    alignItems: "center",
+    flexDirection: "column",
+    alignItems: "stretch",
     gap: 10,
     marginBottom: 16,
-    flexWrap: "wrap",
   } satisfies CSSProperties,
   divider: {
     width: 1,
@@ -26,24 +27,30 @@ export const s = {
   counterRow: {
     display: "flex",
     alignItems: "center",
-    gap: 6,
+    gap: 10,
     flexWrap: "wrap",
   } satisfies CSSProperties,
-  counterButton: {
-    background: "none",
-    border: "none",
-    padding: 0,
-    cursor: "pointer",
-    borderRadius: 5,
+  /** Read-only counter pill, as `RunFindings` draws it: icon + number, no label.
+   *  `color` and `borderBottom` are applied per severity at the call site. */
+  counterPill: {
     display: "inline-flex",
-    transition: "opacity .12s",
+    alignItems: "center",
+    gap: 4,
+    fontSize: 11.5,
+    fontWeight: 600,
+    paddingBottom: 1,
   } satisfies CSSProperties,
-  /** The selected severity while a filter is on. */
-  counterButtonActive: {
-    outline: "1px solid var(--accent)",
-    outlineOffset: 1,
+  filterRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    flexWrap: "wrap",
   } satisfies CSSProperties,
-  /** The other severities while a filter is on — dimmed but still clickable. */
-  counterButtonMuted: { opacity: 0.45 } satisfies CSSProperties,
+  filterGroup: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  } satisfies CSSProperties,
   list: { display: "flex", flexDirection: "column", gap: 12 } satisfies CSSProperties,
 } as const;

@@ -21,6 +21,9 @@ export function Chip({
   return (
     <button
       onClick={onClick}
+      // A chip that takes `active` is a toggle button: expose the state to
+      // assistive tech. Plain chips stay unlabelled buttons.
+      {...(active !== undefined && { "aria-pressed": active })}
       onMouseEnter={() => setH(true)}
       onMouseLeave={() => setH(false)}
       style={{

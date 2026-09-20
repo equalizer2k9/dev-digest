@@ -9,12 +9,18 @@ artboard labels; the React sources are gzip+base64 blobs inside `<script type="_
 import re, json, base64, gzip
 src = open('docs/DevDigest Design (standalone).html', encoding='utf-8', errors='replace').read()
 man = json.loads(re.search(r'<script type="__bundler/manifest"[^>]*>(.*?)</script>', src, re.S).group(1))
-for uid, blob in man.items():          # keys are UUIDs, values are the blobs
-    data = gzip.decompress(base64.b64decode(blob))   # fonts (wOF2) fail this — skip them
+for uid, entry in man.items():         # keys are UUIDs, values are {mime, compressed, data}
+    raw = base64.b64decode(entry['data'])
+    data = gzip.decompress(raw) if entry['compressed'] else raw   # fonts: compressed=False
 ```
 
-44 blobs, 29 of them `.jsx`. Identify a file by its first line, which is always
-`/* <name>.jsx — <what it is> */`.
+An entry is an object, not a bare blob — reading `man[uid]` as a string fails with
+`TypeError: argument should be a bytes-like object or ASCII string, not 'dict'` on every one of
+the 44 entries, which reads like a broken bundle rather than a wrong key.
+
+44 entries: 26 `application/javascript` blobs, each opening with `/* <name>.jsx — <what it is> */`
+— that header is how you identify a file. The other 18 carry no header: 2 `text/jsx`,
+3 `text/javascript` and 13 `font/woff2`.
 
 | File | Covers |
 |---|---|
@@ -62,4 +68,6 @@ verdict block (`CircularScore` + `PR SCORE`) and then `FindingCard`s directly �
   severity; clicking it again clears the filter. The course criteria specify this behaviour.
 - **Counter pills and filter chips are separate rows** inside the expanded review-run card, which
   the design has as one combined row in a panel that the run card never uses.
+- **Filter chips carry no count.** The design puts `counts[sv] || 0` on each chip; we keep the
+  numbers in the counter row above, so a chip is a label alone and the two rows never disagree.
 - **Run Trace drawer cost formatting** — see `server/specs/run-cost-badge.md`.
