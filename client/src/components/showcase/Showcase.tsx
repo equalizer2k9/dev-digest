@@ -14,6 +14,7 @@ import {
   Avatar,
   ConfidenceNum,
   RunCostBadge,
+  RelativeTime,
   formatTokenFlow,
   MonoLink,
   ProgressBar,
@@ -124,6 +125,13 @@ export function Gallery() {
         <RunCostBadge usd={null} />
         <RunCostBadge usd={1.25} size="lg" />
         <RunCostBadge usd={0.0013} muted />
+      </Group>
+
+      <Group title="Relative time (fresh · hours · days · unknown)">
+        <RelativeTime iso={new Date(Date.now() - 20_000).toISOString()} />
+        <RelativeTime iso={new Date(Date.now() - 3 * 3_600_000).toISOString()} />
+        <RelativeTime iso={new Date(Date.now() - 2 * 86_400_000).toISOString()} muted />
+        <RelativeTime iso={null} />
       </Group>
 
       <Group title="Progress & Score">
