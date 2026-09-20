@@ -35,7 +35,9 @@ TS 5.7 (ESM) · Zod 3 · `openai` 4 SDK (OpenRouter-compatible) · Vitest 2 · *
 ## Gotchas
 
 - Server needs `reviewer-core/node_modules` (`npm ci`) or the API crashes with `ERR_MODULE_NOT_FOUND`
-- Prompt slots `skills` / `memory` / `specs` / `callers` are empty in the starter; empty slot = section omitted
+- Prompt slots `memory` / `specs` / `callers` are empty in the starter; empty slot = section omitted
+- `skills` is `SkillPart[]`, NOT strings: one `### <name> (v<version>)` sub-block each, array order =
+  prompt order, untrusted bodies `wrapUntrusted`-ed. Tokens via the injected `countTokens`
 - `verdict` comes from the model (worst across chunks) and is NOT re-derived after grounding —
   it can say `request_changes` while every finding was dropped
 

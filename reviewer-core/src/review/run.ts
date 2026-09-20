@@ -7,7 +7,7 @@ import type {
   UnifiedDiff,
 } from '@devdigest/shared';
 import { Review as ReviewSchema } from '@devdigest/shared';
-import { assemblePrompt } from '../prompt.js';
+import { assemblePrompt, type SkillPart } from '../prompt.js';
 import { groundFindings, groundingSummary } from '../grounding.js';
 import { reduceReviews, scoreFromFindings, sliceDiff } from './reduce.js';
 
@@ -22,8 +22,8 @@ import { reduceReviews, scoreFromFindings, sliceDiff } from './reduce.js';
  * (no DB, GitHub, fs, memory retrieval, intent, or persistence) — those stay in
  * the caller (server persists + streams SSE; runner posts + writes an artifact).
  *
- * Skill bodies / memory / specs are RESOLVED strings here: the caller turns
- * AgentManifest skill slugs into bodies (DB in the studio, fs in the runner).
+ * Skills / memory / specs are RESOLVED here: the caller turns AgentManifest
+ * skill slugs into SkillParts (DB in the studio, fs in the runner).
  */
 
 /** Default map-reduce threshold (matches the server's FILE_MAP_THRESHOLD_LINES). */
@@ -52,8 +52,17 @@ export interface ReviewInput {
   llm: LLMProvider;
   /** 'auto' (default) picks single-pass unless the diff is large + multi-file. */
   strategy?: ReviewStrategy;
-  /** Resolved skill bodies (NOT slugs). */
-  skills?: string[];
+  /**
+   * Resolved skills (NOT slugs) in prompt order — the server reads them out of
+   * `agent_skills` ordered by `order` and the engine renders that order
+   * verbatim. Forwarded to `assemblePrompt` unchanged.
+   */
+  skills?: SkillPart[];
+  /**
+   * Token counter used for per-skill / whole-block attribution in the trace.
+   * Forwarded to `assemblePrompt` unchanged; defaults to `approxTokens` there.
+   */
+  countTokens?: (text: string) => number;
   /** Curated memory items. */
   memory?: string[];
   /** Project-context spec chunks (untrusted; delimiter-wrapped downstream). */
@@ -130,6 +139,7 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
   const promptParts = {
     system: input.systemPrompt,
     skills: input.skills,
+    countTokens: input.countTokens,
     memory: input.memory,
     specs: input.specs,
     callers: input.callers,

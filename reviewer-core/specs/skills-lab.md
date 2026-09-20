@@ -82,8 +82,9 @@ Each skill becomes its own sub-block, in array order:
 - An empty or whitespace-only `body` is skipped: no heading, no block, no `skill_blocks` entry.
 - `INJECTION_GUARD` already covers `<untrusted>` blocks, so a wrapped skill body inherits the
   existing defense unchanged. No new guard text, and no keyword-scanning of skill bodies.
-- Under `map-reduce`, every chunk gets the identical skills section, and the persisted assembly
-  is the last chunk's, as today.
+- Under `map-reduce`, every chunk gets the identical skills section. The persisted assembly stays
+  the whole-diff one (`run.ts` overwrites `assembly` only on the single-pass path) — unchanged by
+  this spec, and byte-identical in its skills section either way.
 
 ### 3. Measurement
 

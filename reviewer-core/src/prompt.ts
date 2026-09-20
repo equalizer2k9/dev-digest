@@ -1,4 +1,4 @@
-import type { ChatMessage, PromptAssembly } from '@devdigest/shared';
+import type { ChatMessage, PromptAssembly, SkillBlock } from '@devdigest/shared';
 
 /**
  * Prompt assembly + prompt-injection hardening.
@@ -36,11 +36,75 @@ export function wrapUntrusted(label: string, content: string): string {
 /** Cap the PR description so a huge author body can't blow the token budget. */
 const MAX_PR_DESCRIPTION_CHARS = 4000;
 
+/**
+ * One linked skill, rendered as its own sub-block of `## Skills / rules`.
+ *
+ * The engine renders exactly what it is handed, in array order — choosing,
+ * ranking and filtering skills belongs to the caller (the server reads them
+ * out of `agent_skills` ordered by `order`, so UI drag-and-drop order IS
+ * prompt order).
+ */
+export interface SkillPart {
+  id: string;
+  name: string;
+  version: number;
+  body: string;
+  /** false → the body is third-party text and gets wrapUntrusted-ed. */
+  trusted: boolean;
+}
+
+/**
+ * Dependency-free token estimate (~4 chars per token) — the default
+ * `countTokens`. Keeps the engine pure and every test deterministic; a real
+ * BPE tokenizer (js-tiktoken) stays a server adapter and is INJECTED.
+ */
+export function approxTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
+/**
+ * A token number must never fail a review: an injected counter that throws
+ * (or returns a non-finite number) falls back to `approxTokens` for that call.
+ */
+function countSafely(count: (text: string) => number, text: string): number {
+  try {
+    const n = count(text);
+    return Number.isFinite(n) ? n : approxTokens(text);
+  } catch {
+    return approxTokens(text);
+  }
+}
+
+/**
+ * One skill's sub-block, in the exact form that reaches the model: the
+ * `### <name> (v<version>)` heading plus the body — verbatim when trusted,
+ * delimiter-wrapped when not (INJECTION_GUARD already covers <untrusted>, so
+ * a wrapped skill inherits the existing defense; no new guard text and no
+ * keyword-scanning of skill bodies).
+ */
+function renderSkill(skill: SkillPart): string {
+  const body = skill.trusted ? skill.body : wrapUntrusted(`skill:${skill.name}`, skill.body);
+  return `### ${skill.name} (v${skill.version})\n${body}`;
+}
+
 export interface PromptParts {
   /** Agent's system prompt (trusted). */
   system: string;
-  /** Linked skill bodies (trusted-ish; community skills should be sanitized upstream). */
-  skills?: string[];
+  /**
+   * Linked skills, one sub-block per skill IN ARRAY ORDER. An untrusted body
+   * is wrapUntrusted-ed; an empty / whitespace-only body is skipped entirely
+   * (no heading, no block, no `skill_blocks` entry). Empty or undefined → the
+   * section is omitted and `skills`, `skill_blocks`, `skills_tokens` are all
+   * null (the prompt is then byte-identical to a run with no skills).
+   */
+  skills?: SkillPart[];
+  /**
+   * Token counter for skill attribution. Called once per rendered skill plus
+   * once for the whole block — n + 1 calls. Defaults to `approxTokens`; the
+   * server injects `container.tokenizer.count` (js-tiktoken). A counter that
+   * throws is caught and falls back to `approxTokens` for that call.
+   */
+  countTokens?: (text: string) => number;
   /** Relevant memory items (trusted, curated). */
   memory?: string[];
   /** Project-context spec chunks (untrusted content). */
@@ -85,8 +149,31 @@ export interface AssembledPrompt {
 export function assemblePrompt(parts: PromptParts): AssembledPrompt {
   const system = `${parts.system}\n\n${INJECTION_GUARD}`;
 
+  const countTokens = parts.countTokens ?? approxTokens;
+  // Array order IS prompt order; a blank body renders nothing at all.
+  const renderedSkills = (parts.skills ?? [])
+    .filter((s) => s.body.trim().length > 0)
+    .map((skill) => ({ skill, text: renderSkill(skill) }));
+
   const skillsBlock =
-    parts.skills && parts.skills.length > 0 ? parts.skills.join('\n\n') : undefined;
+    renderedSkills.length > 0 ? renderedSkills.map((r) => r.text).join('\n\n') : undefined;
+  // n per-skill calls (each skill's OWN rendered contribution, never the
+  // surrounding prompt) …
+  const skillBlocks: SkillBlock[] | undefined =
+    skillsBlock === undefined
+      ? undefined
+      : renderedSkills.map((r) => ({
+          skill_id: r.skill.id,
+          name: r.skill.name,
+          version: r.skill.version,
+          tokens: countSafely(countTokens, r.text),
+        }));
+  // … + 1 call for the joined section body (heading excluded). The block total
+  // is authoritative: BPE merges across a join boundary, so it can differ from
+  // the sum of the per-skill numbers by a token or two.
+  const skillsTokens =
+    skillsBlock === undefined ? undefined : countSafely(countTokens, skillsBlock);
+
   const memoryBlock =
     parts.memory && parts.memory.length > 0
       ? parts.memory.map((m) => `- ${m}`).join('\n')
@@ -129,6 +216,8 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
   const assembly: PromptAssembly = {
     system,
     skills: skillsBlock ?? null,
+    skill_blocks: skillBlocks ?? null,
+    skills_tokens: skillsTokens ?? null,
     memory: memoryBlock ?? null,
     specs: specsBlock ?? null,
     callers: parts.callers ?? null,
