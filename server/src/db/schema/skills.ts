@@ -10,8 +10,10 @@ export const skills = pgTable('skills', {
   name: text('name').notNull(),
   description: text('description').notNull(),
   type: text('type', { enum: ['rubric', 'convention', 'security', 'custom'] }).notNull(),
+  // Plain `text` in Postgres with no check constraint — the enum is a TS-level
+  // narrowing only, so widening it generates NO migration.
   source: text('source', {
-    enum: ['manual', 'imported_url', 'extracted', 'community'],
+    enum: ['manual', 'imported_file', 'imported_url', 'extracted', 'community'],
   }).notNull(),
   body: text('body').notNull(),
   enabled: boolean('enabled').notNull().default(true),

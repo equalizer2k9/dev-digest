@@ -115,7 +115,17 @@ export type MemoryItem = z.infer<typeof MemoryItem>;
 export const SkillType = z.enum(['rubric', 'convention', 'security', 'custom']);
 export type SkillType = z.infer<typeof SkillType>;
 
-export const SkillSource = z.enum(['manual', 'imported_url', 'extracted', 'community']);
+// 'imported_file' — uploaded as a .md file or a .zip archive through the Skills
+// page. Like 'imported_url' and 'community' it is third-party text: the body is
+// stored verbatim and delimiter-wrapped at prompt-assembly time, never trusted
+// as instructions. 'manual' and 'extracted' are authored in-workspace.
+export const SkillSource = z.enum([
+  'manual',
+  'imported_file',
+  'imported_url',
+  'extracted',
+  'community',
+]);
 export type SkillSource = z.infer<typeof SkillSource>;
 
 export const Skill = z.object({
@@ -130,6 +140,38 @@ export const Skill = z.object({
   evidence_files: z.array(z.string()).nullish(),
 });
 export type Skill = z.infer<typeof Skill>;
+
+/** A skill as the Skills grid reads it: the row plus how many agents link it. */
+export const SkillWithUsage = Skill.extend({ agent_count: z.number().int() });
+export type SkillWithUsage = z.infer<typeof SkillWithUsage>;
+
+/**
+ * One immutable body snapshot from `skill_versions`. Written on create and on
+ * every body change; never mutated or dropped, so a restore is itself undoable
+ * and a past run still resolves the exact text it was scored on.
+ */
+export const SkillVersion = z.object({
+  skill_id: z.string(),
+  version: z.number().int(),
+  body: z.string(),
+  created_at: z.string(),
+});
+export type SkillVersion = z.infer<typeof SkillVersion>;
+
+/**
+ * The parsed core of an uploaded .md / .zip, returned by
+ * `POST /skills/import/preview`. Persists NOTHING — the user corrects these
+ * fields and they are posted back alongside the file to `POST /skills/import`.
+ */
+export const SkillImportPreview = z.object({
+  name: z.string(),
+  description: z.string(),
+  type: SkillType,
+  body: z.string(),
+  source: z.literal('imported_file'),
+  warnings: z.array(z.string()),
+});
+export type SkillImportPreview = z.infer<typeof SkillImportPreview>;
 
 export const CommunitySkill = z.object({
   name: z.string(),

@@ -150,29 +150,16 @@ falling back to `ceil(chars/4)`), so the token number never throws and never blo
 as today), plus `skill_blocks[]` and `skills_tokens`. `emptyPromptAssembly` gains
 `skill_blocks: null, skills_tokens: null`.
 
-### 6. Seed
-
-`pnpm db:seed` stays idempotent and gains, in the demo workspace:
-
-- **`test-quality-rubric`** (type `rubric`, source **`imported_file`**) — demands that every new
-  branch and boundary case introduced by a diff be covered, and that a happy-path-only test be
-  reported as an uncovered-branch finding.
-- **`api-contract-breaking-change`** (type `convention`, source `manual`) — demands that a
-  changed route signature, removed field or narrowed type be reported as a breaking change.
-- Agents **Test Quality Reviewer** and **API Contract Reviewer**, each linked to its skill at
-  `order = 0`.
-
-That makes at least one skill on a new agent genuinely imported rather than hand-written
-(criterion 16), and gives the control experiments their fixtures.
-
-### 7. Control experiments (criteria 17, 18)
+### 6. Control experiments (criteria 17, 18)
 
 Manual, run against a live stack; not automated (an LLM call in CI is out of scope). The
 procedure is part of this spec so it is repeatable:
 
 1. `./scripts/dev.sh` from zero, then import a repo and open a PR whose diff adds a function
    plus a test that covers only the happy path (for 18: a PR that changes a route's request or
-   response signature).
+   response signature). Both the agent (*Test Quality Reviewer* / *API Contract Reviewer*) and
+   its skill are authored in the studio — created on `/agents`, imported or written on
+   `/skills`; nothing here is seeded.
 2. On the PR page, **Run Review** with *Test Quality Reviewer* (*API Contract Reviewer*) while
    its Skills tab has **no** skill enabled. Expected: no uncovered-branch finding (no
    breaking-change finding). Record the run id.
@@ -243,8 +230,10 @@ all of 6–37.
       created through `POST /skills` is findable by a direct `SELECT` on `skills`, and a row
       deleted directly in the DB stops appearing in `GET /skills`.
 - [ ] **AC-12** `POST /skills` accepts exactly name, description, type (`rubric | convention |
-      security | custom`) and markdown body; a missing name or body is a 400 from the route
-      schema, not a 500.
+      security | custom`) and markdown body; a missing name or body is rejected by the route
+      schema, never a 500. The status is **422** `validation_error`, not 400: the repo-wide
+      error handler ([`src/app.ts`](../src/app.ts)) maps every zod schema failure to 422 and
+      this module follows that convention rather than diverging from it.
 - [ ] **AC-13** `POST /agents/:id/skills {skill_ids}` persists `agent_skills.order` = array
       index, and `GET /agents/:id/skills` returns the links in that order after a restart.
 - [ ] **AC-14** The run executor passes the agent's enabled linked skills to
@@ -254,12 +243,13 @@ all of 6–37.
       `.zip` and persists nothing; `POST /skills/import` persists it with
       `source = 'imported_file'`. Oversized, bomb, slip, ambiguous-zip and unsupported-format
       uploads each fail with their own status and message.
-- [ ] **AC-16** After `pnpm db:seed`, at least one skill linked to a seeded agent has
-      `source = 'imported_file'`.
+- [ ] **AC-16** A skill imported through the UI has `source = 'imported_file'`: the row
+      `POST /skills/import` writes carries that source, `GET /skills` returns it, and it is the
+      source the client labels *Imported*.
 - [ ] **AC-17** With *Test Quality Reviewer* and no skill enabled, a happy-path-only test PR
       produces no uncovered-branch finding; with `test-quality-rubric` enabled, the same PR
       produces one naming the uncovered branch and a boundary case. Procedure and evidence per
-      §7.
+      §6.
 - [ ] **AC-18** Same shape for *API Contract Reviewer* on a route-signature PR: skipped without
       the skill, breaking change reported with it.
 - [ ] **AC-19** The persisted trace carries `skills_tokens` and one `skill_blocks` entry per
