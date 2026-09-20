@@ -17,6 +17,10 @@ or delete; cleanup only via `/engineering-insights review root`.
 ## Codebase Patterns
 <!-- Undocumented conventions and architectural decisions, with the reason -->
 
+- **2026-09-20** · Before building a course feature, run `git log -S "<symbol>" -- <path>` — main ships deliberately unsolved, but the solutions are still in history.
+  - Why: `c6af1e4` reset main's tree to starter commit `66727c8` while leaving the three student merges in the log, so reverted implementations remain reachable.
+  - Evidence: `7641b48` (severity counters), `97b6edc` (PR-list FINDINGS column), `0953fdc` (timeline severity chips) · full state on branch `integration/all-features` (`376ac49`)
+
 ## Tool & Library Notes
 <!-- Dependency and tooling quirks, with the version -->
 
@@ -30,6 +34,10 @@ or delete; cleanup only via `/engineering-insights review root`.
 - Done: `server/specs/run-cost-badge.md` written against the decoded design bundle; a first pass that specced from the lab slide alone was wrong in 5 places (badge base element, PR-list column position, plaque placement, timeline markup, a missed 4th surface).
 - Added: What Works.
 - Open: spec is `draft`, not yet approved or implemented.
+
+### 2026-09-20 — severity counters on the findings panel
+- Done: implemented fresh in `client/` after surfacing that a reverted reference commit existed; user chose not to restore it.
+- Added: Codebase Patterns.
 
 ## Open Questions
 <!-- Unverified hypotheses and unanswered questions; close with a "Resolved" sub-bullet -->

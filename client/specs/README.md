@@ -9,3 +9,4 @@ Status: `draft` → `approved` → `implemented`.
 | Spec | Status | Summary |
 |---|---|---|
 | run-cost-badge → [`server/specs/run-cost-badge.md`](../../server/specs/run-cost-badge.md) | implemented | Client half: `RunCostBadge` primitive ported from the design's `CostBadge`; `COST` column after `STATUS` in the PR list, `N tok · $0.0013` in the runs timeline, badge in the review-runs accordion, cost under the score ring on the verdict plaque, `COST` stat in the Run Trace sidebar. |
+| [`findings-severity-counters.md`](findings-severity-counters.md) | implemented | Per-severity counter row in each review run's `FindingsPanel` toolbar; clicking a severity filters that run's findings to it, clicking again clears. Client-side derivation, no API change. |

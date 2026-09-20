@@ -23,5 +23,27 @@ export const s = {
     fontSize: 13,
     color: "var(--text-secondary)",
   } satisfies CSSProperties,
+  counterRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    flexWrap: "wrap",
+  } satisfies CSSProperties,
+  counterButton: {
+    background: "none",
+    border: "none",
+    padding: 0,
+    cursor: "pointer",
+    borderRadius: 5,
+    display: "inline-flex",
+    transition: "opacity .12s",
+  } satisfies CSSProperties,
+  /** The selected severity while a filter is on. */
+  counterButtonActive: {
+    outline: "1px solid var(--accent)",
+    outlineOffset: 1,
+  } satisfies CSSProperties,
+  /** The other severities while a filter is on — dimmed but still clickable. */
+  counterButtonMuted: { opacity: 0.45 } satisfies CSSProperties,
   list: { display: "flex", flexDirection: "column", gap: 12 } satisfies CSSProperties,
 } as const;
