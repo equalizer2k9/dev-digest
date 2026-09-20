@@ -1,6 +1,6 @@
 import type { Container } from '../../platform/container.js';
 import type { Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
-import { reviewPullRequest, countBlockers } from '@devdigest/reviewer-core';
+import { reviewPullRequest, countBlockers, type SkillPart } from '@devdigest/reviewer-core';
 import { RunLogger } from '../../platform/run-logger.js';
 import * as schema from '../../db/schema.js';
 import type { AgentRow } from '../../db/rows.js';
@@ -184,6 +184,13 @@ export class ReviewRunExecutor {
 
       const task = taskLine(pull) + rankNote;
 
+      // Skills Lab — the agent's ordered, enabled skills become a measured block
+      // of the prompt. Order is `agent_skills.order`, i.e. the drag-and-drop
+      // order from the agent's Skills tab, so reordering there reorders the
+      // prompt. An empty list is passed as `undefined` so the assembled prompt
+      // stays byte-identical to a run with no skills at all.
+      const skills = await this.resolveSkills(agent.id, runLog);
+
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
       // the CI runner). The service owns only I/O: repo-intel context resolution
@@ -204,6 +211,12 @@ export class ReviewRunExecutor {
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
+        // Skills Lab — omitted entirely when the agent has no enabled skill.
+        ...(skills.length > 0 ? { skills } : {}),
+        // Token attribution for the skills block. The engine stays dependency-
+        // free; the real tokenizer (js-tiktoken cl100k_base) is injected here
+        // and degrades to ceil(chars/4) on its own if the BPE ranks fail.
+        countTokens: (text: string) => this.container.tokenizer.count(text),
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
@@ -212,6 +225,12 @@ export class ReviewRunExecutor {
         },
       });
       const { tokensIn, tokensOut, costUsd, grounding } = outcome;
+
+      // One line per ASSEMBLED skill, read back off the assembly so the Live Log
+      // shows exactly the set — and the token numbers — the persisted trace does.
+      for (const b of outcome.assembly.skill_blocks ?? []) {
+        runLog.info(`skill: ${b.name} v${b.version} — ${b.tokens} token(s)`);
+      }
 
       const keptFindings = outcome.review.findings;
 
@@ -315,6 +334,38 @@ export class ReviewRunExecutor {
       this.container.runBus.complete(runId);
       throw err;
     }
+  }
+
+  /**
+   * Resolve an agent's linked skills into ordered `SkillPart`s for the prompt.
+   *
+   * `linkedSkills` returns them in `agent_skills.order` ascending — the order
+   * the Skills tab's drag-and-drop wrote — and that order is preserved end to
+   * end, so it IS the prompt order. A skill that is globally disabled
+   * contributes nothing even while it is still linked.
+   *
+   * `trusted` is projected from the skill's source: `manual` and `extracted`
+   * are authored in-workspace; `imported_file`, `imported_url` and `community`
+   * are third-party text and get delimiter-wrapped by reviewer-core.
+   */
+  private async resolveSkills(agentId: string, runLog: RunLogger): Promise<SkillPart[]> {
+    let linked;
+    try {
+      linked = await this.agents.linkedSkills(agentId);
+    } catch (err) {
+      // Never let skill resolution break a run — degrade to no skills.
+      runLog.info(`skills: lookup failed — ${(err as Error).message}`);
+      return [];
+    }
+    return linked
+      .filter((l) => l.skill.enabled)
+      .map((l) => ({
+        id: l.skill.id,
+        name: l.skill.name,
+        version: l.skill.version,
+        body: l.skill.body,
+        trusted: l.skill.source === 'manual' || l.skill.source === 'extracted',
+      }));
   }
 
   /**
@@ -426,7 +477,15 @@ export class ReviewRunExecutor {
         source: 'local',
       },
       stats: { duration_ms: durationMs, tokens_in: 0, tokens_out: 0, cost_usd: null, findings: 0, grounding },
-      prompt_assembly: { system: agent.systemPrompt, skills: null, memory: null, specs: null, user: '' },
+      prompt_assembly: {
+        system: agent.systemPrompt,
+        skills: null,
+        memory: null,
+        specs: null,
+        skill_blocks: null,
+        skills_tokens: null,
+        user: '',
+      },
       tool_calls: [],
       raw_output: '',
       memory_pulled: [],

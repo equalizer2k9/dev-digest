@@ -20,6 +20,9 @@ export class ApiError extends Error {
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;
+  // A multipart upload carries its own boundary-bearing content-type, which only
+  // the runtime can produce — declaring one by hand breaks the server parser.
+  const isMultipart = typeof FormData !== "undefined" && init?.body instanceof FormData;
   try {
     res = await fetch(`${API_BASE}${path}`, {
       ...init,
@@ -27,7 +30,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
         // Only declare a JSON body when one is actually sent — otherwise a
         // body-less POST/PUT (e.g. tour generate, refresh, reindex) trips
         // Fastify's "Body cannot be empty when content-type is application/json".
-        ...(init?.body != null ? { "content-type": "application/json" } : {}),
+        ...(init?.body != null && !isMultipart ? { "content-type": "application/json" } : {}),
         ...(init?.headers ?? {}),
       },
     });
@@ -66,6 +69,14 @@ export const api = {
   get: <T>(path: string) => apiFetch<T>(path),
   post: <T>(path: string, body?: unknown) =>
     apiFetch<T>(path, { method: "POST", body: body ? JSON.stringify(body) : undefined }),
+  /**
+   * Multipart upload (skill import). A `FormData` body must NOT carry a
+   * hand-written `content-type`: only the runtime can append the `boundary=`
+   * parameter, and a manual header silently breaks the server's multipart
+   * parser. `apiFetch` detects `FormData` and sets no content-type at all.
+   */
+  postForm: <T>(path: string, form: FormData) =>
+    apiFetch<T>(path, { method: "POST", body: form }),
   put: <T>(path: string, body?: unknown) =>
     apiFetch<T>(path, { method: "PUT", body: body ? JSON.stringify(body) : undefined }),
   patch: <T>(path: string, body?: unknown) =>

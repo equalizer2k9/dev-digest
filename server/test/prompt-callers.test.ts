@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { assemblePrompt } from '@devdigest/reviewer-core';
+import { assemblePrompt, type SkillPart } from '@devdigest/reviewer-core';
 
 /**
  * T1.4 — Callers-in-prompt assembly (pure, no LLM).
@@ -13,9 +13,13 @@ import { assemblePrompt } from '@devdigest/reviewer-core';
  * No I/O. The function is pure; we assert text exactly.
  */
 
+const SKILLS: SkillPart[] = [
+  { id: 's1', name: 'skill', version: 1, body: 'Detect X', trusted: true },
+];
+
 const COMMON = {
   system: 'You are a reviewer.',
-  skills: ['## skill\nDetect X'],
+  skills: SKILLS,
   memory: ['Do not flag try/catch around JSON.parse'],
   specs: ['# Security baseline\nNo secrets in code.'],
   diff: '@@ -1 +1 @@\n+stripeKey',

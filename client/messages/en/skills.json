@@ -3,23 +3,36 @@
     "crumbLab": "Skills Lab",
     "crumbSkills": "Skills",
     "heading": "Skills",
+    "subtitle": "Reusable review instructions. Attach them to an agent to add them to its prompt.",
     "addSkill": "Add Skill",
     "searchPlaceholder": "Search skills…",
     "loadError": "Could not load skills.",
     "menu": {
+      "fromScratch": "Create from scratch",
       "fromFile": "Import from file",
       "fromUrl": "Import from URL",
       "community": "Search community skills…"
     },
     "empty": {
       "title": "No skills yet",
-      "body": "Import a skill from a file, a URL, or the community catalog.",
-      "cta": "Import from file"
+      "body": "Write a skill from scratch, or import one from a Markdown file or a zip archive.",
+      "cta": "Create from scratch"
+    },
+    "noMatch": {
+      "title": "No matching skills",
+      "body": "No skill matches that search."
     },
     "selectPrompt": {
       "title": "Select a skill",
       "body": "Pick a skill on the left to preview its body."
     }
+  },
+  "card": {
+    "agents": "{count, plural, =0 {0 agents} one {# agent} other {# agents}}",
+    "version": "v{version}",
+    "delete": "Delete skill",
+    "open": "Open skill",
+    "noDescription": "No description"
   },
   "detail": {
     "crumbSkill": "Skill",
@@ -30,6 +43,98 @@
       "body": "It may have been deleted."
     }
   },
+  "tabs": {
+    "config": "Config",
+    "preview": "Preview",
+    "versioning": "Versioning"
+  },
+  "config": {
+    "title": "Configuration",
+    "name": "Name",
+    "description": "Description",
+    "type": "Type",
+    "body": "Skill body (Markdown)",
+    "bodyHint": "Saving a changed body snapshots the current text as v{next}. A metadata-only save does not create a version.",
+    "enabled": "Enabled",
+    "save": "Save skill",
+    "saving": "Saving…",
+    "savedToast": "Skill saved (v{version}).",
+    "dangerTitle": "Danger zone",
+    "dangerBody": "Deleting a skill removes it from every agent that links it.",
+    "delete": "Delete skill"
+  },
+  "preview": {
+    "untrustedBadge": "untrusted source",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "save": "Save",
+    "edit": "Edit",
+    "untrustedNotice": "This skill came from an untrusted source. Its body is stored as data (delimiter-wrapped) and must be vetted before it is enabled for an agent.",
+    "bodyLabel": "Skill body (Markdown)",
+    "bodyHint": "Saving a changed body creates a new immutable version.",
+    "version": "v{version}",
+    "empty": "This skill has no body yet."
+  },
+  "versions": {
+    "title": "Version history",
+    "subtitle": "Every body change is snapshotted. Restoring applies an old body as a new version — history is never rewritten.",
+    "current": "Current",
+    "version": "v{version}",
+    "diff": "Diff",
+    "restore": "Restore",
+    "restoring": "Restoring…",
+    "loadError": "Could not load the version history.",
+    "empty": "No versions recorded yet.",
+    "diffTitle": "v{version} vs current (v{current})",
+    "diffLoading": "Loading that version…",
+    "diffIdentical": "This version is byte-identical to the current body.",
+    "diffLegend": "Green lines are in the current body only; red lines are in v{version} only.",
+    "close": "Close",
+    "restoredToast": "Restored v{version} as v{newVersion}."
+  },
+  "confirm": {
+    "deleteTitle": "Delete skill",
+    "deleteBody": "Delete “{name}”? This cannot be undone, and every agent that links it loses it.",
+    "deleteConfirm": "Delete",
+    "cancel": "Cancel",
+    "restoreTitle": "Restore version",
+    "restoreBody": "Restore v{version}? Its text becomes the new current version; the existing versions are kept.",
+    "restoreConfirm": "Restore this version"
+  },
+  "create": {
+    "title": "Create skill",
+    "subtitle": "A skill is a block of Markdown appended to the agent's prompt.",
+    "name": "Name",
+    "namePlaceholder": "test-quality-rubric",
+    "description": "Description",
+    "descriptionPlaceholder": "What this skill makes the reviewer look for",
+    "type": "Type",
+    "body": "Skill body (Markdown)",
+    "bodyPlaceholder": "# Rule\nDescribe the rule…",
+    "cancel": "Cancel",
+    "create": "Create skill",
+    "creating": "Creating…",
+    "required": "Name and body are both required."
+  },
+  "import": {
+    "title": "Import skill from file",
+    "subtitle": "A Markdown file, or a zip archive containing one.",
+    "fileLabel": "File",
+    "fileHint": "Accepts .md or .zip, up to 1 MiB. Nothing is saved until you press Save.",
+    "choose": "Choose a .md or .zip file to see its parsed core.",
+    "parsing": "Parsing…",
+    "previewTitle": "Parsed skill",
+    "name": "Name",
+    "description": "Description",
+    "type": "Type",
+    "bodyLabel": "Body (rendered)",
+    "bodyHint": "The body is stored verbatim as untrusted data and cannot be edited here.",
+    "warnings": "Parser warnings",
+    "cancel": "Cancel",
+    "save": "Save",
+    "saving": "Saving…",
+    "failed": "Import failed."
+  },
   "drawer": {
     "title": "Add a skill",
     "subtitle": "Import from a file, a URL, or search vetted community skills",
@@ -38,7 +143,9 @@
       "url": "From URL",
       "community": "Community"
     },
-    "importFailed": "Import failed"
+    "importFailed": "Import failed",
+    "open": "Open →",
+    "close": "Close"
   },
   "file": {
     "nameLabel": "Skill name",
@@ -84,18 +191,8 @@
       "manual": "Manual",
       "extracted": "Extracted",
       "community": "Community",
+      "imported_file": "Imported",
       "imported_url": "Imported"
     }
-  },
-  "preview": {
-    "untrustedBadge": "untrusted source",
-    "enabled": "Enabled",
-    "disabled": "Disabled",
-    "save": "Save",
-    "edit": "Edit",
-    "untrustedNotice": "This skill came from an untrusted source. Its body is stored as data (delimiter-wrapped) and must be vetted before it is enabled for an agent.",
-    "bodyLabel": "Skill body (Markdown)",
-    "bodyHint": "Saving a changed body creates a new immutable version.",
-    "version": "v{version}"
   }
 }

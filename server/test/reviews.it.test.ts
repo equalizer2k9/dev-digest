@@ -163,7 +163,7 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
 
   it('runs a review: map-reduce + grounding drops the hallucinated finding, keeps the valid one', async () => {
     const app = await appWith(REVIEW_FIXTURE);
-    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
 
     const agent = (
       await app.inject({
@@ -212,6 +212,11 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(run!.status).toBe('done');
     expect(run!.findingsCount).toBe(1);
     expect(run!.grounding).toBe('1/2 passed');
+
+    // the PR list surfaces the same findings, tallied by severity
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const listed = pulls.find((p: { id: string }) => p.id === pr.id);
+    expect(listed.findings_counts).toEqual({ CRITICAL: 1, WARNING: 0, SUGGESTION: 0 });
     // the LLM's reported cost survives all the way to the column (mock: 0.001/call)
     expect(run!.costUsd).toBeGreaterThan(0);
 
@@ -253,6 +258,35 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
     const listed = pulls.find((p: { id: string }) => p.id === pr.id);
     expect(listed.cost_usd).toBe(cost);
+
+    await app.close();
+  });
+
+  it('the PR list totals every successful priced run, not just the latest', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'Total', provider: 'openai', model: 'gpt-4.1', system_prompt: 'total' },
+      })
+    ).json();
+
+    // Two reviews of the same PR → two priced runs.
+    await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } });
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+    await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } });
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 2 });
+
+    const runs = await pg.handle.db.select().from(t.agentRuns).where(eq(t.agentRuns.prId, pr.id));
+    expect(runs).toHaveLength(2);
+    const total = runs.reduce((sum, r) => sum + (r.costUsd ?? 0), 0);
+    expect(total).toBeGreaterThan(runs[0]!.costUsd!);
+
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const listed = pulls.find((p: { id: string }) => p.id === pr.id);
+    expect(listed.cost_usd).toBeCloseTo(total, 10);
 
     await app.close();
   });
