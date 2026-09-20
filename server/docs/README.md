@@ -6,4 +6,4 @@ architecture deep dives, decision records, walkthroughs. Linked from CLAUDE.md, 
 
 | Doc | About |
 |---|---|
-| _none yet_ | |
+| [architecture](architecture.md) | Boot sequence, the DI container + adapter ports (real vs mock), the route → service → repository → Drizzle path, transaction boundaries (there are none), config + secrets, background work. |

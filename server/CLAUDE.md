@@ -46,6 +46,8 @@ Vitest 2 · testcontainers · TS 5.7 (ESM) · pnpm
 
 - API map, request/DI flow, env vars, review context → [README.md](README.md)
 - repo-intel pipeline + `repoIntel.*` facade → [src/modules/repo-intel/README.md](src/modules/repo-intel/README.md)
-- Deep dives → [docs/](docs/README.md) · implementing a feature → its spec in [specs/](specs/README.md) first
+- DI container, adapters, routes→service→repository, transaction boundaries → [docs/architecture.md](docs/architecture.md)
+- Review cycle: run statuses, SSE, what gets persisted → [specs/review-flow.md](specs/review-flow.md)
+- More deep dives → [docs/](docs/README.md) · implementing a feature → its spec in [specs/](specs/README.md) first
 - Before a non-trivial change → [INSIGHTS.md](INSIGHTS.md); new insight → `engineering-insights` skill
 - Prompt / grounding logic → [../reviewer-core/CLAUDE.md](../reviewer-core/CLAUDE.md) · test strategy → [../TESTING.md](../TESTING.md)

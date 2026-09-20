@@ -39,6 +39,8 @@ mermaid · Zod 3 · Vitest 2 + Testing Library + jsdom · TS 5.7 · pnpm
 
 - UI route map + which API each route calls → [README.md](README.md)
 - Design system layers, tokens, theming → [src/vendor/ui/README.md](src/vendor/ui/README.md)
-- Deep dives → [docs/](docs/README.md) · implementing a feature → its spec in [specs/](specs/README.md) first
+- Server/Client boundary, hooks over `api.ts`, theming, i18n → [docs/ui-architecture.md](docs/ui-architecture.md)
+- Per-route contract: params, hooks, endpoints → [specs/pages.md](specs/pages.md)
+- More deep dives → [docs/](docs/README.md) · implementing a feature → its spec in [specs/](specs/README.md) first
 - Before a non-trivial change → [INSIGHTS.md](INSIGHTS.md); new insight → `engineering-insights` skill
 - Real browser journeys → [../e2e/CLAUDE.md](../e2e/CLAUDE.md) · test strategy → [../TESTING.md](../TESTING.md)
