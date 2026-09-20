@@ -23,3 +23,6 @@ test-results/
 
 # emdash worktree config (local)
 .emdash.json
+
+# Cowork/Claude scratch output folder (local only)
+Claude outputs/
