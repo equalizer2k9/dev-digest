@@ -7,6 +7,7 @@ export { Chip } from "./Chip";
 export { Avatar } from "./Avatar";
 export { ConfidenceNum } from "./ConfidenceNum";
 export { RunCostBadge, formatUsd, formatTokenFlow } from "./RunCostBadge";
+export { RelativeTime, formatRelativeTime, formatAbsolute } from "./RelativeTime";
 export { MonoLink } from "./MonoLink";
 export { ProgressBar, PercentProgress } from "./ProgressBar";
 export { CircularScore } from "./CircularScore";
