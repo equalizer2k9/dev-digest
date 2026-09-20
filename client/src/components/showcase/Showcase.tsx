@@ -45,8 +45,13 @@ import {
   ExportWizardSteps,
   AutoTriggerStatus,
 } from "@devdigest/ui";
+import { NextIntlClientProvider } from "next-intl";
+import skillMessages from "../../../messages/en/skills.json";
+import { ConfirmDialog } from "../confirm-dialog";
+import { SkillCard } from "../../app/skills/_components/SkillCard";
+import { SkillPreviewDrawer } from "../../app/skills/_components/SkillPreviewDrawer";
 import { s } from "./styles";
-import { SEVERITIES, CATEGORIES, MODEL_OPTIONS } from "./constants";
+import { SEVERITIES, CATEGORIES, MODEL_OPTIONS, SHOWCASE_SKILL } from "./constants";
 
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -65,6 +70,8 @@ export function Gallery() {
   const [sel, setSel] = React.useState("gpt-4.1");
   const [drawer, setDrawer] = React.useState(false);
   const [modal, setModal] = React.useState(false);
+  const [skillDrawer, setSkillDrawer] = React.useState(false);
+  const [confirm, setConfirm] = React.useState(false);
 
   return (
     <div style={s.gallery}>
@@ -253,6 +260,43 @@ export function Gallery() {
         <AutoTriggerStatus on />
         <AutoTriggerStatus on={false} />
       </Group>
+
+      {/* Skills Lab components. They speak the `skills` namespace, so the group
+          brings its own message provider — the gallery itself has none. */}
+      <NextIntlClientProvider locale="en" messages={{ skills: skillMessages }}>
+        <Group title="Skills Lab (SkillCard / SkillPreviewDrawer / ConfirmDialog)">
+          <div style={s.w320}>
+            <SkillCard skill={SHOWCASE_SKILL} onToggle={() => {}} onDelete={() => {}} onOpen={() => {}} />
+          </div>
+          <div style={s.w320}>
+            <SkillCard skill={{ ...SHOWCASE_SKILL, id: "sk-demo-2", enabled: false, source: "imported_file" }} />
+          </div>
+          <Button kind="ghost" onClick={() => setSkillDrawer(true)}>
+            Open Skill preview
+          </Button>
+          <Button kind="ghost" onClick={() => setConfirm(true)}>
+            Open Confirm dialog
+          </Button>
+        </Group>
+        {skillDrawer && (
+          <SkillPreviewDrawer
+            skill={SHOWCASE_SKILL}
+            onOpen={() => setSkillDrawer(false)}
+            onClose={() => setSkillDrawer(false)}
+          />
+        )}
+      </NextIntlClientProvider>
+
+      {confirm && (
+        <ConfirmDialog
+          title="Delete skill"
+          body='Delete "test-quality-rubric"? This cannot be undone.'
+          confirmLabel="Delete"
+          cancelLabel="Cancel"
+          onConfirm={() => setConfirm(false)}
+          onClose={() => setConfirm(false)}
+        />
+      )}
 
       {drawer && (
         <Drawer title="Example Drawer" subtitle="720px wide" onClose={() => setDrawer(false)}>

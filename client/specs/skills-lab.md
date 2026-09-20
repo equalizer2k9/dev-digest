@@ -88,7 +88,10 @@ on screen together.
   `POST /skills`, then the new card appears in the grid.
 - *Import from file* → `ImportSkillModal`: a file input accepting `.md,.zip`. On pick it posts
   to `POST /skills/import/preview` and shows the parsed core — name, description, type, and the
-  body rendered with `Markdown` — all editable before saving. `Save` posts the file plus the
+  body rendered with `Markdown`. Name, description and type are editable; the body is shown
+  rendered but NOT editable, because `POST /skills/import` accepts only `name` / `description` /
+  `type` overrides alongside the file (see the [server spec](../../server/specs/skills-lab.md)
+  §3) — the body always comes from the parsed upload. `Save` posts the file plus the
   edited fields to `POST /skills/import`; the resulting card shows source *Imported*.
   Server-side rejections (too large, ambiguous zip, unsupported format) surface as an inline
   error in the modal, not a toast.
