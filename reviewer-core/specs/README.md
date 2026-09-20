@@ -9,3 +9,4 @@ Status: `draft` → `approved` → `implemented`.
 | Spec | Status | Summary |
 |---|---|---|
 | [grounding.md](grounding.md) | implemented | Citation-gate contract: what a finding must cite to be kept, every drop case, and the downstream rules (score recomputed from survivors, `verdict` deliberately not re-derived). |
+| [skills-lab](skills-lab.md) | draft | Engine half of Skills Lab: `PromptParts.skills` becomes `SkillPart[]` (id/name/version/body/trusted), one rendered sub-block per skill in array order, untrusted bodies `wrapUntrusted`-ed, and per-skill + whole-block token attribution through an injected `countTokens` with a dependency-free `ceil(len/4)` fallback. |
