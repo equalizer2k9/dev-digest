@@ -181,15 +181,19 @@ list after load switches the footnote to the "no key" variant.
 | The PR rows | `usePulls(repoId)` | `GET /repos/:repoId/pulls` (re-polls every 60 s and on window focus) |
 | "Refresh" | `useRefreshRepo` | `POST /repos/:repoId/refresh` |
 | Active repo name / validity | `useActiveRepo`, `useRepoNotFound` ([repo-context.tsx](../src/lib/repo-context.tsx)) | — (reads the shared `GET /repos`) |
+| FINDINGS hover preview | `usePrReviews(prId)` in `PRRow`, **enabled only while the cell is hovered** | `GET /pulls/:id/reviews` (same query key the PR detail page uses, so the cache is shared) |
 
 **Params.** `repoId` from the path. `?status` selects the filter chip and **defaults to
 `needs_review`**; `setStatus` always writes the key explicitly so `all` sticks over the default.
 Search text and sort order are local state, deliberately not in the URL.
 
 Columns are `COLUMN_KEYS` in [constants.ts](<../src/app/repos/[repoId]/pulls/constants.ts>) —
-pull request · author · size · score · status · cost · updated. Sorting is by `updated_at`,
-newest first unless `sort === "oldest"`. A row navigates to
+pull request · author · size · score · findings · status · cost · updated. Sorting is by
+`updated_at`, newest first unless `sort === "oldest"`. A row navigates to
 `/repos/:repoId/pulls/:number` ([PRRow](<../src/app/repos/[repoId]/pulls/_components/PRRow/PRRow.tsx>)).
+FINDINGS shows a chip per non-zero severity from `findings_counts`; a chip pushes
+`/repos/:repoId/pulls/:number?tab=findings` and stops the row click. See
+[findings-column.md](findings-column.md).
 
 - **Unknown `:repoId`** — once the repo list has loaded and does not contain it, the page
   short-circuits to [RepoNotFound](../src/components/repo-not-found/RepoNotFound.tsx) inside the

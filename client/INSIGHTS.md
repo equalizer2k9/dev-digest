@@ -14,6 +14,10 @@ or delete; cleanup only via `/engineering-insights review client`.
   - Why: the effect renders one frame in the rejected state before rolling back, and no jsdom test can catch it — effects flush before assertions.
   - Evidence: `FindingsPanel.tsx` — `counts.some(...) ? severity : null` replaced an effect calling `setSeverity(null)`
 
+- **2026-09-20** · Hover popovers inside a PR-list row MUST be `position: fixed`, anchored via `getBoundingClientRect()` on mouseenter.
+  - Why: `s.tableCard` wraps the whole list in `overflow: hidden`, which silently clips any `position: absolute` child at the row edge.
+  - Evidence: `src/app/repos/[repoId]/pulls/styles.ts` — `tableCard` vs `findingsPreview(top, left)` · `PRRow.tsx` findings cell
+
 ## Codebase Patterns
 <!-- Undocumented conventions and architectural decisions, with the reason -->
 
@@ -67,6 +71,10 @@ or delete; cleanup only via `/engineering-insights review client`.
 - Added: Codebase Patterns, Tool & Library Notes
 - Open: none; `docs/design-reference.md` decode snippet was wrong (manifest values are objects) and is fixed in place.
   - Corrected 2026-09-20 by the user, twice: dropping `aria-pressed` for a visual-only `active` was wrong (fixed in `Chip`), and the auto-clear `useEffect` was replaced by a derived value. Added: What Doesn't Work, Codebase Patterns.
+
+### 2026-09-20 — FINDINGS column on the PR list
+- Done: severity chips + lazy read-only hover preview in `PRRow`, `latestFindingsPerAgent()` helper, 13 new tests.
+- Added: What Doesn't Work
 
 ## Open Questions
 <!-- Unverified hypotheses and unanswered questions; close with a "Resolved" sub-bullet -->
