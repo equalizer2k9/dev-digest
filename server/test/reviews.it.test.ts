@@ -257,6 +257,35 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     await app.close();
   });
 
+  it('the PR list totals every successful priced run, not just the latest', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'Total', provider: 'openai', model: 'gpt-4.1', system_prompt: 'total' },
+      })
+    ).json();
+
+    // Two reviews of the same PR → two priced runs.
+    await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } });
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+    await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } });
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 2 });
+
+    const runs = await pg.handle.db.select().from(t.agentRuns).where(eq(t.agentRuns.prId, pr.id));
+    expect(runs).toHaveLength(2);
+    const total = runs.reduce((sum, r) => sum + (r.costUsd ?? 0), 0);
+    expect(total).toBeGreaterThan(runs[0]!.costUsd!);
+
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const listed = pulls.find((p: { id: string }) => p.id === pr.id);
+    expect(listed.cost_usd).toBeCloseTo(total, 10);
+
+    await app.close();
+  });
+
   it('an unpriced model leaves cost null everywhere instead of reporting 0', async () => {
     const app = await appWith(REVIEW_FIXTURE, 'openai', { costUsd: null });
     const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);

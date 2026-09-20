@@ -129,20 +129,27 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
-    // Latest priced run's COST per PR for the list's cost column. Same read-time
-    // shape as the score lookup above: newest-first + JS grouping. Runs with no
-    // price (unknown model, failed run) are skipped so one unpriced re-run does
-    // not blank out a PR that already has a real number.
-    const latestCostByPr = new Map<string, number>();
+    // TOTAL COST per PR for the list's cost column: every SUCCESSFUL run on that PR
+    // with a known price, summed — what the PR has cost so far, not just its last
+    // run. Same read-time shape as the score lookup above (one IN-query + JS
+    // grouping). `status = 'done'` drops failed runs; `isNotNull` drops runs on an
+    // unpriced model. A PR with no such run is absent from the map and renders as
+    // blank rather than `$0.00`.
+    const totalCostByPr = new Map<string, number>();
     if (prIds.length > 0) {
       const costRows = await container.db
         .select({ prId: t.agentRuns.prId, costUsd: t.agentRuns.costUsd })
         .from(t.agentRuns)
-        .where(and(inArray(t.agentRuns.prId, prIds), isNotNull(t.agentRuns.costUsd)))
-        .orderBy(desc(t.agentRuns.ranAt));
+        .where(
+          and(
+            inArray(t.agentRuns.prId, prIds),
+            eq(t.agentRuns.status, 'done'),
+            isNotNull(t.agentRuns.costUsd),
+          ),
+        );
       for (const run of costRows) {
-        if (run.prId && run.costUsd != null && !latestCostByPr.has(run.prId)) {
-          latestCostByPr.set(run.prId, run.costUsd);
+        if (run.prId && run.costUsd != null) {
+          totalCostByPr.set(run.prId, (totalCostByPr.get(run.prId) ?? 0) + run.costUsd);
         }
       }
     }
@@ -171,7 +178,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
-        cost_usd: latestCostByPr.get(r.id) ?? null,
+        cost_usd: totalCostByPr.get(r.id) ?? null,
       };
     });
   });
