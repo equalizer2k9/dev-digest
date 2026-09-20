@@ -33,6 +33,10 @@ or delete; cleanup only via `/engineering-insights review client`.
   - Why: `active` is an inline style only; reading it back sniffs the implementation and leaves the state invisible to screen readers.
   - Evidence: `src/vendor/ui/primitives/Chip.tsx:22` · `FindingsPanel.test.tsx` · same pattern in `pulls/_components/FilterBar`
 
+- **2026-09-20** · Automating the PR-list findings preview: cross the cell→popover gutter in ONE pointer event, never an interpolated path.
+  - Why: the popover is a DOM child of the cell but painted 6px below it, so a mid-path sample hits the row and `onMouseLeave` unmounts it.
+  - Evidence: `src/app/repos/[repoId]/pulls/styles.ts:61` · `PRRow.tsx` findings-cell `onMouseLeave` · `Claude outputs/screencast/record.mjs`
+
 ## Tool & Library Notes
 <!-- Dependency and tooling quirks, with the version -->
 
@@ -75,6 +79,10 @@ or delete; cleanup only via `/engineering-insights review client`.
 ### 2026-09-20 — FINDINGS column on the PR list
 - Done: severity chips + lazy read-only hover preview in `PRRow`, `latestFindingsPerAgent()` helper, 13 new tests.
 - Added: What Doesn't Work
+
+### 2026-09-20 — Playwright screencast of the findings feature
+- Done: 97s 1920x1080 mp4 recorded by a standalone rig in `Claude outputs/screencast/` (git-ignored, deliberately outside `e2e/`).
+- Added: Codebase Patterns
 
 ## Open Questions
 <!-- Unverified hypotheses and unanswered questions; close with a "Resolved" sub-bullet -->
