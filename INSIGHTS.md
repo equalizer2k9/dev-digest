@@ -27,6 +27,11 @@ or delete; cleanup only via `/engineering-insights review root`.
 ## Recurring Errors & Fixes
 <!-- Exact error text → real cause → fix -->
 
+- **2026-09-20** · Studio on :3000 shows `Could not load skills.` and `net::ERR_CONNECTION_REFUSED` on `localhost:3101`
+  - Cause: `scripts/e2e.sh` runs `next dev -p 3100` from the same `client/` dir, so its `NEXT_PUBLIC_API_BASE=http://localhost:3101` is compiled into the shared `client/.next` the dev server keeps serving.
+  - Fix: kill the dev client BY PID, `rm -rf client/.next`, restart `./scripts/dev.sh`.
+  - Evidence: `scripts/e2e.sh:42` · `scripts/e2e.sh:148`
+
 ## Session Notes
 <!-- ### YYYY-MM-DD — task: outcome, sections that got entries, what stayed open -->
 
@@ -34,6 +39,10 @@ or delete; cleanup only via `/engineering-insights review root`.
 - Done: `server/specs/run-cost-badge.md` written against the decoded design bundle; a first pass that specced from the lab slide alone was wrong in 5 places (badge base element, PR-list column position, plaque placement, timeline markup, a missed 4th surface).
 - Added: What Works.
 - Open: spec is `draft`, not yet approved or implemented.
+
+### 2026-09-20 — HW2 Skills Lab verification on the live stack
+- Done: criteria 6-16, 19-20, 22-37 verified against the running stack (API+psql+browser); added `e2e/specs/08-skills-lab.flow.json`, hermetic suite 8/8.
+- Added: Recurring Errors & Fixes.
 
 ### 2026-09-20 — severity counters on the findings panel
 - Done: implemented fresh in `client/` after surfacing that a reverted reference commit existed; user chose not to restore it.
