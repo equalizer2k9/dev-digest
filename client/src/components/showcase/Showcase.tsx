@@ -45,13 +45,23 @@ import {
   ExportWizardSteps,
   AutoTriggerStatus,
 } from "@devdigest/ui";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NextIntlClientProvider } from "next-intl";
 import skillMessages from "../../../messages/en/skills.json";
+import conventionMessages from "../../../messages/en/conventions.json";
 import { ConfirmDialog } from "../confirm-dialog";
 import { SkillCard } from "../../app/skills/_components/SkillCard";
 import { SkillPreviewDrawer } from "../../app/skills/_components/SkillPreviewDrawer";
+import { ConventionCard } from "../../app/repos/[repoId]/conventions/_components/ConventionCard";
 import { s } from "./styles";
-import { SEVERITIES, CATEGORIES, MODEL_OPTIONS, SHOWCASE_SKILL } from "./constants";
+import {
+  SEVERITIES,
+  CATEGORIES,
+  MODEL_OPTIONS,
+  SHOWCASE_SKILL,
+  SHOWCASE_CONVENTION,
+  SHOWCASE_CONVENTION_PENDING,
+} from "./constants";
 
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -72,6 +82,9 @@ export function Gallery() {
   const [modal, setModal] = React.useState(false);
   const [skillDrawer, setSkillDrawer] = React.useState(false);
   const [confirm, setConfirm] = React.useState(false);
+  // ConventionCard owns its accept/reject/edit mutations, so the gallery needs a
+  // query client of its own — nothing here ever reaches the network.
+  const [galleryQc] = React.useState(() => new QueryClient());
 
   return (
     <div style={s.gallery}>
@@ -286,6 +299,31 @@ export function Gallery() {
           />
         )}
       </NextIntlClientProvider>
+
+      {/* Conventions Extractor card. It speaks the `conventions` namespace and
+          owns its own mutations, so the group brings both providers. */}
+      <QueryClientProvider client={galleryQc}>
+        <NextIntlClientProvider locale="en" messages={{ conventions: conventionMessages }}>
+          <Group title="Conventions (ConventionCard)">
+            <div style={s.w460}>
+              <ConventionCard
+                candidate={SHOWCASE_CONVENTION}
+                repoId="repo-demo"
+                repoFullName="acme/payments-api"
+                defaultBranch="main"
+              />
+            </div>
+            <div style={s.w460}>
+              <ConventionCard
+                candidate={SHOWCASE_CONVENTION_PENDING}
+                repoId="repo-demo"
+                repoFullName="acme/payments-api"
+                defaultBranch="main"
+              />
+            </div>
+          </Group>
+        </NextIntlClientProvider>
+      </QueryClientProvider>
 
       {confirm && (
         <ConfirmDialog

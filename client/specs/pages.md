@@ -17,7 +17,7 @@ the columns (how a hook is built, how the boundary is drawn) are in
 
 ## The routes
 
-Nine routes and one layout. There are no route groups, no parallel or intercepting routes, no
+Ten routes and one layout. There are no route groups, no parallel or intercepting routes, no
 Route Handlers, and no `loading.tsx` / `error.tsx` / `not-found.tsx` anywhere — every state below
 is a branch inside the page.
 
@@ -33,6 +33,7 @@ is a branch inside the page.
 | `/settings/[section]` | [app/settings/[section]/page.tsx](<../src/app/settings/[section]/page.tsx>) | **Server** wrapper → client view | `section` | `settings` |
 | `/repos/[repoId]/pulls` | [app/repos/[repoId]/pulls/page.tsx](<../src/app/repos/[repoId]/pulls/page.tsx>) | Client | `repoId`, `?status` | `prReview` |
 | `/repos/[repoId]/pulls/[number]` | [app/repos/[repoId]/pulls/[number]/page.tsx](<../src/app/repos/[repoId]/pulls/[number]/page.tsx>) | Client | `repoId`, `number`, `?tab`, `?trace` | `prReview`, `runs`, `common` |
+| `/repos/[repoId]/conventions` | [app/repos/[repoId]/conventions/page.tsx](<../src/app/repos/[repoId]/conventions/page.tsx>) | **Server** wrapper → client view | `repoId` | `conventions`, `common` |
 
 ## True for every route
 
@@ -328,6 +329,41 @@ the value is `null`.
   ends, the page invalidates `["pr-active-runs", prId]` and `["pr-runs", prId]` and refetches
   the reviews, so a finished or failed run appears without a reload.
 
+## `/repos/[repoId]/conventions` — conventions extractor
+
+[app/repos/[repoId]/conventions/page.tsx](<../src/app/repos/[repoId]/conventions/page.tsx>) →
+[ConventionsView](<../src/app/repos/[repoId]/conventions/_components/ConventionsView/ConventionsView.tsx>) ·
+Server wrapper → client view. Spec: [conventions-extractor.md](conventions-extractor.md).
+
+| Needs | Hook | Call |
+|---|---|---|
+| Candidates + what the latest scan did | `useConventions(repoId)` ([conventions.ts](../src/lib/hooks/conventions.ts)) | `GET /repos/:repoId/conventions` |
+| `Run Scan` / `ReScan` | `useExtractConventions(repoId)` | `POST /repos/:repoId/conventions/extract` |
+| Accept / Reject / in-place Edit (optimistic) | `useUpdateConvention(repoId)` (in [ConventionCard](<../src/app/repos/[repoId]/conventions/_components/ConventionCard/ConventionCard.tsx>)) | `PUT /conventions/:id` |
+| The merged draft skill, only while the modal is open | `useConventionDraft(repoId, true)` (in [CreateSkillFromConventionsModal](<../src/app/repos/[repoId]/conventions/_components/CreateSkillFromConventionsModal/CreateSkillFromConventionsModal.tsx>)) | `GET /repos/:repoId/conventions/draft` (`staleTime: 0`) |
+| Create the skill from the edited draft | `useCreateConventionSkill(repoId)` | `POST /repos/:repoId/conventions/skill` |
+| Active repo name / validity | `useActiveRepo`, `useRepoNotFound` ([repo-context.tsx](../src/lib/repo-context.tsx)) | — (reads the shared `GET /repos`) |
+
+**Params.** `repoId` from the path, read by the view with `useParams()`. Nothing is in the query
+string — the scan state lives on the server, and the create modal is local state.
+
+Breadcrumb `Skills Lab › Conventions`; the sidebar item sits in **SKILLS LAB** with the `g c`
+chord ([vendor/ui/nav.ts](../src/vendor/ui/nav.ts)).
+
+- **Two scan buttons, both always rendered.** `Run Scan` is live only while
+  `extracted_at === null`, `ReScan` only once a scan exists, and an in-flight scan disables both
+  while the active one shows a spinner and "Scanning…" — the call is one synchronous model
+  round-trip.
+- **Unknown `:repoId`** — [RepoNotFound](../src/components/repo-not-found/RepoNotFound.tsx) inside
+  the shell, exactly as on the PR list.
+- **Loading** — three skeleton cards.
+- **Error** — a `409` from the scan (the server's `repo_not_indexed` guard) renders inline under
+  the header; a failed `GET` or any other scan failure is an `ErrorState` with retry.
+- **Empty** — `EmptyState` ("No conventions extracted yet"), whose CTA runs the same scan; the CTA
+  is dropped once a scan exists, so a scan that found nothing does not offer a first run again.
+- **`Create skill`** is rendered only while at least one candidate is accepted — absent from the
+  DOM at zero, not disabled.
+
 ---
 
 ## Private folders and their owners
@@ -344,6 +380,7 @@ the value is `null`.
 | [app/settings/[section]/_components/](<../src/app/settings/[section]/_components/SettingsView/SettingsView.tsx>) | `/settings/[section]` |
 | [app/repos/[repoId]/pulls/_components/](<../src/app/repos/[repoId]/pulls/_components/PRRow/PRRow.tsx>) | `/repos/[repoId]/pulls` |
 | [app/repos/[repoId]/pulls/[number]/_components/](<../src/app/repos/[repoId]/pulls/[number]/_components/FindingsTab/FindingsTab.tsx>) | `/repos/[repoId]/pulls/[number]` |
+| [app/repos/[repoId]/conventions/_components/](<../src/app/repos/[repoId]/conventions/_components/ConventionsView/ConventionsView.tsx>) | `/repos/[repoId]/conventions` — `ConventionCard` is also mounted by the showcase gallery |
 
 Cross-route UI lives outside `src/app` instead: [components/app-shell](../src/components/app-shell/AppShell.tsx),
 [components/confirm-dialog](../src/components/confirm-dialog/index.ts),
@@ -359,11 +396,11 @@ Three places name paths this contract does not cover. They resolve to a 404 if r
 is the current expected behaviour:
 
 - [helpers.ts](../src/components/app-shell/helpers.ts)'s `activeKeyFor()` maps `/memory`,
-  `/eval`, `/ci-runs`, `/agent-performance`, `/context`, `/conventions`, `/multi-agent` to
-  sidebar keys. Only the three entries in `NAV`
-  ([vendor/ui/nav.ts](../src/vendor/ui/nav.ts)) — `/repos/:repoId/pulls` under **WORKSPACE**,
-  `/skills` and `/agents` under **SKILLS LAB** — plus `SETTINGS_ITEM` (`/settings/api-keys`) are
-  rendered, so the other keys are unreachable today.
+  `/eval`, `/ci-runs`, `/agent-performance`, `/context`, `/multi-agent` to sidebar keys. Only the
+  four entries in `NAV` ([vendor/ui/nav.ts](../src/vendor/ui/nav.ts)) — `/repos/:repoId/pulls`
+  under **WORKSPACE**, `/skills`, `/agents` and `/repos/:repoId/conventions` under **SKILLS
+  LAB** — plus `SETTINGS_ITEM` (`/settings/api-keys`) are rendered, so the other keys are
+  unreachable today.
 - `messages/en/` holds namespaces for those same unbuilt screens; they are merged into the
   message tree but nothing reads them.
 - The design system's README refers to a `/showcase` route. There is none — the gallery is

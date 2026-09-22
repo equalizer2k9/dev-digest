@@ -9,14 +9,15 @@ type ToastKind = "success" | "error" | "info";
 interface Toast {
   id: number;
   kind: ToastKind;
-  message: string;
+  /** ReactNode, not string: a toast may carry a link (e.g. "Open in Skills →"). */
+  message: React.ReactNode;
 }
 
 interface ToastApi {
-  toast: (message: string, kind?: ToastKind) => void;
-  success: (m: string) => void;
-  error: (m: string) => void;
-  info: (m: string) => void;
+  toast: (message: React.ReactNode, kind?: ToastKind) => void;
+  success: (m: React.ReactNode) => void;
+  error: (m: React.ReactNode) => void;
+  info: (m: React.ReactNode) => void;
 }
 
 const ToastCtx = React.createContext<ToastApi | null>(null);
@@ -29,13 +30,13 @@ export function useToast(): ToastApi {
 
 /* Module-level bridge so non-React code (e.g. the React Query cache) can raise
    toasts without the hook. The mounted <ToastProvider> registers its pusher. */
-type Pusher = (message: string, kind?: ToastKind) => void;
+type Pusher = (message: React.ReactNode, kind?: ToastKind) => void;
 let activePusher: Pusher | null = null;
 export const notify = {
-  toast: (m: string, k?: ToastKind) => activePusher?.(m, k),
-  success: (m: string) => activePusher?.(m, "success"),
-  error: (m: string) => activePusher?.(m, "error"),
-  info: (m: string) => activePusher?.(m, "info"),
+  toast: (m: React.ReactNode, k?: ToastKind) => activePusher?.(m, k),
+  success: (m: React.ReactNode) => activePusher?.(m, "success"),
+  error: (m: React.ReactNode) => activePusher?.(m, "error"),
+  info: (m: React.ReactNode) => activePusher?.(m, "info"),
 };
 
 const COLORS: Record<ToastKind, { bg: string; border: string; icon: string }> = {
@@ -48,7 +49,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = React.useState<Toast[]>([]);
   const seq = React.useRef(1);
 
-  const push = React.useCallback((message: string, kind: ToastKind = "info") => {
+  const push = React.useCallback((message: React.ReactNode, kind: ToastKind = "info") => {
     const id = seq.current++;
     setItems((prev) => [...prev, { id, kind, message }]);
     // auto-dismiss after 4s
