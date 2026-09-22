@@ -28,6 +28,8 @@ export interface InsertSkill {
   source: SkillSource;
   body: string;
   enabled?: boolean;
+  /** Paths the body was derived from (conventions extractor §6); null otherwise. */
+  evidenceFiles?: string[];
 }
 
 /** Everything a PUT can change EXCEPT the body — the body is versioned. */
@@ -80,6 +82,32 @@ export class SkillsRepository {
   }
 
   /**
+   * The workspace's skill with this `name` AND `source`, if any.
+   *
+   * Used by the conventions extractor to UPDATE `repo-conventions` instead of
+   * inserting a second one on a re-run (its §6), so the agent links survive.
+   * Scoped on the pair, not on `name` alone — a hand-written skill that happens
+   * to share the name is a different skill and is never overwritten.
+   */
+  async findByNameAndSource(
+    workspaceId: string,
+    name: string,
+    source: SkillSource,
+  ): Promise<SkillRow | undefined> {
+    const [row] = await this.db
+      .select()
+      .from(t.skills)
+      .where(
+        and(
+          eq(t.skills.workspaceId, workspaceId),
+          eq(t.skills.name, name),
+          eq(t.skills.source, source),
+        ),
+      );
+    return row;
+  }
+
+  /**
    * Insert a skill at version 1 AND its v1 `skill_versions` snapshot in ONE
    * transaction — a skill never exists without the version that made it.
    */
@@ -96,6 +124,7 @@ export class SkillsRepository {
           body: values.body,
           enabled: values.enabled ?? true,
           version: INITIAL_SKILL_VERSION,
+          ...(values.evidenceFiles !== undefined ? { evidenceFiles: values.evidenceFiles } : {}),
         })
         .returning();
       await tx.insert(t.skillVersions).values({

@@ -32,6 +32,12 @@ export interface CreateSkillInput {
   type: SkillType;
   body: string;
   enabled?: boolean;
+  /**
+   * Paths the body was derived from, persisted into `skills.evidence_files`.
+   * Set by the conventions extractor (its §6) — a hand-written or imported skill
+   * leaves it out and the column stays null.
+   */
+  evidenceFiles?: string[];
 }
 
 export interface UpdateSkillInput {
@@ -73,8 +79,23 @@ export class SkillsService {
       source,
       body: input.body,
       ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
+      ...(input.evidenceFiles !== undefined ? { evidenceFiles: input.evidenceFiles } : {}),
     });
     return toSkillDto(row);
+  }
+
+  /**
+   * The workspace's skill with this exact `name` + `source`, if any. Lets the
+   * conventions extractor re-run into the SAME `repo-conventions` skill (version
+   * + 1) instead of inserting a second one and orphaning the agent links.
+   */
+  async findByNameAndSource(
+    workspaceId: string,
+    name: string,
+    source: Skill['source'],
+  ): Promise<Skill | undefined> {
+    const row = await this.repo.findByNameAndSource(workspaceId, name, source);
+    return row ? toSkillDto(row) : undefined;
   }
 
   /**
