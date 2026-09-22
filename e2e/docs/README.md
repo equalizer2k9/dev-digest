@@ -6,4 +6,4 @@ architecture deep dives, decision records, walkthroughs. Linked from CLAUDE.md, 
 
 | Doc | About |
 |---|---|
-| _none yet_ | |
+| [architecture.md](architecture.md) | How the suite runs: `run.ts` (discovery, shared session, step execution, exit codes, failure screenshots), agent-browser itself (Rust + CDP CLI, config, the subcommands used, the banned `chat`), `lib/assert.ts`, hermetic vs dev-stack modes, `{BASE}`, CI |

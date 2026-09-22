@@ -43,6 +43,8 @@ TS 5.7 (ESM) · Zod 3 · `openai` 4 SDK (OpenRouter-compatible) · Vitest 2 · *
 
 - Pipeline diagram + public API → [README.md](README.md)
 - Prompt message order, severity / verdict conventions → [../docs/agent-prompts/README.md](../docs/agent-prompts/README.md)
-- Deep dives → [docs/](docs/README.md) · implementing a feature → its spec in [specs/](specs/README.md) first
+- Pipeline internals, purity boundary, prompt slots → [docs/architecture.md](docs/architecture.md)
+- Citation gate: accept rule, every drop case → [specs/grounding.md](specs/grounding.md)
+- More deep dives → [docs/](docs/README.md) · implementing a feature → its spec in [specs/](specs/README.md) first
 - Before a non-trivial change → [INSIGHTS.md](INSIGHTS.md); new insight → `engineering-insights` skill
 - Test strategy → [../TESTING.md](../TESTING.md)

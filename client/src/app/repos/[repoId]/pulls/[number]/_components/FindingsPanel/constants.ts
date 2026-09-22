@@ -16,3 +16,8 @@ export const KEY_TO_ACTION: Record<string, FindingActionKind> = {
   a: "accept",
   d: "dismiss",
 };
+
+/** Severities the filter row offers — always all three, whether or not this run
+ *  has findings at that level. Driven by the wire contract, not by `SEV`, which
+ *  carries a fourth value (`INFO`) the contract never emits. */
+export const FILTER_SEVERITIES = ["CRITICAL", "WARNING", "SUGGESTION"] as const;

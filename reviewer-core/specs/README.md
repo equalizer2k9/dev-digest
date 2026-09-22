@@ -8,4 +8,4 @@ Status: `draft` → `approved` → `implemented`.
 
 | Spec | Status | Summary |
 |---|---|---|
-| _none yet_ | | |
+| [grounding.md](grounding.md) | implemented | Citation-gate contract: what a finding must cite to be kept, every drop case, and the downstream rules (score recomputed from survivors, `verdict` deliberately not re-derived). |

@@ -208,7 +208,7 @@ Every contract below lives in **two diverged copies** — `server/src/vendor/sha
 | `contracts/trace.ts` → `RunStats` | `+ cost_usd: z.number().nullable()` (restores `d45ab0d`) |
 | `contracts/trace.ts` → `RunSummary` | `+ cost_usd: z.number().nullable()` (restores `d45ab0d`) |
 | `contracts/review-api.ts` → `ReviewRecord` | `+ cost_usd`, `+ tokens_in`, `+ tokens_out`, all `.nullable()` — new; feeds the accordion header and the plaque |
-| `contracts/platform.ts` → `PrMeta` | `+ cost_usd: z.number().nullish()` — latest-run cost, list endpoint only |
+| `contracts/platform.ts` → `PrMeta` | `+ cost_usd: z.number().nullish()` — PR total across successful priced runs, list endpoint only |
 
 `RunSummary` already carries `tokens_in` / `tokens_out`, so the timeline needs no new field beyond
 `cost_usd`.
@@ -265,7 +265,8 @@ Generated with `pnpm db:generate` after adding `costUsd: doublePrecision('cost_u
 - [ ] A completed run persists a non-null `cost_usd` when the model is priced, `null` when not.
 - [ ] `GET /pulls/:id/runs` returns `cost_usd`; `GET /runs/:id/trace` returns `stats.cost_usd`;
       `GET /pulls/:id/reviews` returns `cost_usd`/`tokens_in`/`tokens_out`; `GET /repos/:id/pulls`
-      returns the latest run's `cost_usd`.
+      returns the SUM of `cost_usd` over that PR's successful (`status = 'done'`) priced runs,
+      and `null` when the PR has none.
 - [ ] PR list: `COST` column sits **after** `STATUS`, renders `$0.014`, and `—` when unpriced.
 - [ ] Timeline row: `9,119 tok · $0.0013` under the timestamp, four decimals; error runs show the
       timestamp only.
@@ -295,7 +296,10 @@ Generated with `pnpm db:generate` after adding `costUsd: doublePrecision('cost_u
 - Resolved: the Run Trace drawer deviates from the design's `toFixed(2)` and uses the badge's
   `< 1 → toFixed(3)` rule, so sub-cent runs never print `$0.00`. This is the feature's only
   intentional departure from the design — flag it in the PR description.
-- Resolved: PR-list column shows the **latest** run's cost, not the PR total.
+- Resolved: the PR-list column shows the **PR total** — every successful priced run summed, not
+  the latest run. (Superseded the first pass, which showed the latest run; the homework criteria
+  require the total.) Failed runs and unpriced models contribute nothing; a PR with no priced
+  successful run renders `—`, never `$0.00`.
 - Resolved: the plaque and the accordion header read **new `ReviewRecord` fields** (server-side
   join), not a client-side join on `run_id`.
 - Resolved: cost is **stored** on `agent_runs` at run time, not recomputed on read.

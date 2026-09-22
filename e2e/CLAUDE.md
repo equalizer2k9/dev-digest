@@ -17,7 +17,7 @@ agent-browser CLI · `run.ts` runner (tsx) · TS 5.7 · **npm**
 
 ## Where things live
 
-- `specs/NN-name.flow.json` — flows; they ARE this package's specs (no feature-spec folder here)
+- `specs/NN-name.flow.json` — flows; they ARE this package's specs · their contract: `specs/flows.md`
 - `run.ts` — runs each flow's steps in one shared browser session · `lib/assert.ts`
 - `test-results/` — failure screenshots (git-ignored, uploaded as CI artifact)
 
@@ -43,5 +43,7 @@ agent-browser CLI · `run.ts` runner (tsx) · TS 5.7 · **npm**
 ## Docs — read on trigger
 
 - Flow format, env knobs, coverage table → [README.md](README.md)
-- Deep dives → [docs/](docs/README.md) · insights → [INSIGHTS.md](INSIGHTS.md); new insight → `engineering-insights` skill
+- Runner, agent-browser, hermetic vs dev stack → [docs/architecture.md](docs/architecture.md)
+- Flow JSON contract: step keys, what counts as an assertion → [specs/flows.md](specs/flows.md)
+- More deep dives → [docs/](docs/README.md) · insights → [INSIGHTS.md](INSIGHTS.md); new insight → `engineering-insights` skill
 - CI job → [../.github/workflows/e2e-web.yml](../.github/workflows/e2e-web.yml) · test strategy → [../TESTING.md](../TESTING.md)
