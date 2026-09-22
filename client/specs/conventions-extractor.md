@@ -1,6 +1,6 @@
 # Conventions Extractor — client
 
-**Status:** draft · **Package:** client · **Date:** 2026-09-20
+**Status:** implemented · **Package:** client · **Date:** 2026-09-20
 
 Sibling: [`server/specs/conventions-extractor.md`](../../server/specs/conventions-extractor.md) ·
 builds on [`skills-lab.md`](skills-lab.md)
@@ -161,26 +161,26 @@ already diverged; diff before editing.
 
 Numbered by [`docs/hw2-criteria.md`](../../docs/hw2-criteria.md).
 
-- [ ] **AC-41** In the create modal the future skill's body **and** its metadata (name,
+- [x] **AC-41** In the create modal the future skill's body **and** its metadata (name,
       description, type, enabled) are editable, and what is saved is what was edited.
-- [ ] **AC-42** Choosing an agent in the modal links the created skill to it; the agent's Skills
+- [x] **AC-42** Choosing an agent in the modal links the created skill to it; the agent's Skills
       tab shows it enabled.
-- [ ] **AC-44** `Conventions` sits under the **SKILLS LAB** sidebar heading, not WORKSPACE.
-- [ ] **AC-45** The page has two separate buttons, `Run Scan` (first analysis) and `ReScan`
+- [x] **AC-44** `Conventions` sits under the **SKILLS LAB** sidebar heading, not WORKSPACE.
+- [x] **AC-45** The page has two separate buttons, `Run Scan` (first analysis) and `ReScan`
       (repeat / regenerate); exactly one is enabled at a time.
-- [ ] **AC-46** After a scan each card shows the rule, the source file and the confidence as a
+- [x] **AC-46** After a scan each card shows the rule, the source file and the confidence as a
       percentage.
-- [ ] **AC-47** Each card has three buttons: Accept, Reject, Edit.
-- [ ] **AC-48** A rejected candidate is gone after a page reload and is not in the draft body.
-- [ ] **AC-49** Edit turns the card itself editable in place — no route change, no modal.
-- [ ] **AC-50** `Create skill` appears once at least one candidate is accepted, and is not in the
+- [x] **AC-47** Each card has three buttons: Accept, Reject, Edit.
+- [x] **AC-48** A rejected candidate is gone after a page reload and is not in the draft body.
+- [x] **AC-49** Edit turns the card itself editable in place — no route change, no modal.
+- [x] **AC-50** `Create skill` appears once at least one candidate is accepted, and is not in the
       DOM when none is.
-- [ ] **AC-51** The modal says it creates a skill from conventions, has Name and Description
+- [x] **AC-51** The modal says it creates a skill from conventions, has Name and Description
       fields, and `Cancel` / `Create skill` buttons.
-- [ ] **AC-52** After creating, the skill is on `/skills` in the grid, source *Extracted*.
-- [ ] **AC-53** Settings → Models shows a separate `Conventions` row with a searchable model
+- [x] **AC-52** After creating, the skill is on `/skills` in the grid, source *Extracted*.
+- [x] **AC-53** Settings → Models shows a separate `Conventions` row with a searchable model
       dropdown; picking a model there changes the model the next scan reports.
-- [ ] *(homework text)* The evidence path on a card is a link that opens the file at the cited
+- [x] *(homework text)* The evidence path on a card is a link that opens the file at the cited
       lines on GitHub, pinned to the scanned commit.
 
 ## Tests

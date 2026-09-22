@@ -1,6 +1,6 @@
 # Conventions Extractor — server
 
-**Status:** draft · **Package:** server · **Date:** 2026-09-20
+**Status:** implemented · **Package:** server · **Date:** 2026-09-20
 
 Sibling: [`client/specs/conventions-extractor.md`](../../client/specs/conventions-extractor.md) ·
 builds on [`skills-lab.md`](skills-lab.md)
@@ -217,28 +217,28 @@ cannot answer. Then `pnpm db:generate` → commit the generated migration **uned
 
 Numbered by [`docs/hw2-criteria.md`](../../docs/hw2-criteria.md).
 
-- [ ] **AC-38** `POST /repos/:id/conventions/extract` runs the analysis and the result survives a
+- [x] **AC-38** `POST /repos/:id/conventions/extract` runs the analysis and the result survives a
       server restart: `GET /repos/:id/conventions` after a restart returns the same candidates.
-- [ ] **AC-39** Sample selection reads config files (eslint / tsconfig / prettier) plus up to 12
+- [x] **AC-39** Sample selection reads config files (eslint / tsconfig / prettier) plus up to 12
       paths from `repoIntel.getConventionSamples()` and makes no LLM call — a test with a
       throwing `llm` stub still gets its samples.
-- [ ] **AC-40** The model is asked for, and its output is parsed as,
+- [x] **AC-40** The model is asked for, and its output is parsed as,
       `{category, rule, evidence: {file, start_line, end_line}, confidence}`; a malformed reply is
       a handled error, not a 500 with a stack.
-- [ ] **AC-40b** *(homework text, "кодова перевірка доказів")* a candidate citing a file outside
+- [x] **AC-40b** *(homework text, "кодова перевірка доказів")* a candidate citing a file outside
       the samples, or a line range past the end of the file, is dropped and counted in `dropped`;
       every persisted `evidence_snippet` equals the file's real lines for that range.
-- [ ] **AC-41** `GET …/draft` returns an editable draft (name, description, type, enabled, body)
+- [x] **AC-41** `GET …/draft` returns an editable draft (name, description, type, enabled, body)
       and `POST …/skill` persists the edited values as sent, not the draft's originals.
-- [ ] **AC-42** The draft is built from `accepted` rows only; the created skill is named
+- [x] **AC-42** The draft is built from `accepted` rows only; the created skill is named
       `repo-conventions` by default, has `source = 'extracted'`, and with `agent_id` is present in
       `GET /agents/:id/skills` immediately after the call.
-- [ ] **AC-48** `PUT /conventions/:id {status:"rejected"}` persists: the row is absent from
+- [x] **AC-48** `PUT /conventions/:id {status:"rejected"}` persists: the row is absent from
       `GET /repos/:id/conventions` after a restart, absent from the draft, and a rescan that
       finds the same rule again does not bring it back.
-- [ ] **AC-52** The created skill is returned by `GET /skills` with `agent_count` reflecting the
+- [x] **AC-52** The created skill is returned by `GET /skills` with `agent_count` reflecting the
       optional link.
-- [ ] **AC-53** `modules/conventions/` contains no provider or model literal; changing the
+- [x] **AC-53** `modules/conventions/` contains no provider or model literal; changing the
       `conventions` row in Settings → Models changes the `model` reported by the next
       `ConventionScan`.
 

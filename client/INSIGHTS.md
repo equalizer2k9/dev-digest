@@ -33,6 +33,10 @@ or delete; cleanup only via `/engineering-insights review client`.
   - Why: `active` is an inline style only; reading it back sniffs the implementation and leaves the state invisible to screen readers.
   - Evidence: `src/vendor/ui/primitives/Chip.tsx:22` · `FindingsPanel.test.tsx` · same pattern in `pulls/_components/FilterBar`
 
+- **2026-09-22** · To tell an inline hint from a full `ErrorState` in a test, assert on the copy, NEVER on `queryByRole("alert")`.
+  - Why: `ErrorState` carries `role="alert"` itself, so "no alert in the document" is true for neither branch and the assertion passes or fails for the wrong reason.
+  - Evidence: `src/vendor/ui/primitives/ErrorState.tsx:19` · `conventions/_components/ConventionsView/ConventionsView.test.tsx` asserts `"Scan failed"` plus the absence of the empty-state title instead
+
 ## Tool & Library Notes
 <!-- Dependency and tooling quirks, with the version -->
 
@@ -52,6 +56,21 @@ or delete; cleanup only via `/engineering-insights review client`.
   - Cause: `borderColor` is itself shorthand for the four side colours, so it clashes with `borderLeftColor` — the "all-longhand" comment there was wrong.
   - Fix: set `borderTopColor` / `borderRightColor` / `borderBottomColor` individually and keep `borderLeftColor`.
   - Evidence: `_components/FindingCard/styles.ts:5-19`, fires whenever `focused` flips
+
+- **2026-09-22** · `Found a label with the text of: <X>, however no form control was found associated to that label`
+  - Cause: `FormField` renders a bare `<label>` with no `htmlFor`, so RTL cannot link it to the control it wraps a sibling of.
+  - Fix: put the control INSIDE its own `<label>`, or give it an `aria-label`, or query by role (`getByRole("combobox")`). A `required` field is accidentally immune — its label text is `"Name*"`, which never matches the query anyway.
+  - Evidence: `src/vendor/ui/kit/FormField.tsx:19-22` · label-wrapped controls at `conventions/_components/ConventionCard/ConventionCard.tsx:108,117`
+
+- **2026-09-22** · `Found multiple elements with the role "button" and name "<X>"` while the failure LOOKS like broken loading-state logic
+  - Cause: a header button and an `EmptyState` `cta` shared one label; because `EmptyState`'s `ctaLoading` also renders a spinner, the misleading symptom is a spinner "in the wrong place".
+  - Fix: give the two controls distinct labels even when they fire the same action.
+  - Evidence: `conventions/_components/ConventionsView/ConventionsView.tsx:124` (`scan.run`) vs `:168` (`empty.cta`, different copy, same `runScan`)
+
+- **2026-09-22** · `No QueryClient set, use QueryClientProvider to set one` from the showcase smoke test
+  - Cause: `src/test/smoke.test.tsx` mounts `<Gallery />` bare, so any gallery component owning a `useMutation` throws on mount.
+  - Fix: wrap that one group in its own `QueryClientProvider` (beside the existing per-group `NextIntlClientProvider`), and use the module-level `notify` bridge instead of `useToast()` so no `ToastProvider` is needed either.
+  - Evidence: `src/components/showcase/Showcase.tsx:87` (client) · `:305-326` (provider) · `src/lib/toast.tsx` `notify`
 
 ## Session Notes
 <!-- ### YYYY-MM-DD — task: outcome, sections that got entries, what stayed open -->
@@ -75,6 +94,11 @@ or delete; cleanup only via `/engineering-insights review client`.
 ### 2026-09-20 — FINDINGS column on the PR list
 - Done: severity chips + lazy read-only hover preview in `PRRow`, `latestFindingsPerAgent()` helper, 13 new tests.
 - Added: What Doesn't Work
+
+### 2026-09-22 — Conventions Extractor page
+- Done: `/repos/[repoId]/conventions` under SKILLS LAB (`g c`) — Run Scan / ReScan, candidate cards with a commit-pinned GitHub evidence link, Accept / Reject / in-place Edit (all optimistic with rollback), a conditional `Create skill` and the editable merged-skill modal; 39 new tests, suite 183 green, `pnpm build` clean.
+- Added: Codebase Patterns, Recurring Errors & Fixes.
+- Open: the toolbar's bulk control is the design's single `Accept all` ⇄ `Deselect all` toggle rather than two buttons — the spec writes it with a slash and only demands a pair for the SCAN buttons.
 
 ## Open Questions
 <!-- Unverified hypotheses and unanswered questions; close with a "Resolved" sub-bullet -->
