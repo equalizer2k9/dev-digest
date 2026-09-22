@@ -183,15 +183,77 @@ export const CommunitySkill = z.object({
 export type CommunitySkill = z.infer<typeof CommunitySkill>;
 
 // ---- Conventions ----
+/** What kind of house rule a candidate states — rendered as the card's chip. */
+export const ConventionCategory = z.enum([
+  'naming',
+  'structure',
+  'error-handling',
+  'typing',
+  'testing',
+  'imports',
+  'api',
+  'style',
+  'other',
+]);
+export type ConventionCategory = z.infer<typeof ConventionCategory>;
+
+/**
+ * Review state of a candidate — the source of truth (`accepted` is a mirror).
+ * 'rejected' is a TOMBSTONE: the row survives a rescan so a rediscovered rule
+ * cannot come back, and it is never returned on the wire.
+ */
+export const ConventionStatus = z.enum(['pending', 'accepted', 'rejected']);
+export type ConventionStatus = z.infer<typeof ConventionStatus>;
+
 export const ConventionCandidate = z.object({
   id: z.string(),
+  category: ConventionCategory,
   rule: z.string(),
   evidence_path: z.string(),
+  evidence_start_line: z.number().int(),
+  evidence_end_line: z.number().int(),
+  /** Re-read from the file for the cited range in code — never model output. */
   evidence_snippet: z.string(),
+  /** Head sha of the scan that found it; pins the GitHub blob link to it. */
+  head_sha: z.string().nullable(),
   confidence: z.number().min(0).max(1),
+  status: ConventionStatus,
+  /** Kept for compatibility: always `status === 'accepted'`. */
   accepted: z.boolean(),
 });
 export type ConventionCandidate = z.infer<typeof ConventionCandidate>;
+
+/**
+ * What `GET /repos/:id/conventions` and `POST …/extract` return: the visible
+ * candidates (pending + accepted, confidence descending) plus what the latest
+ * scan itself did. `extracted_at` is null when the repo has never been scanned.
+ */
+export const ConventionScan = z.object({
+  repo_id: z.string(),
+  candidates: z.array(ConventionCandidate),
+  extracted_at: z.string().nullable(),
+  sample_files: z.number().int(),
+  /** Candidates dropped by code-side evidence verification. */
+  dropped: z.number().int(),
+  model: z.string().nullable(),
+  warnings: z.array(z.string()),
+});
+export type ConventionScan = z.infer<typeof ConventionScan>;
+
+/**
+ * The skill the accepted candidates merge into, built on the server from
+ * `status = 'accepted'` rows only. Every field is editable before the user
+ * posts it back to `POST /repos/:id/conventions/skill`.
+ */
+export const ConventionSkillDraft = z.object({
+  name: z.string(),
+  description: z.string(),
+  type: SkillType,
+  enabled: z.boolean(),
+  body: z.string(),
+  count: z.number().int(),
+});
+export type ConventionSkillDraft = z.infer<typeof ConventionSkillDraft>;
 
 // ---- Agents ----
 export const Provider = z.enum(['openai', 'anthropic', 'openrouter']);
