@@ -249,9 +249,12 @@ all of 6–37.
 - [ ] **AC-17** With *Test Quality Reviewer* and no skill enabled, a happy-path-only test PR
       produces no uncovered-branch finding; with `test-quality-rubric` enabled, the same PR
       produces one naming the uncovered branch and a boundary case. Procedure and evidence per
-      §6.
-- [ ] **AC-18** Same shape for *API Contract Reviewer* on a route-signature PR: skipped without
-      the skill, breaking change reported with it.
+      §6. — **Half met**, see [experiment report](../../docs/hw2/experiment-report.md): with the
+      skills the finding names the uncovered branches and boundary values, but the agent also
+      raises a coverage WARNING with no skill enabled.
+- [x] **AC-18** Same shape for *API Contract Reviewer* on a route-signature PR: skipped without
+      the skill, breaking change reported with it. — Evidence:
+      [experiment report](../../docs/hw2/experiment-report.md).
 - [x] **AC-19** The persisted trace carries `skills_tokens` and one `skill_blocks` entry per
       assembled skill, each with `tokens` measured over that skill's contribution alone —
       counted by the tokenizer adapter, not over the whole prompt.
