@@ -98,7 +98,7 @@ export function ConventionCard({
   }));
 
   return (
-    <div style={s.card(accepted)}>
+    <div style={s.card(accepted)} data-testid="convention-card" data-status={candidate.status}>
       <div style={s.row}>
         <div style={s.main}>
           {editing ? (
@@ -126,7 +126,7 @@ export function ConventionCard({
             </div>
           ) : (
             <div style={s.ruleRow}>
-              <div style={s.rule}>{candidate.rule}</div>
+              <div style={s.rule} data-testid="convention-rule">{candidate.rule}</div>
               <Chip>{t(`card.categories.${candidate.category}`)}</Chip>
             </div>
           )}
