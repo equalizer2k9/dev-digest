@@ -2,7 +2,6 @@
 name: onion-architecture
 description: "ALWAYS invoke when touching anything under server/src — a routes.ts, service.ts, repository.ts, a new module, platform/container.ts, an adapter in src/adapters/**, or when wiring an outside dependency (GitHub, git, LLM, embeddings, secrets, ripgrep, ast-grep) into a feature. Do NOT use it for Fastify mechanics (fastify-best-practices), query/migration syntax (drizzle-orm-patterns) or contract shapes (zod): this skill decides layer boundaries and dependency direction only."
 version: 1.0.0
-allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 
 # Onion Architecture — server/

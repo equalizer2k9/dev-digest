@@ -1,6 +1,6 @@
 # Skills Lab — server
 
-**Status:** draft · **Package:** server · **Date:** 2026-09-20
+**Status:** implemented · **Package:** server · **Date:** 2026-09-20
 
 Siblings: [`client/specs/skills-lab.md`](../../client/specs/skills-lab.md) ·
 [`reviewer-core/specs/skills-lab.md`](../../reviewer-core/specs/skills-lab.md)
@@ -226,24 +226,24 @@ Numbered by the homework criteria in [`docs/hw2-criteria.md`](../../docs/hw2-cri
 Criteria whose surface is UI-only live in the client spec; the coverage table below accounts for
 all of 6–37.
 
-- [ ] **AC-8** `GET/POST/PUT/DELETE /skills[:id]` read and write Postgres for real: a skill
+- [x] **AC-8** `GET/POST/PUT/DELETE /skills[:id]` read and write Postgres for real: a skill
       created through `POST /skills` is findable by a direct `SELECT` on `skills`, and a row
       deleted directly in the DB stops appearing in `GET /skills`.
-- [ ] **AC-12** `POST /skills` accepts exactly name, description, type (`rubric | convention |
+- [x] **AC-12** `POST /skills` accepts exactly name, description, type (`rubric | convention |
       security | custom`) and markdown body; a missing name or body is rejected by the route
       schema, never a 500. The status is **422** `validation_error`, not 400: the repo-wide
       error handler ([`src/app.ts`](../src/app.ts)) maps every zod schema failure to 422 and
       this module follows that convention rather than diverging from it.
-- [ ] **AC-13** `POST /agents/:id/skills {skill_ids}` persists `agent_skills.order` = array
+- [x] **AC-13** `POST /agents/:id/skills {skill_ids}` persists `agent_skills.order` = array
       index, and `GET /agents/:id/skills` returns the links in that order after a restart.
-- [ ] **AC-14** The run executor passes the agent's enabled linked skills to
+- [x] **AC-14** The run executor passes the agent's enabled linked skills to
       `reviewPullRequest` **in `agent_skills.order`**; reordering the links and rerunning the
       same PR produces a trace whose skill blocks appear in the new order.
-- [ ] **AC-15** `POST /skills/import/preview` returns the parsed core of an uploaded `.md` or
+- [x] **AC-15** `POST /skills/import/preview` returns the parsed core of an uploaded `.md` or
       `.zip` and persists nothing; `POST /skills/import` persists it with
       `source = 'imported_file'`. Oversized, bomb, slip, ambiguous-zip and unsupported-format
       uploads each fail with their own status and message.
-- [ ] **AC-16** A skill imported through the UI has `source = 'imported_file'`: the row
+- [x] **AC-16** A skill imported through the UI has `source = 'imported_file'`: the row
       `POST /skills/import` writes carries that source, `GET /skills` returns it, and it is the
       source the client labels *Imported*.
 - [ ] **AC-17** With *Test Quality Reviewer* and no skill enabled, a happy-path-only test PR
@@ -252,30 +252,30 @@ all of 6–37.
       §6.
 - [ ] **AC-18** Same shape for *API Contract Reviewer* on a route-signature PR: skipped without
       the skill, breaking change reported with it.
-- [ ] **AC-19** The persisted trace carries `skills_tokens` and one `skill_blocks` entry per
+- [x] **AC-19** The persisted trace carries `skills_tokens` and one `skill_blocks` entry per
       assembled skill, each with `tokens` measured over that skill's contribution alone —
       counted by the tokenizer adapter, not over the whole prompt.
-- [ ] **AC-20** A skill that is disabled globally or not linked to the agent contributes no
+- [x] **AC-20** A skill that is disabled globally or not linked to the agent contributes no
       `skill_blocks` entry, no text in `prompt_assembly.skills` and no Live Log line; with no
       enabled skills at all, `skills`, `skill_blocks` and `skills_tokens` are all `null`.
 - [ ] **AC-21** *(out of package — repo-root tooling, tracked here so no criterion is
       homeless.)* `.claude/skills/pr-self-review/SKILL.md` exists as a Workflow-type dispatcher,
       its git-push hook is **not** installed, and a manual run on a diff touching both `client/`
       and `server/` loads both packages' skill sets in one pass.
-- [ ] **AC-22** `GET /skills` returns `version` and `agent_count` per skill, computed in one
+- [x] **AC-22** `GET /skills` returns `version` and `agent_count` per skill, computed in one
       grouped query.
-- [ ] **AC-23** `DELETE /skills/:id` removes the row and cascades `skill_versions` +
+- [x] **AC-23** `DELETE /skills/:id` removes the row and cascades `skill_versions` +
       `agent_skills`; agents that linked it still run.
-- [ ] **AC-27** `GET /skills/:id/versions` lists every version of the skill, newest first.
-- [ ] **AC-28** `GET /skills/:id/versions/:version` returns that version's exact body, so the
+- [x] **AC-27** `GET /skills/:id/versions` lists every version of the skill, newest first.
+- [x] **AC-28** `GET /skills/:id/versions/:version` returns that version's exact body, so the
       client can diff it against the current one.
-- [ ] **AC-29** `POST /skills/:id/restore {version}` sets the body to that version's text as a
+- [x] **AC-29** `POST /skills/:id/restore {version}` sets the body to that version's text as a
       new version; no historical row is mutated or dropped.
-- [ ] **AC-33** `DELETE /agents/:id` (already implemented) removes the agent from the database
+- [x] **AC-33** `DELETE /agents/:id` (already implemented) removes the agent from the database
       and cascades its versions and skill links.
-- [ ] **AC-36** `PUT /agents/:id` accepts every field the Config tab edits — name, description,
+- [x] **AC-36** `PUT /agents/:id` accepts every field the Config tab edits — name, description,
       provider, model, `strategy`, `system_prompt` — and versions the config snapshot.
-- [ ] **AC-37** `GET /skills` returns every skill in the workspace, not only those linked to
+- [x] **AC-37** `GET /skills` returns every skill in the workspace, not only those linked to
       some agent, each carrying its `type` so the client can label it.
 
 ### Criteria coverage

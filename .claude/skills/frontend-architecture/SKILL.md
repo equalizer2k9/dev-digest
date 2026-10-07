@@ -2,7 +2,6 @@
 name: frontend-architecture
 description: "ALWAYS invoke when adding, moving, renaming or reviewing any file under client/ — a route, a page component, a shared component, a data hook, a style/constant/helper file, an i18n namespace or a component test — and whenever deciding where a new piece of client code belongs. Do NOT use it for React semantics (react-best-practices), App Router/RSC semantics (next-best-practices), or how to write a test (react-testing-library): this skill decides placement, naming and boundaries only."
 version: 1.0.0
-allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 
 # Frontend Architecture — client/

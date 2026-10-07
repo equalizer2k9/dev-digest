@@ -1,6 +1,6 @@
 # Skills Lab — client
 
-**Status:** draft · **Package:** client · **Date:** 2026-09-20
+**Status:** implemented · **Package:** client · **Date:** 2026-09-20
 
 Siblings: [`server/specs/skills-lab.md`](../../server/specs/skills-lab.md) ·
 [`reviewer-core/specs/skills-lab.md`](../../reviewer-core/specs/skills-lab.md)
@@ -213,53 +213,53 @@ diverged; diff before editing.
 Numbered by [`docs/hw2-criteria.md`](../../docs/hw2-criteria.md). Criteria whose surface is
 API-only are in the server spec; the coverage table there accounts for all of 6–37.
 
-- [ ] **AC-6** `Agents` renders under the **SKILLS LAB** sidebar heading, not WORKSPACE.
-- [ ] **AC-7** `/agents` shows every agent as a tile in a grid, not a single-column list.
-- [ ] **AC-9** `/skills` shows a card per skill with name, type, description and an enabled
+- [x] **AC-6** `Agents` renders under the **SKILLS LAB** sidebar heading, not WORKSPACE.
+- [x] **AC-7** `/agents` shows every agent as a tile in a grid, not a single-column list.
+- [x] **AC-9** `/skills` shows a card per skill with name, type, description and an enabled
       toggle.
-- [ ] **AC-10** Clicking a skill card opens its preview in a right-hand side panel — not a
+- [x] **AC-10** Clicking a skill card opens its preview in a right-hand side panel — not a
       modal, not a navigation; the grid stays visible behind it.
-- [ ] **AC-11** The `Add Skill` button opens a menu offering *create* and *import*; choosing
+- [x] **AC-11** The `Add Skill` button opens a menu offering *create* and *import*; choosing
       *create* opens the creation modal.
-- [ ] **AC-12** The creation modal has exactly name, description, type and a markdown body, and
+- [x] **AC-12** The creation modal has exactly name, description, type and a markdown body, and
       creating from it adds the skill to the grid.
-- [ ] **AC-13** The agent's `Skills` tab attaches and detaches skills, and reorders the attached
+- [x] **AC-13** The agent's `Skills` tab attaches and detaches skills, and reorders the attached
       ones by drag-and-drop; the order survives a reload.
-- [ ] **AC-14** That order is not cosmetic: after reordering and rerunning the agent, the Run
+- [x] **AC-14** That order is not cosmetic: after reordering and rerunning the agent, the Run
       Trace lists the skill blocks in the new order. *(Client half — the server and the engine
       carry the rest.)*
-- [ ] **AC-15** *Import* accepts a `.md` file or a `.zip` archive and shows the parsed skill
+- [x] **AC-15** *Import* accepts a `.md` file or a `.zip` archive and shows the parsed skill
       core — name, description, type, rendered body — before anything is saved.
-- [ ] **AC-16** At least one skill attached to the new agents shows source *Imported*, not
+- [x] **AC-16** At least one skill attached to the new agents shows source *Imported*, not
       *Manual*.
-- [ ] **AC-19** The Run Trace's prompt-assembly section shows a skills block with a token number
+- [x] **AC-19** The Run Trace's prompt-assembly section shows a skills block with a token number
       beside it — the weight of that block, not of the whole prompt — and one labelled
       sub-block per skill with its own count.
-- [ ] **AC-20** A disabled or unlinked skill has no block in the trace at all; with no enabled
+- [x] **AC-20** A disabled or unlinked skill has no block in the trace at all; with no enabled
       skills the section is absent entirely.
-- [ ] **AC-22** A skill card shows its current version and the number of agents it is attached
+- [x] **AC-22** A skill card shows its current version and the number of agents it is attached
       to, alongside name, type, description and toggle.
-- [ ] **AC-23** A skill card has a Delete button.
-- [ ] **AC-24** Delete opens a modal with confirm, cancel and a close `×`; cancelling leaves the
+- [x] **AC-23** A skill card has a Delete button.
+- [x] **AC-24** Delete opens a modal with confirm, cancel and a close `×`; cancelling leaves the
       skill in place.
-- [ ] **AC-25** `/skills/:id` has the tabs `Config`, `Preview` and `Versioning`.
-- [ ] **AC-26** `Preview` renders the body — headings, lists, code blocks — not raw markdown.
-- [ ] **AC-27** `Versioning` lists every version of the skill.
-- [ ] **AC-28** Each older version has a `Diff` button showing its difference from the current
+- [x] **AC-25** `/skills/:id` has the tabs `Config`, `Preview` and `Versioning`.
+- [x] **AC-26** `Preview` renders the body — headings, lists, code blocks — not raw markdown.
+- [x] **AC-27** `Versioning` lists every version of the skill.
+- [x] **AC-28** Each older version has a `Diff` button showing its difference from the current
       version.
-- [ ] **AC-29** Each older version has a `Restore` button that returns the body to that version.
-- [ ] **AC-30** The agent's `Skills` tab has a search field filtering skills by name.
-- [ ] **AC-31** Only enabled skills are draggable; disabled rows have no drag handle and cannot
+- [x] **AC-29** Each older version has a `Restore` button that returns the body to that version.
+- [x] **AC-30** The agent's `Skills` tab has a search field filtering skills by name.
+- [x] **AC-31** Only enabled skills are draggable; disabled rows have no drag handle and cannot
       be reordered.
-- [ ] **AC-32** An agent tile shows name, description, model, an enabled toggle and the count of
+- [x] **AC-32** An agent tile shows name, description, model, an enabled toggle and the count of
       attached skills.
-- [ ] **AC-33** An agent tile has a Delete button that removes the agent from the database.
-- [ ] **AC-34** Agent delete opens a modal with confirm, cancel and `×` — `window.confirm` is
+- [x] **AC-33** An agent tile has a Delete button that removes the agent from the database.
+- [x] **AC-34** Agent delete opens a modal with confirm, cancel and `×` — `window.confirm` is
       gone from `AgentCard`.
-- [ ] **AC-35** `/agents/:id` has exactly two tabs: `Config` and `Skills`.
-- [ ] **AC-36** The `Config` tab edits name, description, provider, model (from a list), review
+- [x] **AC-35** `/agents/:id` has exactly two tabs: `Config` and `Skills`.
+- [x] **AC-36** The `Config` tab edits name, description, provider, model (from a list), review
       strategy and the system prompt.
-- [ ] **AC-37** The `Skills` tab lists **all** skills in the system, each with an enabled toggle
+- [x] **AC-37** The `Skills` tab lists **all** skills in the system, each with an enabled toggle
       and a type label (`security` / `convention` / `rubric` / `custom`).
 
 ## Tests
