@@ -31,6 +31,7 @@ or delete; cleanup only via `/engineering-insights review root`.
   - Cause: `scripts/e2e.sh` runs `next dev -p 3100` from the same `client/` dir, so its `NEXT_PUBLIC_API_BASE=http://localhost:3101` is compiled into the shared `client/.next` the dev server keeps serving.
   - Fix: kill the dev client BY PID, `rm -rf client/.next`, restart `./scripts/dev.sh`.
   - Evidence: `scripts/e2e.sh:42` · `scripts/e2e.sh:148`
+  - Seen again 2026-10-07: killing only the client ends `dev.sh` but orphans the API (`tsx watch` child) on :3001 — kill it by PID too before restarting.
 
 ## Session Notes
 <!-- ### YYYY-MM-DD — task: outcome, sections that got entries, what stayed open -->
