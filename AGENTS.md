@@ -61,6 +61,8 @@ Every package has: `README.md` (humans) · `docs/` (deep dives) · `specs/` (fea
 
 ## Do not touch
 
+- **AI attribution** — never add "🤖 Generated with Claude Code", "Co-Authored-By: Claude …" or any
+  similar footer to commits, PR titles or PR bodies.
 - **Migrations** — `server/src/db/migrations/**`. NEVER edit an applied `.sql`, and never hand-edit
   `migrations/meta/_journal.json` or a `*_snapshot.json`: they are drizzle-kit output and a manual
   edit has already corrupted the journal once (`2006964`). Schema change → edit `db/schema/*.ts`,
