@@ -251,7 +251,8 @@ all of 6–37.
       produces one naming the uncovered branch and a boundary case. Procedure and evidence per
       §6. — **Half met**, see [experiment report](../../docs/hw2/experiment-report.md): with the
       skills the finding names the uncovered branches and boundary values, but the agent also
-      raises a coverage WARNING with no skill enabled.
+      raises a coverage WARNING with no skill enabled — on the one-case test and again after
+      the test was widened to five numeric cases.
 - [x] **AC-18** Same shape for *API Contract Reviewer* on a route-signature PR: skipped without
       the skill, breaking change reported with it. — Evidence:
       [experiment report](../../docs/hw2/experiment-report.md).
