@@ -6,10 +6,10 @@
 
 | Surface | Файл | Зміна |
 |---|---|---|
-| client | [client/specs/README.md](client/specs/README.md) | conventions-extractor: `draft` → `implemented` |
-| server | [server/specs/README.md](server/specs/README.md) | conventions-extractor: `draft` → `implemented` |
-| `.claude/` | [frontend-architecture/SKILL.md](.claude/skills/frontend-architecture/SKILL.md) | −`allowed-tools` |
-| `.claude/` | [onion-architecture/SKILL.md](.claude/skills/onion-architecture/SKILL.md) | −`allowed-tools` |
+| client | [client/specs/README.md](../../client/specs/README.md) | conventions-extractor: `draft` → `implemented` |
+| server | [server/specs/README.md](../../server/specs/README.md) | conventions-extractor: `draft` → `implemented` |
+| `.claude/` | [frontend-architecture/SKILL.md](../../.claude/skills/frontend-architecture/SKILL.md) | −`allowed-tools` |
+| `.claude/` | [onion-architecture/SKILL.md](../../.claude/skills/onion-architecture/SKILL.md) | −`allowed-tools` |
 
 Untracked файлів нема.
 
@@ -43,3 +43,41 @@ reviewer-core та e2e в diff нема — не запускав. Інтегр�
 Спеки `skills-lab.md` (server і client) досі мають `**Status:** draft`, тому їхні рядки в таблицях лишились `draft`. Якщо Skills Lab уже реалізований — це окрема правка спек і таблиць, рішення за тобою.
 
 Нічого не комітив.
+
+---
+
+## Додаток — решта AC-21 (перевірено 2026-10-07)
+
+AC-21 має три частини. Прогін вище закриває третю (ручний запуск на diff `client/` + `server/`,
+обидва набори скілів завантажені за один прохід). Дві інші перевірено окремо.
+
+### 1. `pr-self-review` — Workflow-диспетчер
+
+[.claude/skills/pr-self-review/SKILL.md](../../.claude/skills/pr-self-review/SKILL.md), frontmatter і заголовок:
+
+```
+name: pr-self-review
+version: 1.0.0
+disable-model-invocation: true
+allowed-tools: Bash, Read, Grep, Glob, Skill
+
+# PR Self-Review (workflow)
+**Version:** 1.0.0 · user-invoked only (`/pr-self-review`) · subject: the **uncommitted** diff
+```
+
+- `disable-model-invocation: true` — запускається лише вручну через `/pr-self-review`.
+- `Skill` в `allowed-tools` і таблиця маршрутів у кроці 3 — скіл сам правил не містить, а
+  викликає скіли-власники поверхонь (`frontend-architecture`, `onion-architecture`, …).
+- У `allowed-tools` нема `Write` / `Edit` — диспетчер звітує, код не змінює.
+
+### 2. git-push хук не встановлено
+
+| Перевірка | Команда | Результат |
+|---|---|---|
+| Хуки git | `ls .git/hooks \| grep -v '\.sample$'` | порожньо — лише `*.sample` |
+| Перенаправлення хуків | `git config --get core.hooksPath` | не задано (exit 1) |
+| Менеджери хуків | `ls -d .husky lefthook.yml .lefthook.yml .pre-commit-config.yaml` | `No such file or directory` для всіх чотирьох |
+| Хуки Claude Code в репо | `.claude/settings.json`, `.claude/settings.local.json` | файлів нема; у `.claude/` лише `commands/` і `skills/` |
+| Згадки в коді | `git grep -n -i "pre-push\|git push" -- ':!*.md' ':!*lock*'` | нуль збігів |
+
+`git push origin feat/homework-2` (коміт `77abbe8`) пройшов без жодного виводу хука.
