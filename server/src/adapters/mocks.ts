@@ -177,7 +177,7 @@ export class MockGitHubClient implements GitHubClient {
       files: [
         {
           path: 'src/config.ts',
-          additions: 4,
+          added_lines: 4,
           deletions: 0,
           patch: '@@ -10,3 +10,4 @@\n   port: 3000,\n+  stripeKey: "sk_live_xxx",\n   redisUrl: x,',
         },
