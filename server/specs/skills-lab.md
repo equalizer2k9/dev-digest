@@ -258,10 +258,11 @@ all of 6–37.
 - [x] **AC-20** A skill that is disabled globally or not linked to the agent contributes no
       `skill_blocks` entry, no text in `prompt_assembly.skills` and no Live Log line; with no
       enabled skills at all, `skills`, `skill_blocks` and `skills_tokens` are all `null`.
-- [ ] **AC-21** *(out of package — repo-root tooling, tracked here so no criterion is
+- [x] **AC-21** *(out of package — repo-root tooling, tracked here so no criterion is
       homeless.)* `.claude/skills/pr-self-review/SKILL.md` exists as a Workflow-type dispatcher,
       its git-push hook is **not** installed, and a manual run on a diff touching both `client/`
-      and `server/` loads both packages' skill sets in one pass.
+      and `server/` loads both packages' skill sets in one pass. Evidence:
+      [docs/hw2/pr-self-review-run.md](../../docs/hw2/pr-self-review-run.md).
 - [x] **AC-22** `GET /skills` returns `version` and `agent_count` per skill, computed in one
       grouped query.
 - [x] **AC-23** `DELETE /skills/:id` removes the row and cascades `skill_versions` +
