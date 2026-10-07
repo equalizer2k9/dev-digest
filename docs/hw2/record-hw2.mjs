@@ -65,7 +65,11 @@ const HOLD = 2000;
 
 const SCAN_TIMEOUT = 10 * 60_000;
 const SCAN_ATTEMPTS = 5;
+/* Scene 1 really creates the skill only while that keeps it at this version or below. */
+const MAX_SKILL_VERSION = 2;
+/* Overall budget for the review in scene 4, and how long one attempt may take. */
 const RUN_TIMEOUT = 5 * 60_000;
+const RUN_ATTEMPT_TIMEOUT = 140_000;
 /* What stays on screen around a cut-out wait. */
 const KEEP_HEAD = 2500;
 const KEEP_TAIL = 1200;
@@ -217,15 +221,6 @@ async function record(ctx) {
     scenes.push({ scene: n, title, start_ms: now() });
     console.log(`▶ scene ${n} — ${title} @ ${(now() / 1000).toFixed(1)}s raw`);
   };
-  /** Film a long wait, but mark its middle for removal from the mp4. */
-  const cutWait = async (label, fn) => {
-    const from = now();
-    await fn();
-    const to = now();
-    if (to - from > KEEP_HEAD + KEEP_TAIL + 500) cuts.push({ label, from: from + KEEP_HEAD, to: to - KEEP_TAIL });
-    console.log(`  … ${label}: ${((to - from) / 1000).toFixed(1)}s`);
-  };
-
   /* ---- 1. Conventions: ReScan → cards → Accept / Reject / Edit → Create skill */
   if (FROM <= 1) {
 
@@ -325,8 +320,23 @@ async function record(ctx) {
   for (let i = 0; i < scratch.length; i++) await page.keyboard.press("Backspace");
   await page.waitForTimeout(BEAT);
 
-  await clickAt(page, modal.getByRole("button", { name: "Create skill", exact: true }), "Create skill (submit)");
-  await page.getByText(/created from/).first().waitFor({ timeout: 15_000 }).catch(() => die("the skill was not created"));
+  /* Creating under an existing name bumps that skill's version. Only do it
+   * while the result stays at MAX_SKILL_VERSION or below; past that the take
+   * shows the modal and leaves through Cancel, so re-recording does not pile
+   * up versions. */
+  const current = (await api("/skills")).find((x) => x.id === skillId)?.version ?? 0;
+  facts.skill_version_before = current;
+  if (current + 1 <= MAX_SKILL_VERSION) {
+    facts.create_skill = "created";
+    await clickAt(page, modal.getByRole("button", { name: "Create skill", exact: true }), "Create skill (submit)");
+    await page.getByText(/created from/).first().waitFor({ timeout: 15_000 }).catch(() => die("the skill was not created"));
+  } else {
+    facts.create_skill = "cancelled";
+    await glideTo(page, modal.getByRole("button", { name: "Create skill", exact: true }), "Create skill (submit)");
+    await page.waitForTimeout(STEP);
+    await clickAt(page, modal.getByRole("button", { name: "Cancel", exact: true }), "Cancel");
+    await modal.waitFor({ state: "hidden", timeout: 5000 }).catch(() => die("Cancel did not close the Create skill modal"));
+  }
   await page.waitForTimeout(HOLD);
   }
 
@@ -449,54 +459,57 @@ async function record(ctx) {
   /* ---- 4. PR #9: Run Review → trace with the skills block → run without skills */
   if (FROM <= 4) {
 
-  await clickAt(page, page.getByRole("link", { name: /Pull Requests/ }), "Pull Requests in the sidebar");
-  await page.waitForURL(/\/pulls(\?|$)/, { timeout: 10_000 });
-  await page.waitForLoadState("networkidle");
+  /* Straight to the PR by URL: the sidebar's Pull Requests link has no repo
+   * selected on a Settings / Agents page and lands on an empty list. */
+  await page.goto(`${CLIENT}/repos/${repoId}/pulls/${PR_NUMBER}`, { waitUntil: "domcontentloaded" });
   scene(4, "PR #9: Run Review, skills block in the trace, run without skills");
-  await page.waitForTimeout(BEAT);
-
-  /* The list defaults to PRs that need review; #9 is already reviewed. */
-  let prRow = page.getByText(`#${PR_NUMBER}`, { exact: true });
-  if ((await prRow.count()) === 0) {
-    await page.goto(`${CLIENT}/repos/${repoId}/pulls?status=all`, { waitUntil: "networkidle" });
-    prRow = page.getByText(`#${PR_NUMBER}`, { exact: true });
-  }
-  await clickAt(page, prRow, `PR #${PR_NUMBER} row`);
-  await page.waitForURL(new RegExp(`/pulls/${PR_NUMBER}\\b`), { timeout: 10_000 });
-  await page.waitForLoadState("networkidle");
-  await page.waitForTimeout(STEP);
 
   let runId = REUSE_RUN;
   if (!REUSE_RUN) {
     /* The PR detail renders only after the server refreshed it from GitHub. */
     const runReview = page.getByRole("button", { name: "Run Review", exact: true });
     await runReview.waitFor({ timeout: 30_000 }).catch(() => die("the PR page never showed Run Review"));
-    await page.waitForTimeout(BEAT);
-    await clickAt(page, runReview, "Run Review");
-    const pick = page.getByRole("button", { name: new RegExp("^" + AGENT_NAME) });
-    await pick.waitFor({ timeout: 5000 }).catch(() => die("the Run Review menu did not list the agent"));
-    await page.waitForTimeout(BEAT);
-    await clickAt(page, pick, `${AGENT_NAME} in the Run Review menu`);
+    await page.waitForTimeout(STEP);
 
-    for (let i = 0; i < 20 && !runId; i++) {
-      await page.waitForTimeout(500);
-      runId = (await api(`/pulls/${prId}/runs/active`))[0]?.run_id ?? null;
-    }
-    if (!runId) die("Run Review did not start a run");
-    await glide(page, W / 2, H / 2 + 80);
-    await cutWait("review run", async () => {
-      const deadline = Date.now() + RUN_TIMEOUT;
-      for (;;) {
-        const run = (await api(`/pulls/${prId}/runs`)).find((r) => r.run_id === runId);
-        if (run?.status === "done") break;
-        if (run && run.status !== "running") die(`the review run ended as "${run.status}": ${run.error ?? ""}`);
-        if (Date.now() > deadline) die("the review run did not reach status done within 5 minutes");
-        await page.waitForTimeout(2000);
+    /* A review now and then hangs on the provider. Give each attempt
+     * RUN_ATTEMPT_TIMEOUT, cancel a stuck one and start again — all of it inside
+     * one cut, so the take keeps the first click and the finished result. */
+    const runFrom = now();
+    const deadline = Date.now() + RUN_TIMEOUT;
+    for (let attempt = 1; ; attempt++) {
+      await clickAt(page, runReview, "Run Review");
+      const pick = page.getByRole("button", { name: new RegExp("^" + AGENT_NAME) });
+      await pick.waitFor({ timeout: 5000 }).catch(() => die("the Run Review menu did not list the agent"));
+      await page.waitForTimeout(BEAT);
+      await clickAt(page, pick, `${AGENT_NAME} in the Run Review menu`);
+
+      runId = null;
+      for (let i = 0; i < 20 && !runId; i++) {
+        await page.waitForTimeout(500);
+        runId = (await api(`/pulls/${prId}/runs/active`))[0]?.run_id ?? null;
       }
-      /* Let the page swap the live log for the finished run. */
-      await page.getByRole("button", { name: "Open run trace & logs" }).first().waitFor({ timeout: 30_000 });
-      await page.waitForTimeout(1500);
-    });
+      if (!runId) die("Run Review did not start a run");
+      await glide(page, W / 2, H / 2 + 80);
+
+      const attemptEnd = Math.min(Date.now() + RUN_ATTEMPT_TIMEOUT, deadline);
+      let status = "running";
+      while (status === "running" && Date.now() < attemptEnd) {
+        await page.waitForTimeout(2000);
+        status = (await api(`/pulls/${prId}/runs`)).find((r) => r.run_id === runId)?.status ?? "running";
+      }
+      console.log(`  … review attempt ${attempt}: ${status} @ ${(now() / 1000).toFixed(0)}s raw`);
+      if (status === "done") break;
+      if (status === "running") await api(`/runs/${runId}/cancel`, { method: "POST" });
+      if (Date.now() >= deadline) die(`no review run reached status done within ${RUN_TIMEOUT / 60_000} minutes (last: ${status})`);
+      /* Back to a clean PR page for the next attempt. */
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await runReview.waitFor({ timeout: 30_000 }).catch(() => die("the PR page never showed Run Review"));
+    }
+    /* Let the page swap the live log for the finished run. */
+    await page.getByRole("button", { name: "Open run trace & logs" }).first().waitFor({ timeout: 30_000 });
+    await page.waitForTimeout(1500);
+    cuts.push({ label: "review run", from: runFrom + KEEP_HEAD, to: now() - KEEP_TAIL });
+    facts.review_seconds = Math.round((now() - runFrom) / 1000);
   }
   const newRun = (await api(`/pulls/${prId}/runs`)).find((r) => r.run_id === runId);
   facts.new_run = { run_id: runId, findings: newRun.findings_count, duration_ms: newRun.duration_ms };
@@ -515,7 +528,11 @@ async function record(ctx) {
     await clickAt(page, btn, `trace button of ${label}`);
     await drawer.waitFor({ state: "visible", timeout: 8000 }).catch(() => die("the trace drawer never opened"));
     await page.waitForTimeout(600);
-    if (!page.url().includes(`trace=${id}`)) die(`the trace drawer opened another run than ${label}: ${page.url()}`);
+    if (!page.url().includes(`trace=${id}`)) {
+      /* The Timeline had an extra row (a cancelled or failed attempt): open the right run by its link. */
+      await page.goto(`${CLIENT}/repos/${repoId}/pulls/${PR_NUMBER}?tab=findings&trace=${id}`, { waitUntil: "domcontentloaded" });
+      await drawer.waitFor({ state: "visible", timeout: 15_000 }).catch(() => die(`the trace of ${label} never opened`));
+    }
     const assembly = drawer.getByText("Prompt assembly", { exact: true });
     await assembly.waitFor({ timeout: 8000 });
     await glideTo(page, drawer.getByText("FINDINGS", { exact: true }), "FINDINGS stat", 0, 22);
