@@ -252,7 +252,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
           detail.files.map((f) => ({
             prId: pr.id,
             path: f.path,
-            additions: f.additions,
+            additions: f.added_lines,
             deletions: f.deletions,
             patch: f.patch ?? null,
           })),
@@ -304,7 +304,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         body: pr.body ?? null,
         files: files.map((f) => ({
           path: f.path,
-          additions: f.additions,
+          added_lines: f.additions,
           deletions: f.deletions,
           patch: f.patch ?? null,
         })),

@@ -105,7 +105,7 @@ export class OctokitGitHubClient implements GitHubClient {
             body: pr.body,
             files: files.map((f) => ({
               path: f.filename,
-              additions: f.additions,
+              added_lines: f.additions,
               deletions: f.deletions,
               patch: f.patch,
             })),

@@ -187,7 +187,7 @@ export type PrMeta = z.infer<typeof PrMeta>;
 
 export const PrFile = z.object({
   path: z.string(),
-  additions: z.number().int(),
+  added_lines: z.number().int(),
   deletions: z.number().int(),
   patch: z.string().nullish(),
 });
