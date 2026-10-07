@@ -29,5 +29,5 @@ Claude outputs/
 
 # HW2 demo media — recorded locally, not committed
 *.mp4
-docs/hw2/voiceover/*.mp3
+docs/hw2/.demo-frames/
 docs/hw2/.video-raw/

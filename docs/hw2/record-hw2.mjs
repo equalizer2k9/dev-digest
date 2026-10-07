@@ -1,22 +1,23 @@
 /* DevDigest — homework #2 demo screencast.
  *
  * Drives the live studio (:3000 / :3001) through five scenes and writes
- *   docs/hw2/hw2-demo.mp4   H.264, 1440x900
- *   docs/hw2/scenes.json    { scenes: [{ scene, title, start_ms }], total_ms }
+ *   docs/hw2/hw2-demo.mp4        H.264, 1440x900, silent
+ *   docs/hw2/.demo-frames/*.png  one still per scene, to eyeball the take
  *
  *   node docs/hw2/record-hw2.mjs          record
- *   node docs/hw2/record-hw2.mjs --dry    same clicks, no video, no scenes.json
+ *   node docs/hw2/record-hw2.mjs --dry    same clicks and stills, no video
  *
  * Dependencies are NOT installed here: Playwright, ffmpeg-static and the cursor
  * overlay come from the HW1 rig in "Claude outputs/screencast" (git-ignored).
  *
- * Two steps wait on a model (the conventions scan, the review run). Those waits
- * are filmed but cut out of the mp4, so `start_ms` / `total_ms` are positions on
- * the CUT timeline — the one the voice-over is mixed against.
+ * One step waits on a model: the conventions ReScan in scene 1 (minutes on the
+ * paid model). That wait is filmed but cut out of the mp4 — without it the take
+ * cannot fit 1–3 minutes. Nothing else calls a model: scene 1 leaves the Create
+ * skill modal through Cancel, and scene 4 opens two existing runs.
  */
 import { createRequire } from "node:module";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, rmSync, statSync, writeFileSync, renameSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, statSync, renameSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -35,15 +36,14 @@ const ffmpegPath = require("ffmpeg-static");
 const DRY = process.argv.includes("--dry");
 /* Debug aid for dry runs: start at scene N (the earlier ones change live data). */
 const FROM = Number((process.argv.find((x) => x.startsWith("--from=")) ?? "--from=1").slice(7));
-/* Debug aid for dry runs: skip Run Review and treat an existing run as the new one. */
-const REUSE_RUN = (process.argv.find((x) => x.startsWith("--reuse-run=")) ?? "").slice(12) || null;
-if ((FROM > 1 || REUSE_RUN) && !DRY) {
-  console.error("\n✗ --from / --reuse-run only work with --dry: a recording needs every scene\n");
+if (FROM > 1 && !DRY) {
+  console.error("\n✗ --from only works with --dry: a recording needs every scene\n");
   process.exit(1);
 }
+
 const VIDEO_DIR = join(HERE, ".video-raw");
 const OUT_MP4 = join(HERE, "hw2-demo.mp4");
-const SCENES_JSON = join(HERE, "scenes.json");
+const FRAMES_DIR = join(HERE, ".demo-frames");
 
 const CLIENT = "http://localhost:3000";
 const API = "http://localhost:3001";
@@ -51,7 +51,9 @@ const REPO_FULL_NAME = "equalizer2k9/dev-digest";
 const PR_NUMBER = 9;
 const AGENT_NAME = "API Contract Reviewer";
 const SKILL_NAME = "repo-conventions";
-/* The earlier run on PR #9 with no skills attached (control experiment, run A). */
+/* The control-experiment pair on PR #9 (docs/hw2/experiment-report.md): run B
+ * with four skills, run A with none. Scene 4 opens both; it starts no run. */
+const SKILLS_RUN = "5e3c0877-8c1c-4b15-8ea0-ad883b6795b5";
 const NO_SKILLS_RUN = "01e2a66b-cc0b-4387-b729-d1682444c2d4";
 
 const W = 1440;
@@ -65,11 +67,6 @@ const HOLD = 2000;
 
 const SCAN_TIMEOUT = 10 * 60_000;
 const SCAN_ATTEMPTS = 5;
-/* Scene 1 really creates the skill only while that keeps it at this version or below. */
-const MAX_SKILL_VERSION = 2;
-/* Overall budget for the review in scene 4, and how long one attempt may take. */
-const RUN_TIMEOUT = 5 * 60_000;
-const RUN_ATTEMPT_TIMEOUT = 140_000;
 /* What stays on screen around a cut-out wait. */
 const KEEP_HEAD = 2500;
 const KEEP_TAIL = 1200;
@@ -95,10 +92,8 @@ async function preflight() {
   const pr = (await api(`/repos/${repo.id}/pulls`)).find((p) => p.number === PR_NUMBER);
   if (!pr) die(`PR #${PR_NUMBER} is not imported`);
   const runs = await api(`/pulls/${pr.id}/runs`);
-  if (!runs.some((r) => r.run_id === NO_SKILLS_RUN))
-    die(`the no-skills run ${NO_SKILLS_RUN} is not on PR #${PR_NUMBER} any more`);
-  if ((await api(`/pulls/${pr.id}/runs/active`)).length > 0)
-    die(`PR #${PR_NUMBER} already has an active run — wait for it to finish`);
+  for (const id of [SKILLS_RUN, NO_SKILLS_RUN])
+    if (!runs.some((r) => r.run_id === id)) die(`run ${id} is not on PR #${PR_NUMBER} any more`);
 
   const agent = (await api("/agents")).find((a) => a.name === AGENT_NAME);
   if (!agent) die(`agent "${AGENT_NAME}" does not exist`);
@@ -120,7 +115,7 @@ async function preflight() {
   console.log(`✓ ${AGENT_NAME}: ${order.map(nameOf).join(" → ")}`);
   console.log(`✓ ${SKILL_NAME} v${skill.version} · ${scan.candidates.length} candidates on the page`);
   console.log(`✓ models: conventions ${conventionsModel} · agent ${agent.model}`);
-  return { repoId: repo.id, prId: pr.id, agentId: agent.id, skillId: skill.id, order, nameOf, conventionsModel };
+  return { repoId: repo.id, prId: pr.id, agentId: agent.id, skillId: skill.id, skillVersion: skill.version, order, nameOf, conventionsModel };
 }
 
 /* ------------------------------------------------------------------ driving */
@@ -166,7 +161,7 @@ async function clickAt(page, locator, label) {
 /* ---------------------------------------------------------------- recording */
 
 async function record(ctx) {
-  const { repoId, prId, agentId, skillId, order, nameOf, conventionsModel } = ctx;
+  const { repoId, prId, agentId, skillId, skillVersion, order, nameOf, conventionsModel } = ctx;
   rmSync(VIDEO_DIR, { recursive: true, force: true });
   if (!DRY) mkdirSync(VIDEO_DIR, { recursive: true });
 
@@ -217,6 +212,9 @@ async function record(ctx) {
   const scenes = [];
   const cuts = [];
   const facts = {};
+  mkdirSync(FRAMES_DIR, { recursive: true });
+  /** A still of what the scene is about — checked by eye after the take. */
+  const still = (name) => page.screenshot({ path: join(FRAMES_DIR, `${name}.png`) });
   const scene = (n, title) => {
     scenes.push({ scene: n, title, start_ms: now() });
     console.log(`▶ scene ${n} — ${title} @ ${(now() / 1000).toFixed(1)}s raw`);
@@ -228,8 +226,9 @@ async function record(ctx) {
   scene(1, "Conventions: ReScan, curate, Create skill");
   await page.waitForTimeout(STEP);
 
-  /* The model call behind a scan fails now and then (502). Retry on camera, but
-   * inside the cut, so the take only keeps the click and the finished result. */
+  /* The model call behind a scan fails now and then (502, a reply that does not
+   * fit the schema). Retry on camera, but inside the cut, so the take only keeps
+   * the click and the finished result. A 402 / 404 stops the script instead. */
   const rescan = page.getByRole("button", { name: "ReScan", exact: true });
   const scanning = page.getByRole("button", { name: "Scanning…" });
   const scanFrom = now();
@@ -241,6 +240,12 @@ async function record(ctx) {
     await page.waitForLoadState("networkidle");
     await page.waitForTimeout(BEAT);
     const failed = (await page.getByText("Scan failed").count()) > 0;
+    if (failed) {
+      /* Out of credits / model gone is not something to retry or work around. */
+      const text = await page.locator("main").innerText();
+      const hard = text.match(/\b(402|404)\b[^\n]*/);
+      if (hard) die(`the conventions model call failed with ${hard[0]} — stopping, no model was switched`);
+    }
     const fresh = failed ? 0 : await page.locator('[data-testid="convention-card"][data-status="pending"]').count();
     /* The scene needs three undecided candidates: one to accept, reject and edit. */
     scanned = !failed && fresh >= 3;
@@ -320,23 +325,15 @@ async function record(ctx) {
   for (let i = 0; i < scratch.length; i++) await page.keyboard.press("Backspace");
   await page.waitForTimeout(BEAT);
 
-  /* Creating under an existing name bumps that skill's version. Only do it
-   * while the result stays at MAX_SKILL_VERSION or below; past that the take
-   * shows the modal and leaves through Cancel, so re-recording does not pile
-   * up versions. */
-  const current = (await api("/skills")).find((x) => x.id === skillId)?.version ?? 0;
-  facts.skill_version_before = current;
-  if (current + 1 <= MAX_SKILL_VERSION) {
-    facts.create_skill = "created";
-    await clickAt(page, modal.getByRole("button", { name: "Create skill", exact: true }), "Create skill (submit)");
-    await page.getByText(/created from/).first().waitFor({ timeout: 15_000 }).catch(() => die("the skill was not created"));
-  } else {
-    facts.create_skill = "cancelled";
-    await glideTo(page, modal.getByRole("button", { name: "Create skill", exact: true }), "Create skill (submit)");
-    await page.waitForTimeout(STEP);
-    await clickAt(page, modal.getByRole("button", { name: "Cancel", exact: true }), "Cancel");
-    await modal.waitFor({ state: "hidden", timeout: 5000 }).catch(() => die("Cancel did not close the Create skill modal"));
-  }
+  /* Leave through Cancel: submitting under an existing name would add a
+   * version to that skill on every take. */
+  await still("scene-1-create-skill-modal");
+  await glideTo(page, modal.getByRole("button", { name: "Create skill", exact: true }), "Create skill (submit)");
+  await page.waitForTimeout(STEP);
+  await clickAt(page, modal.getByRole("button", { name: "Cancel", exact: true }), "Cancel");
+  await modal.waitFor({ state: "hidden", timeout: 5000 }).catch(() => die("Cancel did not close the Create skill modal"));
+  if (((await api("/skills")).find((x) => x.id === skillId)?.version ?? 0) !== skillVersion)
+    die("the skill's version changed during scene 1 — Cancel must not create one");
   await page.waitForTimeout(HOLD);
   }
 
@@ -382,6 +379,7 @@ async function record(ctx) {
   await clickAt(page, diffBtn, "Diff button");
   await page.locator('[data-testid="version-diff"]').waitFor({ timeout: 8000 }).catch(() => die("the diff modal showed no diff"));
   await glide(page, W / 2, H / 2);
+  await still("scene-2-version-diff");
   await page.waitForTimeout(HOLD + 500);
   await clickAt(page, page.getByRole("dialog").getByRole("button", { name: "Close", exact: true }).last(), "Close diff");
   await page.waitForTimeout(BEAT);
@@ -453,66 +451,24 @@ async function record(ctx) {
   }
   if (after.join() === order.join()) die("the skill order did not change — neither drag nor Move up worked");
   await glideTo(page, rowOf(fromId), "moved skill row");
+  await still("scene-3-skills-tab-reordered");
   await page.waitForTimeout(HOLD);
   }
 
-  /* ---- 4. PR #9: Run Review → trace with the skills block → run without skills */
+  /* ---- 4. PR #9: the control pair — trace with the skills block, trace without */
   if (FROM <= 4) {
 
   /* Straight to the PR by URL: the sidebar's Pull Requests link has no repo
    * selected on a Settings / Agents page and lands on an empty list. */
   await page.goto(`${CLIENT}/repos/${repoId}/pulls/${PR_NUMBER}`, { waitUntil: "domcontentloaded" });
-  scene(4, "PR #9: Run Review, skills block in the trace, run without skills");
+  scene(4, "PR #9: run with skills vs run without, in the trace");
+  /* The PR detail renders only after the server refreshed it from GitHub. */
+  await page.getByRole("button", { name: "Run Review", exact: true }).waitFor({ timeout: 30_000 }).catch(() => die("the PR page never rendered"));
+  await page.waitForTimeout(STEP);
 
-  let runId = REUSE_RUN;
-  if (!REUSE_RUN) {
-    /* The PR detail renders only after the server refreshed it from GitHub. */
-    const runReview = page.getByRole("button", { name: "Run Review", exact: true });
-    await runReview.waitFor({ timeout: 30_000 }).catch(() => die("the PR page never showed Run Review"));
-    await page.waitForTimeout(STEP);
-
-    /* A review now and then hangs on the provider. Give each attempt
-     * RUN_ATTEMPT_TIMEOUT, cancel a stuck one and start again — all of it inside
-     * one cut, so the take keeps the first click and the finished result. */
-    const runFrom = now();
-    const deadline = Date.now() + RUN_TIMEOUT;
-    for (let attempt = 1; ; attempt++) {
-      await clickAt(page, runReview, "Run Review");
-      const pick = page.getByRole("button", { name: new RegExp("^" + AGENT_NAME) });
-      await pick.waitFor({ timeout: 5000 }).catch(() => die("the Run Review menu did not list the agent"));
-      await page.waitForTimeout(BEAT);
-      await clickAt(page, pick, `${AGENT_NAME} in the Run Review menu`);
-
-      runId = null;
-      for (let i = 0; i < 20 && !runId; i++) {
-        await page.waitForTimeout(500);
-        runId = (await api(`/pulls/${prId}/runs/active`))[0]?.run_id ?? null;
-      }
-      if (!runId) die("Run Review did not start a run");
-      await glide(page, W / 2, H / 2 + 80);
-
-      const attemptEnd = Math.min(Date.now() + RUN_ATTEMPT_TIMEOUT, deadline);
-      let status = "running";
-      while (status === "running" && Date.now() < attemptEnd) {
-        await page.waitForTimeout(2000);
-        status = (await api(`/pulls/${prId}/runs`)).find((r) => r.run_id === runId)?.status ?? "running";
-      }
-      console.log(`  … review attempt ${attempt}: ${status} @ ${(now() / 1000).toFixed(0)}s raw`);
-      if (status === "done") break;
-      if (status === "running") await api(`/runs/${runId}/cancel`, { method: "POST" });
-      if (Date.now() >= deadline) die(`no review run reached status done within ${RUN_TIMEOUT / 60_000} minutes (last: ${status})`);
-      /* Back to a clean PR page for the next attempt. */
-      await page.reload({ waitUntil: "domcontentloaded" });
-      await runReview.waitFor({ timeout: 30_000 }).catch(() => die("the PR page never showed Run Review"));
-    }
-    /* Let the page swap the live log for the finished run. */
-    await page.getByRole("button", { name: "Open run trace & logs" }).first().waitFor({ timeout: 30_000 });
-    await page.waitForTimeout(1500);
-    cuts.push({ label: "review run", from: runFrom + KEEP_HEAD, to: now() - KEEP_TAIL });
-    facts.review_seconds = Math.round((now() - runFrom) / 1000);
-  }
-  const newRun = (await api(`/pulls/${prId}/runs`)).find((r) => r.run_id === runId);
-  facts.new_run = { run_id: runId, findings: newRun.findings_count, duration_ms: newRun.duration_ms };
+  const prRuns = await api(`/pulls/${prId}/runs`);
+  const findingsOf = (id) => prRuns.find((r) => r.run_id === id)?.findings_count;
+  facts.findings = { with_skills: findingsOf(SKILLS_RUN), without_skills: findingsOf(NO_SKILLS_RUN) };
 
   const agentRunsTab = page.getByRole("button", { name: /Agent runs/ });
   await clickAt(page, agentRunsTab, "Agent runs tab");
@@ -543,9 +499,9 @@ async function record(ctx) {
     await page.waitForTimeout(BEAT);
   };
 
-  await openTrace(runId, "the new run");
+  await openTrace(SKILLS_RUN, "the run with skills");
   const skillsHead = drawer.getByText("Skills", { exact: true });
-  if ((await skillsHead.count()) === 0) die("the new run's trace has no Skills block");
+  if ((await skillsHead.count()) === 0) die("the trace of the run with skills has no Skills block");
   await glideTo(page, skillsHead, "Skills block header");
   await page.waitForTimeout(BEAT);
   const tokenLabels = drawer.getByText(/^\d+ tokens$/);
@@ -553,6 +509,7 @@ async function record(ctx) {
   await glideTo(page, tokenLabels.first(), "skills block token total");
   await page.waitForTimeout(STEP);
   await glideTo(page, tokenLabels.last(), "last skill's tokens");
+  await still("scene-4a-trace-with-skills");
   await page.waitForTimeout(HOLD);
   await clickAt(page, drawer.getByRole("button", { name: "Close", exact: true }).first(), "close the trace");
   await drawer.waitFor({ state: "hidden", timeout: 5000 }).catch(() => {});
@@ -561,6 +518,7 @@ async function record(ctx) {
   await openTrace(NO_SKILLS_RUN, "the run without skills");
   if ((await drawer.getByText(/^\d+ tokens$/).count()) > 0) die("the no-skills run shows a Skills block");
   await glideTo(page, drawer.getByText(/^System/).first(), "System block (no Skills block follows)");
+  await still("scene-4b-trace-without-skills");
   await page.waitForTimeout(HOLD + 500);
   await clickAt(page, drawer.getByRole("button", { name: "Close", exact: true }).first(), "close the trace");
   await drawer.waitFor({ state: "hidden", timeout: 5000 }).catch(() => {});
@@ -593,6 +551,7 @@ async function record(ctx) {
   await page.waitForTimeout(STEP);
   const option = page.getByRole("button", { name: conventionsModel + " —" });
   if (await option.count()) await glideTo(page, option, "current model in the list");
+  await still("scene-5-conventions-model-dropdown");
   await page.waitForTimeout(HOLD);
   /* Close without changing the model. */
   await page.keyboard.press("Escape");
@@ -658,8 +617,8 @@ function finish({ webm, scenes, cuts, end, closed }) {
   const select = drop.map((d) => `between(t,${sec(d.from)},${sec(d.to)})`).join("+");
   const filter = `fps=${FPS},select='not(${select})',setpts=N/${FPS}/TB`;
 
-  /* Same mapping for the markers: a wall-clock moment lands on the cut timeline
-   * at its video time minus everything dropped before it. */
+  /* Same mapping for the scene markers printed below: a wall-clock moment lands
+   * on the cut timeline at its video time minus everything dropped before it. */
   const onCutTimeline = (ms) =>
     Math.round(ms + lead - drop.reduce((acc, d) => acc + Math.max(0, Math.min(ms, d.to) - d.from), 0));
 
@@ -667,8 +626,6 @@ function finish({ webm, scenes, cuts, end, closed }) {
   let secs = probeSeconds(OUT_MP4);
 
   const fixed = scenes.map((s) => ({ ...s, start_ms: Math.max(0, onCutTimeline(s.start_ms)) }));
-  const total = Math.round(secs * 1000);
-  writeFileSync(SCENES_JSON, JSON.stringify({ scenes: fixed, total_ms: total }, null, 2) + "\n");
 
   let mb = statSync(OUT_MP4).size / 1048576;
   if (mb > 150) {
