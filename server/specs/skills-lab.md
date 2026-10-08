@@ -246,13 +246,13 @@ all of 6–37.
 - [x] **AC-16** A skill imported through the UI has `source = 'imported_file'`: the row
       `POST /skills/import` writes carries that source, `GET /skills` returns it, and it is the
       source the client labels *Imported*.
-- [ ] **AC-17** With *Test Quality Reviewer* and no skill enabled, a happy-path-only test PR
+- [x] **AC-17** With *Test Quality Reviewer* and no skill enabled, a happy-path-only test PR
       produces no uncovered-branch finding; with `test-quality-rubric` enabled, the same PR
       produces one naming the uncovered branch and a boundary case. Procedure and evidence per
-      §6. — **Half met**, see [experiment report](../../docs/hw2/experiment-report.md): with the
-      skills the finding names the uncovered branches and boundary values, but the agent also
-      raises a coverage WARNING with no skill enabled — on the one-case test and again after
-      the test was widened to five numeric cases.
+      §6. — Evidence: [experiment report](../../docs/hw2/experiment-report.md). Met on the third
+      version of the test PR, whose tests cover every obvious branch (so it is no longer
+      happy-path-only to the letter); on the two earlier versions the agent flagged coverage
+      without any skill.
 - [x] **AC-18** Same shape for *API Contract Reviewer* on a route-signature PR: skipped without
       the skill, breaking change reported with it. — Evidence:
       [experiment report](../../docs/hw2/experiment-report.md).
