@@ -1,0 +1,46 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
+import { ApiError, apiGet, apiPost, seg } from './api-client.js';
+import { mockApi } from './mock-api.js';
+
+afterEach(() => vi.unstubAllGlobals());
+
+describe('api-client', () => {
+  it('decodes the { error: { code, message } } envelope into ApiError', async () => {
+    mockApi({ 'GET /x': { status: 404, json: { error: { code: 'not_found', message: 'Pull request not found' } } } });
+    await expect(apiGet('/x', z.unknown())).rejects.toMatchObject({
+      name: 'ApiError', code: 'not_found', message: 'Pull request not found', status: 404,
+    });
+  });
+
+  it('maps a network failure to network_error', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('fetch failed'); }));
+    const err = await apiGet('/x', z.unknown()).catch((e) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err).toMatchObject({ code: 'network_error', status: 0 });
+  });
+
+  it('falls back to http_<status> on a non-JSON error body', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('boom', { status: 502 })));
+    await expect(apiGet('/x', z.unknown())).rejects.toMatchObject({ code: 'http_502', status: 502 });
+  });
+
+  it('rejects a body that does not match the schema', async () => {
+    mockApi({ 'GET /x': { wrong: true } });
+    await expect(apiGet('/x', z.array(z.string()))).rejects.toMatchObject({ code: 'bad_response' });
+  });
+
+  it('sends POST bodies as JSON and uses DEVDIGEST_API_URL', async () => {
+    vi.stubEnv('DEVDIGEST_API_URL', 'http://api.test:9/');
+    const { fn } = mockApi({ 'POST /y': { ok: 1 } });
+    await apiPost('/y', z.object({ ok: z.number() }), { a: 1 });
+    const [url, init] = fn.mock.calls[0]!;
+    expect(String(url)).toBe('http://api.test:9/y');
+    expect(init?.body).toBe('{"a":1}');
+    vi.unstubAllEnvs();
+  });
+
+  it('URL-encodes path segments', () => {
+    expect(seg('a/b c?')).toBe('a%2Fb%20c%3F');
+  });
+});
