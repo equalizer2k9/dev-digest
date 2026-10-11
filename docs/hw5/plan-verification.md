@@ -99,6 +99,33 @@ Plan-level, одна PARTIAL із першого прогону лишаєтьс
 Критерії з `requirements.md` поза кодом: P1-8 (PR + демо-відео) і P2-2 (cross-model review в описі
 PR) — за власником. P3-1 і P3-7 виключені спекою (NG2).
 
+## Live check (PR #16)
+
+Тестовий PR [#16](https://github.com/equalizer2k9/dev-digest/pull/16) (`test/hw5-brief` →
+`feat/homework-5`): правка `rowsToSettings` з двома викликачами, нова залежність `ms`, таймаут
+брифу 60 → 20 с, правка `docs/agent-prompts/choosing-a-model.md`. Index-state `full`, blast:
+`2 symbols · 2 callers · 3 endpoints · 0 crons`. Модель — `deepseek/deepseek-v4-flash` через
+OpenRouter (Settings → Risk Brief). Перевірено в браузері на запущеному стеку, 2026-10-11, код
+`fb2fb77`; дві генерації (Generate і Refresh).
+
+| Критерій | Результат | Доказ |
+|---|---|---|
+| P1-1 | PASS | Блок «PR Brief» з кнопкою «Generate brief», списків немає |
+| P1-2 | PASS | Summary, Risk areas, Review focus; Blast radius на тій самій вкладці; «No intent available for this PR.» і «No specs attached.» |
+| P1-3 | PASS | Ризик «Null values dropped from settings» + `server/src/modules/settings/helpers.ts`; focus `settings/helpers.ts:9` + причина |
+| P1-4 | PASS | Скрипт звірив 6 унікальних шляхів із `GET /pulls/:id/brief`: 4 є у `files[]` PR, 2 лише в blast, зайвих немає |
+| P1-5, P2-9 | PASS | Клік на `settings/helpers.ts:9` → `?tab=diff`, рядок 9 у видимій області з підсвіткою; через 2,3 с підсвітки немає |
+| P1-5, група `docs` | не перевірено | Модель двічі не дала focus-пункту для `.md`. Розкриття групи підтверджено через ризик: клік на `docs/agent-prompts/choosing-a-model.md` → група Docs розгорнулась, картка відкрита (10 рядків), Boilerplate лишилась згорнутою |
+| P3-3 | PASS | Клік на файл ризику `brief/constants.ts` → Files changed, картка розгорнута (7 рядків), підсвітки немає |
+| P3-4 | PASS | `settings/routes.ts:65` і `settings/feature-models.ts:45` (лише з blast) мають напис «File not in this PR's diff»; клік не змінив адресу |
+| P1-6 | PASS | Reload → бриф за ~450 мс, записів `brief: generation` у лозі як було; «Refresh brief» → рівно один новий запис |
+| P2-4, P2-5 | PASS | По одному запису на генерацію; `inputTokens: 903` обидва рази при бюджеті 8 000 |
+| P2-8 | PASS | Другий коміт `ea47afa` у PR → resync → сторінка показує новий SHA, бриф лишився з `1fa8a6a5` і написом «This brief describes an older commit.» |
+
+**AC-22 лишається PARTIAL.** Розкриття згорнутої групи `docs` підтверджено через ризик; прокрутку
+до рядка всередині згорнутої групи — ні, бо модель не дала focus-пункту на `.md`. Додаткових
+генерацій заради цього не робилось.
+
 ## 4. Architecture review
 
 Раундів рев'ю: 2. Раундів фіксів: 2 (ліміт), другий нічого не змінив.

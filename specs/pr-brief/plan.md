@@ -45,6 +45,10 @@ Add a `brief` server module (`GET` / `POST /pulls/:id/brief`) that turns compute
 | `.../_components/OverviewTab/OverviewTab.tsx` | modify | call the brief hooks, render `PrBriefBlock` above Blast radius | AC-1, AC-2, AC-4 |
 | `.../_components/OverviewTab/OverviewTab.test.tsx` | modify | brief wiring cases | AC-2, AC-4, AC-28 |
 | `client/src/app/repos/[repoId]/pulls/[number]/page.tsx` | modify | `openInDiff` (target in page state), pass target to `DiffTab` | AC-22, AC-23 |
+| `client/src/app/repos/[repoId]/pulls/[number]/page.test.tsx` | new | page wiring: a brief click → Files changed gets the file and line (added after `/run-plan`, see Deviations) | AC-22, AC-23 |
+| `server/src/modules/_shared/classify-file.ts`, `classify-file.test.ts` | move | from `reviews/smart-diff/`; imported by `reviews` and `brief` (see Deviations) | AC-15 |
+| `server/src/modules/_shared/smart-diff-rules.ts` | move | was `reviews/smart-diff/constants.ts`: match rules, display order, fallback role | AC-15 |
+| `server/src/modules/reviews/smart-diff/build-smart-diff.ts` | modify | imports the classifier and the display order from `_shared/` | — |
 
 Not touched: `server/src/db/schema/reviews.ts`, `server/src/db/migrations/**`, every lock file, the LLM providers (`server/src/adapters/llm/**`, `reviewer-core/src/llm/**`) and both `vendor/shared/adapters.ts` copies.
 
@@ -355,15 +359,15 @@ Depends on: T-7, T-8, T-9
 | AC-12 | T-3, T-5 | `helpers.test.ts` › path normalization, blast null; `service.test.ts` › grounding on full facts after reduction, blast throwing |
 | AC-13 | T-5 | `service.test.ts` › the request carries `maxRetries: 0`; `service.test.ts` › invalid reply → error, provider called once |
 | AC-14 | T-4 | `helpers.test.ts` › ≤ 8000 at every stage, cut order, no patch text, never throws |
-| AC-15 | T-2, T-4 | `helpers.test.ts` › facts present, names absent, untrusted wrapping, system text ends with the exported `INJECTION_GUARD` |
+| AC-15 | T-2, T-4 | `helpers.test.ts` › facts present, names absent, untrusted wrapping, system text ends with the exported `INJECTION_GUARD`; `_shared/classify-file.test.ts` › path → role table (the Smart Diff role fact) |
 | AC-16 | T-1, T-5 | `contracts.test.ts` › draft/brief parse + both copies identical; `service.test.ts` › invalid reply stores nothing |
 | AC-17 | T-5, T-6 | `service.test.ts` › `resolveFeatureModel('risk_brief')` result used; `brief.it.test.ts` › default, then changed setting on the next generation |
 | AC-18 | T-6, T-7, T-10 | `brief.it.test.ts` › GET makes no model call; `brief.test.ts` › mount issues GET only; `OverviewTab.test.tsx` › mutation not called on mount |
 | AC-19 | T-5, T-6 | `service.test.ts` › stored SHA = request SHA; `brief.it.test.ts` › one row after two generations |
 | AC-20 | T-8 | `PrBriefBlock.test.tsx` › stale marker when SHAs differ, brief still shown |
 | AC-21 | T-6, T-8, T-10 | `brief.it.test.ts` › second POST replaces with one more call; `PrBriefBlock.test.tsx` › refresh calls `onGenerate` stale or not, marker gone when SHAs match |
-| AC-22 | T-9, T-10 | `FileCard.test.tsx` › open + highlight + scroll; `DiffTab.test.tsx` › collapsed group opens; manual: line centred and flashing in the browser |
-| AC-23 | T-9, T-10 | `FileCard.test.tsx` › null line / unshown line → card top; `PrBriefBlock.test.tsx` › risk ref calls `onOpenFile(path, null)`; manual: risk file opens at its top |
+| AC-22 | T-9, T-10 | `FileCard.test.tsx` › open + highlight + scroll; `DiffTab.test.tsx` › collapsed group opens; `page.test.tsx` › a Review focus click opens Files changed with that file and line; manual: line centred and flashing in the browser |
+| AC-23 | T-9, T-10 | `FileCard.test.tsx` › null line / unshown line → card top; `PrBriefBlock.test.tsx` › risk ref calls `onOpenFile(path, null)`; `page.test.tsx` › a risk file click opens Files changed with that file and no line; manual: risk file opens at its top |
 | AC-24 | T-8 | `PrBriefBlock.test.tsx` › not-in-diff note, no `onOpenFile` |
 | AC-25 | T-8 | `PrBriefBlock.test.tsx` › row click toggles explanation, file-ref click does not |
 | AC-26 | T-8, T-10 | `PrBriefBlock.test.tsx` › skeleton + disabled control; `OverviewTab.test.tsx` › pending mutation |
@@ -445,3 +449,4 @@ Changed after the review, by owner decision: T-2 was reduced to the `INJECTION_G
 - **Local delimiter escape.** `wrap()` in `server/src/modules/brief/helpers.ts` neutralises a forged opening `<untrusted` tag before calling `wrapUntrusted`, which escapes only the closing tag (`reviewer-core/src/prompt.ts:30-34`). It is kept local on purpose: changing `wrapUntrusted` would alter every review prompt, which is outside this feature. Next step: move the escape into `wrapUntrusted` in a separate PR with reviewer-core tests, then reduce `wrap()` to a plain call.
 - **AC-13 stays PARTIAL by decision.** Re-sending a request on 429/5xx or a dropped connection is not turned off, because the brief should survive a transient provider failure the same way a review does; only the re-ask on an invalid reply is disabled (`maxRetries: 0`).
 - **`classifyFile` moved.** The classifier, its test and its rules now live in `server/src/modules/_shared/` (`classify-file.ts`, `smart-diff-rules.ts`), so `brief` no longer imports from the internals of `reviews` (architecture review, round 2).
+- **AC-22 stays PARTIAL by decision.** Expanding a collapsed `docs` group was seen in a browser through a risk file reference (PR #16); scrolling to a line inside a collapsed group was not, because the model produced no Review focus item on a `.md` file in two generations. No further generations are spent on it; the chain is covered by `page.test.tsx`, `DiffTab.test.tsx` and `FileCard.test.tsx`.

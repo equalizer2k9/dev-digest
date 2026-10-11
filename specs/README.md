@@ -7,7 +7,8 @@ next to it `specs/<feature>/plan.md` (produced by the `implementation-planner` a
 `<pkg>/specs/` instead. Every spec carries a `Spec ID: SPEC-NN` and a `Status`: `draft` (written,
 may still hold `[NEEDS CLARIFICATION]`) → `approved` (the user reviewed it and every clarification
 is closed; only now may it be planned and passed to `/run-plan`) → `implemented` (the plan-verifier
-matrix has no open row).
+matrix has no MISSING row, and every PARTIAL row has its decision recorded under Deviations in the
+plan).
 
 | Spec | ID | Status | Summary |
 |---|---|---|---|
