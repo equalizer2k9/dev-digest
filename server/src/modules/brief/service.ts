@@ -168,6 +168,5 @@ function failureReason(err: unknown): BriefFailureReason {
     const details = err.details as { raw?: unknown } | undefined;
     if (details && typeof details === 'object' && 'raw' in details) return 'invalid_reply';
   }
-  if (err instanceof Error && /schema/i.test(err.message)) return 'invalid_reply';
   return 'provider_error';
 }

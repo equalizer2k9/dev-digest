@@ -120,7 +120,8 @@ describe('BriefService.generate', () => {
     const err = await svc.generate(WS, PR, 'sha').catch((e) => e);
     expect(err).toBeInstanceOf(ExternalServiceError);
     expect(JSON.stringify(err.details)).not.toContain('raw');
-    expect(err.details).toEqual({ reason: 'invalid_reply' });
+    // The mock fails with a plain Error (no adapter `raw` signal): classified structurally, not by message text.
+    expect(err.details).toEqual({ reason: 'provider_error' });
     expect(llm.calls).toHaveLength(1);
     expect(repo.upsert).not.toHaveBeenCalled();
   });
@@ -133,6 +134,15 @@ describe('BriefService.generate', () => {
     const err = await svc.generate(WS, PR, 'sha').catch((e) => e);
     expect(JSON.stringify([err.message, err.details])).not.toContain('LEAKED-RAW-REPLY');
     expect(err.details).toEqual({ reason: 'invalid_reply' });
+  });
+
+  it('a plain error whose message mentions "schema" is a provider_error, not an invalid_reply', async () => {
+    const svc = make();
+    llm.completeStructured = async () => {
+      throw new Error('400 unsupported JSON schema');
+    };
+    const err = await svc.generate(WS, PR, 'sha').catch((e) => e);
+    expect(err.details).toEqual({ reason: 'provider_error' });
   });
 
   it('a missing key (container.llm rejects with ConfigError) fails with zero model calls and no upsert (EC-6)', async () => {
