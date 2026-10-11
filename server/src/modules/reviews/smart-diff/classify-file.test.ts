@@ -52,7 +52,7 @@ const CASES: [name: string, path: string, role: SmartDiffRole][] = [
   ['wiring: .env*', 'server/.env.example', 'wiring'],
   ['wiring: docker-compose*.yml', 'docker-compose.dev.yml', 'wiring'],
   ['wiring: .github/**', '.github/workflows/ci.yml', 'wiring'],
-  ['wiring: .claude/**', '.claude/agents/planner.md', 'wiring'],
+  ['wiring: .claude/**', '.claude/agents/implementation-planner.md', 'wiring'],
 
   // ---- rule 4: docs
   ['docs: nested *.md', 'server/specs/smart-diff.md', 'docs'],
