@@ -1,4 +1,4 @@
-/* BlastRadius — the Overview block: stats row, an incomplete-index marker,
+/* BlastRadius — the Overview block: an incomplete-index marker, the stats row,
    and one card per changed symbol that has callers. Presentational: the
    response arrives as a prop; order and limits are the server's. */
 "use client";
@@ -27,19 +27,19 @@ export function BlastRadius({ blast, repoFullName, headSha }: BlastRadiusProps) 
     <section style={s.root}>
       <SectionLabel icon="Zap">{t("title")}</SectionLabel>
 
-      <div style={s.stats}>
-        <span style={s.stat}>{t("stat.symbols", { count: stats.symbols })}</span>
-        <span style={s.stat}>{t("stat.callers", { count: stats.callers })}</span>
-        <span style={s.stat}>{t("stat.endpoints", { count: stats.endpoints })}</span>
-        <span style={s.stat}>{t("stat.crons", { count: stats.crons })}</span>
-      </div>
-
       {blast.degraded && (
         <div data-testid="blast-degraded" role="status" style={s.degraded}>
           <span style={s.degradedLabel}>{t("degraded.label")}</span>
           <span>{t(reasonKey)}</span>
         </div>
       )}
+
+      <div style={s.stats}>
+        <span style={s.stat}>{t("stat.symbols", { count: stats.symbols })}</span>
+        <span style={s.stat}>{t("stat.callers", { count: stats.callers })}</span>
+        <span style={s.stat}>{t("stat.endpoints", { count: stats.endpoints })}</span>
+        <span style={s.stat}>{t("stat.crons", { count: stats.crons })}</span>
+      </div>
 
       {stats.symbols === 0 && <div style={s.note}>{t("noSymbols")}</div>}
       {stats.symbols > 0 && blast.downstream.length === 0 && (

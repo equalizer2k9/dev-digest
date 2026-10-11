@@ -103,3 +103,30 @@ My fixed output format puts the matrix first; the verdict paragraph you asked fo
 - `server/README.md:79` | blast node added to the module diagram.
 - `server/src/modules/blast/service.ts:44` | warn log `blast: PR files refresh skipped`, a second log line beyond the one in §2.5.
 - `client/src/components/showcase/Showcase.tsx:388-394` | a second showcase instance (degraded variant); the spec asks for one fixture.
+
+## Closed after review
+
+Added 2026-10-11, after the two reports above were written. No third review pass was run; the gate
+(typecheck + tests in `server/`, `client/`, `devdigest-mcp/`, and `npm ci` in `devdigest-mcp/`) is
+green: server 344 / 344, client 266 / 266, devdigest-mcp 53 / 53.
+
+| Item | Closed by |
+|---|---|
+| Architecture #1 — DB writes in `_shared/pull-detail.ts` | New `PullsRepository.replaceDetail()` (`server/src/modules/pulls/repository.ts`): `pr_files` / `pr_commits` delete + insert and the `pull_requests` backfill in one transaction, exposed as `container.pullsRepo`. `pull-detail.ts` only fetches from GitHub and calls it. `pulls/pulls-detail.it.test.ts`: `GET /pulls/:id` stores the files, a second call does not duplicate them. |
+| Architecture #2 — Drizzle imports in `pulls/routes.ts` | Not removed: still used by the PR list handler, the repo select, the review-count queries and the offline fallback. |
+| Architecture #3 — blast imports `repo-intel/types.js` | Blast imports the facade types from `repo-intel/index.js`, which re-exports them. |
+| Architecture #4 — facade reason vs contract reason | `REASON_MAP: Record<DegradedReason, BlastDegradedReason>` + `toContractReason()` in `blast/helpers.ts`; a new facade reason fails typecheck. Unit test. |
+| Architecture #6 — literal `Description` | Key `overview.description` in `messages/en/prReview.json`; the test reads the label from the JSON. |
+| Architecture #5, #7, #8 | Left as is, by decision. |
+| C-2 — marker below the stats row | Marker renders above the stats row; test asserts the order. |
+| C-5 — typed strings in a test | Expected strings built from `blast.json`. |
+| Deviation 1 — zero-file PR skips the facade | Early return removed; the facade is called with `[]`, so `flag_off` is reported. Integration test. |
+| Deviation 2 — fallback path uncapped | `MAX_CALLERS_PER_SYMBOL` per symbol on the ripgrep path too. Test. |
+| Deviation 3 — 120 s not wall clock | `run_agent_on_pr` uses a wall-clock deadline (injectable clock); every HTTP request has an `AbortSignal` timeout capped by the time left. Tests for slow polls and a hanging request. |
+| Deviation 4 — MCP schemas stricter than the API | `agent_id`, `agent_name` on reviews and `status` on runs are nullish; a null agent shows as `unknown`, a null status counts as still running. Tests with such rows. |
+| Deviation 6 — facade tests in `server/test/` | Moved to `server/src/modules/repo-intel/blast.test.ts`. |
+| Deviation 7 — README step 2 path | Each step says where it runs; step 1 ends at the repo root. |
+| L04-5 — files produced by npm | `npm ci` in `devdigest-mcp/` succeeds against the committed lock file; the lock file has no diff. |
+| L04-7 — stdout holds only protocol frames | Server spawned with the `.mcp.json` command: stdout holds valid JSON-RPC frames only, `tools/list` returns five tools. |
+| M-3 — `CLAUDE.md` symlink | `devdigest-mcp/CLAUDE.md -> AGENTS.md`. |
+| Root `AGENTS.md` line count | 79 lines (`wc -l`), not 80 as the matrix says. |

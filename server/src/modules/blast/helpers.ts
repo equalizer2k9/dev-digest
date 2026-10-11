@@ -1,5 +1,22 @@
-import type { BlastRadius, DownstreamImpact } from '@devdigest/shared';
-import type { BlastCallerRow, BlastResult } from '../repo-intel/types.js';
+import type { BlastDegradedReason, BlastRadius, DownstreamImpact } from '@devdigest/shared';
+import type { BlastCallerRow, BlastResult, DegradedReason } from '../repo-intel/index.js';
+
+/**
+ * Facade reason → contract reason. Exhaustive on purpose: a new facade
+ * `DegradedReason` fails typecheck here until it is mapped (or added to the
+ * contract).
+ */
+const REASON_MAP: Record<DegradedReason, BlastDegradedReason> = {
+  flag_off: 'flag_off',
+  index_failed: 'index_failed',
+  index_partial: 'index_partial',
+  repo_too_large: 'repo_too_large',
+  no_data: 'no_data',
+};
+
+export function toContractReason(reason: DegradedReason | undefined): BlastDegradedReason | null {
+  return reason ? REASON_MAP[reason] : null;
+}
 
 export interface SummaryCounts {
   symbols: number;

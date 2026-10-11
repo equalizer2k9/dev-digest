@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { BlastRadius } from '@devdigest/shared';
-import type { BlastCallerRow, BlastResult } from '../repo-intel/types.js';
-import { buildSummary, toBlastRadius } from './helpers.js';
+import type { BlastCallerRow, BlastResult } from '../repo-intel/index.js';
+import { buildSummary, toBlastRadius, toContractReason } from './helpers.js';
 
 const sym = (name: string, file = 'src/lib.ts') => ({ name, file, kind: 'function' });
 const caller = (
@@ -193,5 +193,14 @@ describe('buildSummary', () => {
     expect(buildSummary({ symbols: 2, callers: 14, endpoints: 3, crons: 2 })).toBe(
       '2 symbols · 14 callers · 3 endpoints · 2 crons',
     );
+  });
+});
+
+describe('toContractReason', () => {
+  it('passes every facade reason through and maps a missing one to null', () => {
+    for (const r of ['flag_off', 'index_failed', 'index_partial', 'repo_too_large', 'no_data'] as const) {
+      expect(toContractReason(r)).toBe(r);
+    }
+    expect(toContractReason(undefined)).toBeNull();
   });
 });

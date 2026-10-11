@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { RepoIntelService } from '../src/modules/repo-intel/service.js';
-import { MAX_CALLERS_PER_SYMBOL } from '../src/modules/repo-intel/constants.js';
-import type { RepoBasics } from '../src/modules/repo-intel/repository.js';
-import type { IndexState } from '../src/modules/repo-intel/types.js';
+import { RepoIntelService } from './service.js';
+import { MAX_CALLERS_PER_SYMBOL } from './constants.js';
+import type { RepoBasics } from './repository.js';
+import type { IndexState } from './types.js';
 
 /**
  * Blast radius — the facade computes `degraded` / `reason` itself and applies
@@ -10,7 +10,7 @@ import type { IndexState } from '../src/modules/repo-intel/types.js';
  * is replaced with in-memory stubs, same approach as repo-intel-facade-degraded.
  */
 
-const BASICS: RepoBasics = { id: 'r1', owner: 'a', name: 'b', clonePath: '/nonexistent-clone' };
+const BASICS: RepoBasics = { id: 'r1', owner: 'a', name: 'b', defaultBranch: 'main', clonePath: '/nonexistent-clone' };
 
 function state(status: IndexState['status']): IndexState {
   return {
@@ -31,6 +31,9 @@ interface Stub {
   index?: IndexState | null;
   callers?: { fromPath: string; toSymbol: string; line: number; rank: number }[];
   facts?: { filePath: string; endpoints: string[]; crons: string[] }[];
+  /** ripgrep fallback path: code-index symbols + references per symbol name. */
+  cgSymbols?: { path: string; name: string; kind: string; line: number }[];
+  cgRefs?: Record<string, { fromPath: string; line: number }[]>;
 }
 
 function build(o: Stub) {
@@ -38,7 +41,10 @@ function build(o: Stub) {
   const container = {
     config: { repoIntelEnabled: o.flag },
     db: {} as never,
-    codeIndex: { symbols: async () => [], references: async () => [] } as never,
+    codeIndex: {
+      symbols: async () => o.cgSymbols ?? [],
+      references: async (_ref: unknown, name: string) => o.cgRefs?.[name] ?? [],
+    } as never,
   } as never;
   const svc = new RepoIntelService(container);
   (svc as unknown as { repo: Record<string, unknown> }).repo = {
@@ -136,5 +142,24 @@ describe('getBlastRadius — MAX_CALLERS_PER_SYMBOL applies per viaSymbol', () =
     expect(requestedFactFiles[0]).not.toContain(big[MAX_CALLERS_PER_SYMBOL + 2]!.fromPath);
     expect(r.impactedEndpoints.sort()).toEqual(['GET /a', 'GET /b']);
     expect(Object.keys(r.factsByFile ?? {})).not.toContain(big[MAX_CALLERS_PER_SYMBOL + 2]!.fromPath);
+  });
+});
+
+describe('getBlastRadius — MAX_CALLERS_PER_SYMBOL on the ripgrep fallback path', () => {
+  it('caps callers per changed symbol, not in total', async () => {
+    const refs = (via: string, n: number) =>
+      Array.from({ length: n }, (_, i) => ({ fromPath: `src/c-${via}-${i}.ts`, line: i + 1 }));
+    const { svc } = build({
+      flag: false,
+      cgSymbols: [
+        { path: 'src/lib.ts', name: 'A', kind: 'function', line: 1 },
+        { path: 'src/lib.ts', name: 'B', kind: 'function', line: 5 },
+      ],
+      cgRefs: { A: refs('A', MAX_CALLERS_PER_SYMBOL + 7), B: refs('B', 2) },
+    });
+    const r = await svc.getBlastRadius('r1', ['src/lib.ts']);
+    expect(r.reason).toBe('flag_off');
+    expect(r.callers.filter((c) => c.viaSymbol === 'A')).toHaveLength(MAX_CALLERS_PER_SYMBOL);
+    expect(r.callers.filter((c) => c.viaSymbol === 'B')).toHaveLength(2);
   });
 });

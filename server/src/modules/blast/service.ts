@@ -3,15 +3,7 @@ import type { BlastRadiusResponse } from '@devdigest/shared';
 import type { Container } from '../../platform/container.js';
 import { NotFoundError } from '../../platform/errors.js';
 import { refreshPullDetailFromGitHub } from '../_shared/pull-detail.js';
-import { buildSummary, toBlastRadius } from './helpers.js';
-
-const EMPTY: BlastRadiusResponse = {
-  changed_symbols: [],
-  downstream: [],
-  summary: buildSummary({ symbols: 0, callers: 0, endpoints: 0, crons: 0 }),
-  degraded: true,
-  reason: 'no_data',
-};
+import { toBlastRadius, toContractReason } from './helpers.js';
 
 /**
  * Blast radius for a PR: its changed files → ONE `repoIntel.getBlastRadius`
@@ -45,11 +37,8 @@ export class BlastService {
       }
     }
 
-    if (files.length === 0) {
-      this.logServed(prId, pull.repoId, EMPTY, 0, 0, started);
-      return { ...EMPTY };
-    }
-
+    // No files still goes to the facade: it owns the degraded reason
+    // (`flag_off` beats `no_data`), so the service never invents one.
     const result = await repoIntel.getBlastRadius(
       pull.repoId,
       files.map((f) => f.path),
@@ -58,7 +47,7 @@ export class BlastService {
     const body: BlastRadiusResponse = {
       ...radius,
       degraded: result.degraded ?? false,
-      reason: result.degraded ? (result.reason ?? null) : null,
+      reason: result.degraded ? toContractReason(result.reason) : null,
     };
     this.logServed(
       prId,

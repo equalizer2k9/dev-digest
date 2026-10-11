@@ -272,12 +272,15 @@ export class RepoIntelService implements RepoIntel {
         continue;
       }
       const callerFiles = new Set<string>();
+      let kept = 0;
       for (const r of refs) {
+        if (kept >= MAX_CALLERS_PER_SYMBOL) break; // cap per changed symbol
         if (r.fromPath === sym.file) continue; // skip the decl's own file
         const callerName = enclosingSymbolName(allSymbols, r.fromPath, r.line);
         const key = `${r.fromPath}|${callerName}|${sym.name}`;
         if (callerSeen.has(key)) continue;
         callerSeen.add(key);
+        kept++;
         callerRows.push({
           file: r.fromPath,
           symbol: callerName,

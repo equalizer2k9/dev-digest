@@ -153,6 +153,13 @@ describe("BlastRadius", () => {
     expect(screen.getAllByTestId("blast-card")).toHaveLength(2);
   });
 
+  it("renders the incomplete-index marker above the stats row", () => {
+    renderBlock({ ...map, degraded: true, reason: "index_partial" });
+    const marker = screen.getByTestId("blast-degraded");
+    const stat = screen.getByText(t(messages.stat.symbols, 2));
+    expect(marker.compareDocumentPosition(stat) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it("uses singular and plural forms", () => {
     renderBlock({
       changed_symbols: [{ name: "a", file: "a.ts", kind: "function" }],
@@ -168,8 +175,9 @@ describe("BlastRadius", () => {
       degraded: false,
       reason: null,
     });
-    expect(screen.getAllByText("1 caller")).toHaveLength(2); // stat chip + card header
-    expect(screen.getByText("1 symbol")).toBeInTheDocument();
-    expect(screen.getByText("1 cron")).toBeInTheDocument();
+    // "1 caller" appears twice: stat chip + card header
+    expect(screen.getAllByText(t(messages.stat.callers, 1))).toHaveLength(2);
+    expect(screen.getByText(t(messages.stat.symbols, 1))).toBeInTheDocument();
+    expect(screen.getByText(t(messages.stat.crons, 1))).toBeInTheDocument();
   });
 });

@@ -170,9 +170,10 @@ d('GET /pulls/:id/blast (Testcontainers pg)', () => {
     expect(BlastRadiusResponse.parse(res.json()).degraded).toBe(true);
   });
 
-  it('no stored rows and GitHub failing → 200, empty, degraded no_data, facade not asked', async () => {
+  it('no stored rows and GitHub failing → 200, facade still asked with no files, its no_data passes through', async () => {
     const pr = await setupPr(pg.handle.db, workspaceId);
     github.failing = true;
+    facade = { changedSymbols: [], callers: [], impactedEndpoints: [], degraded: true, reason: 'no_data' };
     const res = await get(pr.id);
     expect(res.statusCode).toBe(200);
     expect(BlastRadiusResponse.parse(res.json())).toMatchObject({
@@ -182,7 +183,16 @@ d('GET /pulls/:id/blast (Testcontainers pg)', () => {
       reason: 'no_data',
     });
     expect(github.detailCalls).toBe(1);
-    expect(blastCalls).toEqual([]);
+    expect(blastCalls).toEqual([{ repoId: pr.repoId, files: [] }]);
+  });
+
+  it('PR with no files and the flag off → facade reason flag_off is reported, not no_data', async () => {
+    const pr = await setupPr(pg.handle.db, workspaceId);
+    github.failing = true;
+    facade = { changedSymbols: [], callers: [], impactedEndpoints: [], degraded: true, reason: 'flag_off' };
+    const body = BlastRadiusResponse.parse((await get(pr.id)).json());
+    expect(body).toMatchObject({ degraded: true, reason: 'flag_off' });
+    expect(blastCalls).toHaveLength(1);
   });
 
   it('unknown id → 404', async () => {

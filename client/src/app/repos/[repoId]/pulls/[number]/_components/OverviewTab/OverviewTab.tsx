@@ -16,13 +16,14 @@ interface OverviewTabProps {
 
 export function OverviewTab({ prBody, prId, repoFullName, headSha }: OverviewTabProps) {
   const t = useTranslations("blast");
+  const tPr = useTranslations("prReview");
   const { data, isPending, isError } = useBlastRadius(prId);
 
   return (
     <>
       {prBody && (
         <section>
-          <SectionLabel icon="MessageSquare">Description</SectionLabel>
+          <SectionLabel icon="MessageSquare">{tPr("overview.description")}</SectionLabel>
           <div style={s.descriptionBox}>{prBody}</div>
         </section>
       )}

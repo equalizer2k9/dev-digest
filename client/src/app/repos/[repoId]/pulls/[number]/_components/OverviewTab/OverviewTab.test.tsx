@@ -3,6 +3,7 @@ import { render, screen, cleanup } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { BlastRadiusResponse } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/blast.json";
+import prReviewMessages from "../../../../../../../../messages/en/prReview.json";
 
 const useBlastRadius = vi.fn();
 vi.mock("@/lib/hooks/blast", () => ({ useBlastRadius: (...a: unknown[]) => useBlastRadius(...a) }));
@@ -29,7 +30,7 @@ const blast: BlastRadiusResponse = {
 
 function renderTab() {
   return render(
-    <NextIntlClientProvider locale="en" messages={{ blast: messages }}>
+    <NextIntlClientProvider locale="en" messages={{ blast: messages, prReview: prReviewMessages }}>
       <OverviewTab prBody="PR description text" prId="pr-1" repoFullName="acme/shop" headSha="abc" />
     </NextIntlClientProvider>,
   );
@@ -45,6 +46,7 @@ describe("OverviewTab", () => {
   it("loading: skeleton in place of the block, description still shown", () => {
     useBlastRadius.mockReturnValue({ isPending: true, isError: false, data: undefined });
     renderTab();
+    expect(screen.getByText(prReviewMessages.overview.description)).toBeInTheDocument();
     expect(screen.getByText("PR description text")).toBeInTheDocument();
     expect(screen.getByTestId("blast-loading")).toBeInTheDocument();
     expect(screen.queryByText(messages.title)).toBeNull();
