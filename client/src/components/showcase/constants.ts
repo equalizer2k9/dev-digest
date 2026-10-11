@@ -1,5 +1,5 @@
 import type { Severity } from "@devdigest/ui";
-import type { ConventionCandidate, SkillWithUsage } from "@devdigest/shared";
+import type { ConventionCandidate, FindingRecord, PrFile, SkillWithUsage } from "@devdigest/shared";
 
 /** Constants for the Showcase Gallery (dev-only). */
 
@@ -47,4 +47,42 @@ export const SHOWCASE_CONVENTION_PENDING: ConventionCandidate = {
   confidence: 0.62,
   status: "pending",
   accepted: false,
+};
+
+/** Sample file with a patch, used by the FileCard-with-findings gallery group. */
+export const SHOWCASE_DIFF_FILE: PrFile = {
+  path: "src/config.ts",
+  additions: 2,
+  deletions: 1,
+  patch: "@@ -1,2 +1,3 @@\n const a = 1;\n-const b = 2;\n+const b = 3;\n+const secret = \"sk-live-123\";",
+};
+
+/** Sample finding anchored to line 3 of SHOWCASE_DIFF_FILE. */
+export const SHOWCASE_FINDING: FindingRecord = {
+  id: "fd-demo",
+  severity: "CRITICAL",
+  category: "security",
+  title: "Hardcoded secret",
+  file: "src/config.ts",
+  start_line: 3,
+  end_line: 3,
+  rationale: "A live key is committed to the repository.",
+  suggestion: null,
+  confidence: 0.95,
+  kind: "finding",
+  trifecta_components: null,
+  evidence: null,
+  review_id: "rv-demo",
+  accepted_at: null,
+  dismissed_at: null,
+};
+
+/** Same, but its line is not in the patch — it lands in the "outside" block. */
+export const SHOWCASE_FINDING_OUTSIDE: FindingRecord = {
+  ...SHOWCASE_FINDING,
+  id: "fd-demo-2",
+  severity: "SUGGESTION",
+  title: "Document the new setting",
+  start_line: 40,
+  end_line: 40,
 };

@@ -13,6 +13,7 @@ import type {
   ReviewRunResponse,
   RunEvent,
   RunSummary,
+  SmartDiff,
 } from "@devdigest/shared";
 
 // ---- Active (in-flight) runs — server-side source of truth ----
@@ -34,6 +35,24 @@ export function usePrActiveRuns(prId: string | null | undefined) {
   });
 }
 
+/** When the PR's in-flight runs go from some to none, refetch what a run
+   produces: the reviews (findings) and the smart-diff grouping. Mounted once on
+   the PR page so it works on every tab, not only while Agent runs is open. */
+export function useRefreshReviewsOnRunSettle(prId: string | null | undefined) {
+  const qc = useQueryClient();
+  const { data } = usePrActiveRuns(prId);
+  const activeCount = data?.length;
+  const prev = React.useRef(0);
+  React.useEffect(() => {
+    if (activeCount === undefined) return;
+    if (prev.current > 0 && activeCount === 0) {
+      qc.invalidateQueries({ queryKey: ["reviews", prId] });
+      qc.invalidateQueries({ queryKey: ["smart-diff", prId] });
+    }
+    prev.current = activeCount;
+  }, [activeCount, prId, qc]);
+}
+
 // ---- Full run history for a PR (every agent_runs row, any status) ----
 /** All runs for a PR — done, failed (with error), cancelled, running. Survives
    reload (DB-backed). Polls while anything is running so it self-updates. */
@@ -52,6 +71,15 @@ export function usePrReviews(prId: string | null | undefined) {
   return useQuery({
     queryKey: ["reviews", prId],
     queryFn: () => api.get<ReviewRecord[]>(`/pulls/${prId}/reviews`),
+    enabled: !!prId,
+  });
+}
+
+// ---- Smart Diff: the PR's files grouped by role (server-side classification) ----
+export function useSmartDiff(prId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["smart-diff", prId],
+    queryFn: () => api.get<SmartDiff>(`/pulls/${prId}/smart-diff`),
     enabled: !!prId,
   });
 }

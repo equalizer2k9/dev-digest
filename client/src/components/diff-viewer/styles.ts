@@ -1,4 +1,6 @@
 import type { CSSProperties } from "react";
+import { SEV } from "@devdigest/ui";
+import type { FindingSeverity } from "./comments";
 import type { Line } from "./helpers";
 
 /** Co-located styles for the DiffViewer (extracted from inline styles). */
@@ -87,6 +89,37 @@ export function lineSignFor(kind: Line["kind"]): CSSProperties {
     width: 14,
     textAlign: "center",
     color: kind === "add" ? "var(--code-add-text)" : kind === "del" ? "var(--code-del-text)" : "var(--text-muted)",
+    flexShrink: 0,
+  };
+}
+
+/** Dot beside the file path, in the colour of the file's worst finding. */
+export function findingDotFor(sev: FindingSeverity): CSSProperties {
+  return {
+    width: 8,
+    height: 8,
+    borderRadius: "50%",
+    flexShrink: 0,
+    background: SEV[sev].c,
+  };
+}
+
+/** Left stripe on a code row that has a finding. */
+export function findingStripeFor(sev: FindingSeverity): CSSProperties {
+  return { boxShadow: `inset 3px 0 0 ${SEV[sev].c}` };
+}
+
+/** Right-hand severity label on a code row that has a finding. */
+export function findingLabelFor(sev: FindingSeverity): CSSProperties {
+  return {
+    marginLeft: "auto",
+    alignSelf: "center",
+    padding: "0 10px",
+    fontSize: 11,
+    fontWeight: 600,
+    textTransform: "uppercase",
+    letterSpacing: "0.04em",
+    color: SEV[sev].c,
     flexShrink: 0,
   };
 }
