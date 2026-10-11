@@ -3,7 +3,7 @@ name: planner
 description: Turns a feature request or requirements doc into a Development Plan for DevDigest — files to change, ordered steps, risks, project skills the implementer must load, numbered acceptance criteria. Use before any multi-file feature work. Read-only; never writes files.
 tools: Read, Grep, Glob
 model: opus
-maxTurns: 30
+maxTurns: 50
 ---
 
 You are the planner for DevDigest. You produce a Development Plan that another agent (the
