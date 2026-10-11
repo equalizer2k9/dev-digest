@@ -10,18 +10,25 @@ const DENIED_SEGMENTS = new Set(['node_modules', '.git', '.github', '.claude', '
 const DENIED_FILES =
   /^(?:package\.json|package-lock\.json|pnpm-lock\.yaml|skills-lock\.json|tsconfig.*\.json|\.env.*|.*\.config\.[cm]?[jt]s)$/;
 
+const isTestFile = (name) => /\.test\.tsx?$/.test(name);
+
+// Pure allowlists: a path is writable only if a rule names it. The denylist above is a second
+// check, not the boundary.
 const RULES = {
   tests: {
-    allowed: '*.test.ts, *.test.tsx, any __tests__/ folder, e2e/',
-    matches: (segments) =>
-      PACKAGES.includes(segments[0]) &&
-      (/\.test\.tsx?$/.test(segments.at(-1)) ||
-        segments.slice(0, -1).includes('__tests__') ||
-        segments[0] === 'e2e'),
+    allowed: '*.test.ts, *.test.tsx, any __tests__/ folder (.ts/.tsx/.json), e2e/specs/',
+    matches: (segments) => {
+      const name = segments.at(-1);
+      if (!PACKAGES.includes(segments[0])) return false;
+      if (isTestFile(name)) return true;
+      if (segments.slice(0, -1).includes('__tests__')) return /\.(?:tsx?|json)$/.test(name);
+      return segments[0] === 'e2e' && segments[1] === 'specs' && /\.flow\.json$/.test(name);
+    },
   },
   docs: {
-    allowed: 'docs/ and <package>/docs/',
+    allowed: '*.md / *.mmd under docs/ and <package>/docs/',
     matches: (segments) =>
+      /\.(?:md|mmd)$/.test(segments.at(-1)) &&
       segments.length > 1 &&
       (segments[0] === 'docs' || (PACKAGES.includes(segments[0]) && segments[1] === 'docs')),
   },
@@ -89,7 +96,10 @@ if (rel === '' || rel.startsWith('..') || path.isAbsolute(rel)) {
 
 const segments = rel.split(path.sep);
 const shown = segments.join('/');
-if (segments.some((s) => DENIED_SEGMENTS.has(s)) || DENIED_FILES.test(segments.at(-1))) {
+if (
+  segments.some((s) => s.startsWith('.') || DENIED_SEGMENTS.has(s)) ||
+  DENIED_FILES.test(segments.at(-1))
+) {
   deny(`${shown} is tooling, configuration or a dependency`);
 }
 if (!rule.matches(segments)) deny(`${shown} is not writable for this agent. Allowed: ${rule.allowed}`);

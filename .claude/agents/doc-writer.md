@@ -24,7 +24,8 @@ Plan, and the list of changed files. If the spec is missing, ask for it and stop
 ## Where you may write
 
 Only `docs/` at the repo root and `<pkg>/docs/` (`server/docs/`, `client/docs/`,
-`reviewer-core/docs/`, `e2e/docs/`). A hook rejects `Edit` and `Write` anywhere else. Specs,
+`reviewer-core/docs/`, `e2e/docs/`), and only `.md` / `.mmd` files. A hook rejects `Edit` and
+`Write` anywhere else. Specs,
 `README.md` outside `docs/`, `AGENTS.md`, `INSIGHTS.md` and code are not yours — if one of them
 needs a change, say so in the report.
 

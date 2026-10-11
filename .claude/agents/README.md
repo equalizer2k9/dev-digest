@@ -23,9 +23,10 @@ researcher → planner → implementer → ( architecture-reviewer ∥ test-writ
   (`docs/`). The other five are read-only by tool list — no Edit, Write or Bash.
 - test-writer and doc-writer are confined by a `PreToolUse` hook in their frontmatter:
   [`../hooks/restrict-write-paths.mjs`](../hooks/restrict-write-paths.mjs) rejects `Edit` /
-  `Write` outside `*.test.ts(x)`, `__tests__/`, `e2e/` (mode `tests`) or outside `docs/`,
-  `<pkg>/docs/` (mode `docs`). It resolves symlinks before matching and always refuses manifests,
-  lock files, configs, `node_modules`, `.claude/`, `.github/` and `server/clones/`. The hook does
+  `Write` outside `*.test.ts(x)`, `__tests__/`, `e2e/specs/*.flow.json` (mode `tests`) or outside
+  `*.md` / `*.mmd` in `docs/`, `<pkg>/docs/` (mode `docs`). It is an allowlist, resolves symlinks
+  before matching, and refuses manifests, lock files, configs, dot-folders, `node_modules` and
+  `server/clones/`. The hook does
   not see `Bash`: for the test-writer's shell the path rule is a prompt rule only.
 - No agent has the `Agent` tool — no nested delegation. The main session runs the pipeline and
   passes each agent's output to the next.
