@@ -11,9 +11,10 @@
  *
  * The take is three parts:
  *   1. browser, steps a–г   recorded here            .video-raw/part-browser.mp4
- *   2. Claude Code, step ґ  a terminal clip recorded by hand, put at
- *                           docs/hw4/claude-code-clip.mp4 (any size — it is
- *                           scaled and padded to 1440x900)
+ *   2. Claude Code, step ґ  a live terminal session, recorded by
+ *                           docs/hw4/record-claude-code.sh into
+ *                           docs/hw4/claude-code-clip.mp4 (a hand-made clip of
+ *                           any size works too — it is scaled and padded)
  *   3. browser, step д      the closing caption      .video-raw/part-caption.mp4
  * Without the clip the script still writes hw4-demo.mp4 from parts 1 and 3 and
  * says the terminal step is missing.
@@ -376,7 +377,7 @@ function splice() {
   const mb = statSync(OUT_MP4).size / 1048576;
   console.log(`\n✓ ${OUT_MP4}`);
   console.log(`  ${W}x${H} · ${secs.toFixed(1)}s · ${mb.toFixed(1)} MB · parts: ${inputs.map((f) => `${f.split("/").pop()} ${probeSeconds(f).toFixed(1)}s`).join(" + ")}`);
-  if (!hasClip) console.log(`  ⚠ step ґ (Claude Code) is NOT in the video: put the terminal clip at ${CLIP} and run with --splice.`);
+  if (!hasClip) console.log(`  ⚠ step ґ (Claude Code) is NOT in the video: run docs/hw4/record-claude-code.sh (writes ${CLIP}), then --splice.`);
   if (secs < 60 || secs > 180) console.log(`  ⚠ ${secs.toFixed(0)}s is outside the 1–3 minute target — adjust the pacing constants.`);
 }
 
