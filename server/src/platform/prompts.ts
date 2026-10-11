@@ -29,9 +29,12 @@ export async function loadPromptTemplate(name: string): Promise<string> {
   return raw;
 }
 
-/** Replace `{{key}}` with vars[key]; unknown placeholders are left intact. */
+/**
+ * Replace `{{key}}` with vars[key]; unknown placeholders are left intact.
+ * Whitespace inside the braces is tolerated: `{{ key }}` equals `{{key}}`.
+ */
 export function renderTemplate(template: string, vars: Record<string, string>): string {
-  return template.replace(/\{\{(\w+)\}\}/g, (whole, key: string) =>
+  return template.replace(/\{\{\s*(\w+)\s*\}\}/g, (whole, key: string) =>
     key in vars ? (vars[key] ?? '') : whole,
   );
 }
