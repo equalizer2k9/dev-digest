@@ -294,6 +294,7 @@ being fetchable means no detail request is ever made.
 | number → uuid | `usePulls(repoId)` | `GET /repos/:repoId/pulls` |
 | PR header, body, files, commits | `usePullDetail(prId)` | `GET /pulls/:prId` |
 | Persisted runs + findings | `usePrReviews(prId)` (also read by [DiffTab](<../src/app/repos/[repoId]/pulls/[number]/_components/DiffTab/DiffTab.tsx>) for the findings in the diff) | `GET /pulls/:prId/reviews` |
+| Blast radius block | `useBlastRadius(prId)` ([OverviewTab](<../src/app/repos/[repoId]/pulls/[number]/_components/OverviewTab/OverviewTab.tsx>)) | `GET /pulls/:id/blast` |
 | Files grouped by role | `useSmartDiff(prId)` ([DiffTab](<../src/app/repos/[repoId]/pulls/[number]/_components/DiffTab/DiffTab.tsx>)) | `GET /pulls/:prId/smart-diff` |
 | In-flight runs (live state) | `usePrActiveRuns(prId)` | `GET /pulls/:prId/runs/active` (4 s poll while non-empty) |
 | Full run history (timeline) | `usePrRuns(prId)` | `GET /pulls/:prId/runs` (4 s poll while any run is running) |
@@ -314,7 +315,7 @@ the value is `null`.
 
 **Tabs.**
 
-- `overview` → [OverviewTab](<../src/app/repos/[repoId]/pulls/[number]/_components/OverviewTab/OverviewTab.tsx>) — the PR description, or nothing at all when `pr.body` is empty.
+- `overview` → [OverviewTab](<../src/app/repos/[repoId]/pulls/[number]/_components/OverviewTab/OverviewTab.tsx>) — the PR description (omitted when `pr.body` is empty), then the full-width Blast radius block from `useBlastRadius` (`GET /pulls/:id/blast`), specified in [blast-radius.md](blast-radius.md).
 - `findings` → [FindingsTab](<../src/app/repos/[repoId]/pulls/[number]/_components/FindingsTab/FindingsTab.tsx>) — live-run log, the lethal-trifecta banner, the run/commit timeline, then one `ReviewRunAccordion` per run (newest first, first one open). Its per-run counters and severity filter are specified in [findings-severity-counters.md](findings-severity-counters.md).
 - `diff` → [DiffTab](<../src/app/repos/[repoId]/pulls/[number]/_components/DiffTab/DiffTab.tsx>) — the file-by-file diff, grouped by role (core · tests · wiring · docs · boilerplate; docs and boilerplate start collapsed) with a Smart order / Original order switch, specified in [smart-diff.md](smart-diff.md). Review findings show as a counter on the group header, a dot on the file card and a comment under their line. Inline commenting is offered only when `pr.status === "open"` and a `prId` is known. Comments are shown by default when the PR has findings (hidden otherwise); one toggle hides GitHub comments and finding comments together.
 

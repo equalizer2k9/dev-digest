@@ -11,4 +11,13 @@ export const s = {
     whiteSpace: "pre-wrap",
     lineHeight: 1.55,
   } satisfies CSSProperties,
+  error: {
+    fontSize: 14,
+    color: "var(--text-muted)",
+  } satisfies CSSProperties,
+  loading: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+  } satisfies CSSProperties,
 } as const;

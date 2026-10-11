@@ -1,5 +1,5 @@
 import type { Severity } from "@devdigest/ui";
-import type { ConventionCandidate, FindingRecord, PrFile, SkillWithUsage } from "@devdigest/shared";
+import type { BlastRadiusResponse, ConventionCandidate, FindingRecord, PrFile, SkillWithUsage } from "@devdigest/shared";
 
 /** Constants for the Showcase Gallery (dev-only). */
 
@@ -85,4 +85,31 @@ export const SHOWCASE_FINDING_OUTSIDE: FindingRecord = {
   title: "Document the new setting",
   start_line: 40,
   end_line: 40,
+};
+
+export const SHOWCASE_BLAST: BlastRadiusResponse = {
+  changed_symbols: [
+    { name: "getItems", file: "src/items.ts", kind: "function" },
+    { name: "formatPrice", file: "src/price.ts", kind: "function" },
+  ],
+  downstream: [
+    {
+      symbol: "getItems",
+      callers: [
+        { name: "listHandler", file: "src/routes/items.ts", line: 42 },
+        { name: "exportJob", file: "src/jobs/export.ts", line: 7 },
+      ],
+      endpoints_affected: ["GET /api/public/items"],
+      crons_affected: ["nightly-export"],
+    },
+    {
+      symbol: "formatPrice",
+      callers: [{ name: "renderRow", file: "src/ui/row.ts", line: 15 }],
+      endpoints_affected: [],
+      crons_affected: [],
+    },
+  ],
+  summary: "",
+  degraded: false,
+  reason: null,
 };
