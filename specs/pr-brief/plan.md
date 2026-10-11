@@ -1,6 +1,6 @@
 # Plan: PR Why + Risk Brief
 
-Spec: `specs/pr-brief/spec.md` (SPEC-01, Status: approved)
+Spec: `specs/pr-brief/spec.md` (SPEC-01, Status: implemented)
 
 ## Goal
 
@@ -439,3 +439,9 @@ Depends on: T-7, T-8, T-9
 Reviewed by `openai/gpt-5.6-terra` on 2026-10-11; findings and decisions in `docs/hw5/cross-model-review.md`. Accepted and applied here: F-1 (T-5), F-2 (Input reduction, T-4), F-4 (T-4), F-7 (T-8). Not accepted: F-3 (owner decision recorded under "Decision: PrBrief contract"), F-5, F-6.
 
 Changed after the review, by owner decision: T-2 was reduced to the `INJECTION_GUARD` export and the providers are left untouched (see "Model call"); the file/line target is no longer written to the page address (AC-22).
+
+## Deviations
+
+- **Local delimiter escape.** `wrap()` in `server/src/modules/brief/helpers.ts` neutralises a forged opening `<untrusted` tag before calling `wrapUntrusted`, which escapes only the closing tag (`reviewer-core/src/prompt.ts:30-34`). It is kept local on purpose: changing `wrapUntrusted` would alter every review prompt, which is outside this feature. Next step: move the escape into `wrapUntrusted` in a separate PR with reviewer-core tests, then reduce `wrap()` to a plain call.
+- **AC-13 stays PARTIAL by decision.** Re-sending a request on 429/5xx or a dropped connection is not turned off, because the brief should survive a transient provider failure the same way a review does; only the re-ask on an invalid reply is disabled (`maxRetries: 0`).
+- **`classifyFile` moved.** The classifier, its test and its rules now live in `server/src/modules/_shared/` (`classify-file.ts`, `smart-diff-rules.ts`), so `brief` no longer imports from the internals of `reviews` (architecture review, round 2).

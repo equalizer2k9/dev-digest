@@ -1,6 +1,6 @@
 # Spec: PR Why + Risk Brief
 Spec ID: SPEC-01
-Status: approved
+Status: implemented
 Supersedes: —
 
 Source: `docs/hw5/requirements.md`; its criteria are referenced as `P<level>-<n>`.
