@@ -1,27 +1,9 @@
 import { describe, it, expect } from "vitest";
-import type { FindingRecord, PrFile, SmartDiffGroup } from "@devdigest/shared";
-import { countFilesWithFindings, findingsByPath, groupFiles } from "./helpers";
+import type { PrFile, SmartDiffGroup } from "@devdigest/shared";
+import { countFilesWithFindings, groupFiles, pathsWithFindings } from "./helpers";
 
 const file = (path: string): PrFile => ({ path, additions: 1, deletions: 0, patch: "@@ -1 +1 @@\n+x" });
 const smart = (path: string) => ({ path, additions: 1, deletions: 0, finding_lines: [] });
-const finding = (id: string, path: string): FindingRecord => ({
-  id,
-  severity: "WARNING",
-  category: "bug",
-  title: id,
-  file: path,
-  start_line: 1,
-  end_line: 1,
-  rationale: "r",
-  suggestion: null,
-  confidence: 0.9,
-  kind: "finding",
-  trifecta_components: null,
-  evidence: null,
-  review_id: "r1",
-  accepted_at: null,
-  dismissed_at: null,
-});
 
 describe("groupFiles", () => {
   const files = [file("a.ts"), file("b.md"), file("c.lock"), file("d.ts")];
@@ -48,15 +30,24 @@ describe("groupFiles", () => {
   });
 });
 
-describe("findingsByPath / countFilesWithFindings", () => {
-  it("counts a file with two findings once", () => {
-    const byPath = findingsByPath([finding("1", "a.ts"), finding("2", "a.ts"), finding("3", "b.ts")]);
-    expect(byPath.get("a.ts")).toHaveLength(2);
-    expect(countFilesWithFindings([file("a.ts"), file("b.ts"), file("c.ts")], byPath)).toBe(2);
+describe("pathsWithFindings / countFilesWithFindings", () => {
+  const withLines = (path: string, lines: number[]) => ({ ...smart(path), finding_lines: lines });
+  const groups: SmartDiffGroup[] = [
+    { role: "core", files: [withLines("a.ts", [3, 9]), withLines("b.ts", []), withLines("c.ts", [1])] },
+    { role: "tests", files: [withLines("d.test.ts", [])] },
+  ];
+
+  it("takes exactly the files whose finding_lines is non-empty", () => {
+    expect([...pathsWithFindings(groups)].sort()).toEqual(["a.ts", "c.ts"]);
   });
 
-  it("is 0 with no findings, and ignores findings of files outside the list", () => {
-    expect(countFilesWithFindings([file("a.ts")], findingsByPath([]))).toBe(0);
-    expect(countFilesWithFindings([file("a.ts")], findingsByPath([finding("1", "zzz.ts")]))).toBe(0);
+  it("counts a file with several finding lines once", () => {
+    const set = pathsWithFindings(groups);
+    expect(countFilesWithFindings([file("a.ts"), file("b.ts"), file("c.ts")], set)).toBe(2);
+  });
+
+  it("is 0 with no findings, and ignores paths outside the list", () => {
+    expect(countFilesWithFindings([file("a.ts")], new Set())).toBe(0);
+    expect(countFilesWithFindings([file("a.ts")], new Set(["zzz.ts"]))).toBe(0);
   });
 });

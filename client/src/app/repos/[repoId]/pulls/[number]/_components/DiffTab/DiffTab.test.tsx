@@ -37,17 +37,24 @@ const FILES: PrFile[] = [
   { path: "src/config.ts", additions: 1, deletions: 0, patch: patch(3) },
   { path: "src/config.test.ts", additions: 1, deletions: 0, patch: patch(4) },
 ];
-const sf = (path: string) => ({ path, additions: 1, deletions: 0, finding_lines: [] });
-const SMART: SmartDiff = {
+const sf = (path: string, finding_lines: number[] = []) => ({
+  path,
+  additions: 1,
+  deletions: 0,
+  finding_lines,
+});
+/** The smart-diff response; `lines` marks src/config.ts as having findings. */
+const smartDiff = (lines: number[] = []): SmartDiff => ({
   groups: [
-    { role: "core", files: [sf("src/config.ts")] },
+    { role: "core", files: [sf("src/config.ts", lines)] },
     { role: "tests", files: [sf("src/config.test.ts")] },
     { role: "wiring", files: [] },
     { role: "docs", files: [sf("README.md")] },
     { role: "boilerplate", files: [sf("pnpm-lock.yaml")] },
   ],
   split_suggestion: { too_big: false, total_lines: 4, proposed_splits: [] },
-};
+});
+const SMART = smartDiff();
 
 const ghComment = (id: number): PrReviewComment => ({
   id,
@@ -81,7 +88,10 @@ const FINDING: FindingRecord = {
   accepted_at: null,
   dismissed_at: null,
 };
-const review = (findings: FindingRecord[]): ReviewRecord =>
+const review = (
+  findings: FindingRecord[],
+  over: { id?: string; agent_id?: string; created_at?: string } = {},
+): ReviewRecord =>
   ({
     id: "r1",
     run_id: "run1",
@@ -90,6 +100,7 @@ const review = (findings: FindingRecord[]): ReviewRecord =>
     agent_name: "Agent",
     created_at: "2026-10-11T10:00:00Z",
     findings,
+    ...over,
   }) as unknown as ReviewRecord;
 
 function renderTab() {
@@ -127,6 +138,48 @@ describe("DiffTab smart order", () => {
     expect(screen.getByText("pnpm-lock.yaml")).toBeInTheDocument();
   });
 
+  it("shows the five role labels and hints as literals", () => {
+    renderTab();
+    const copy: [string, string][] = [
+      ["Core logic", "The substance of the change — review closely"],
+      ["Tests", "Proves the change works — check what's covered"],
+      ["Wiring", "Hooks the core into the app"],
+      ["Docs", "Describes the change — read if behaviour changed"],
+      ["Boilerplate", "Generated / mechanical — skim"],
+    ];
+    for (const [label, hint] of copy) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+      expect(screen.getByText(hint)).toBeInTheDocument();
+    }
+  });
+
+  it("keeps a card inside an initially collapsed group collapsed after the group opens", () => {
+    renderTab();
+    fireEvent.click(screen.getByRole("button", { name: /Boilerplate/ }));
+    // the group is open and the card is there, but its diff body is not
+    expect(screen.getByText("pnpm-lock.yaml")).toBeInTheDocument();
+    expect(screen.queryByText("added2")).toBeNull();
+    fireEvent.click(screen.getByText("pnpm-lock.yaml"));
+    expect(screen.getByText("added2")).toBeInTheDocument();
+    // a group that starts open still shows its card bodies
+    expect(screen.getByText("added3")).toBeInTheDocument();
+  });
+
+  it("exposes the order switch as a group whose chips flip aria-pressed", () => {
+    renderTab();
+    const group = screen.getByRole("group");
+    const smartChip = within(group).getByRole("button", { name: "Smart order" });
+    const originalChip = within(group).getByRole("button", { name: "Original order" });
+    expect(smartChip).toHaveAttribute("aria-pressed", "true");
+    expect(originalChip).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(originalChip);
+    expect(smartChip).toHaveAttribute("aria-pressed", "false");
+    expect(originalChip).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(smartChip);
+    expect(smartChip).toHaveAttribute("aria-pressed", "true");
+    expect(originalChip).toHaveAttribute("aria-pressed", "false");
+  });
+
   it("switches to original order (files order, no headers) and back", () => {
     renderTab();
     fireEvent.click(screen.getByRole("button", { name: "Original order" }));
@@ -154,6 +207,7 @@ describe("DiffTab smart order", () => {
 describe("DiffTab findings", () => {
   beforeEach(() => {
     state.reviews = [review([FINDING])];
+    state.smart = { data: smartDiff([2]) };
   });
 
   it("shows severity, title and rationale without a click, and counts files in the header", () => {
@@ -163,6 +217,8 @@ describe("DiffTab findings", () => {
     const core = screen.getByRole("button", { name: /Core logic/ });
     expect(core.querySelector("[data-findings-count]")).toHaveTextContent("1");
     expect(document.querySelectorAll("[data-finding-dot]")).toHaveLength(1);
+    // only the core group has a file with findings
+    expect(document.querySelectorAll("[data-findings-count]")).toHaveLength(1);
   });
 
   it("Accept calls mutate with findingId, action and prId", () => {
@@ -190,6 +246,78 @@ describe("DiffTab findings", () => {
     renderTab();
     fireEvent.click(screen.getByRole("button", { name: "Original order" }));
     expect(screen.getByText("Hardcoded secret")).toBeInTheDocument();
+    expect(document.querySelectorAll("[data-finding-dot]")).toHaveLength(1);
+  });
+});
+
+describe("DiffTab counters come from the smart-diff response", () => {
+  it("draws no dot and no counter when finding_lines is empty, even with finding cards", () => {
+    state.reviews = [review([FINDING])];
+    state.smart = { data: smartDiff([]) };
+    renderTab();
+    expect(screen.getByText("Hardcoded secret")).toBeInTheDocument();
+    expect(document.querySelector("[data-finding-dot]")).toBeNull();
+    expect(document.querySelector("[data-findings-count]")).toBeNull();
+  });
+
+  it("draws the dot and counter from finding_lines alone, in one neutral colour", () => {
+    state.reviews = [];
+    state.smart = { data: smartDiff([2, 5]) };
+    renderTab();
+    const core = screen.getByRole("button", { name: /Core logic/ });
+    expect(core.querySelector("[data-findings-count]")).toHaveTextContent("1");
+    const dots = document.querySelectorAll("[data-finding-dot]");
+    expect(dots).toHaveLength(1);
+    expect(dots[0]).not.toHaveAttribute("data-severity");
+  });
+
+  it("draws no dots before smart-diff has loaded", () => {
+    state.reviews = [review([FINDING])];
+    state.smart = { isLoading: true };
+    renderTab();
+    expect(screen.getByText("Hardcoded secret")).toBeInTheDocument();
+    expect(document.querySelector("[data-finding-dot]")).toBeNull();
+  });
+});
+
+describe("DiffTab review selection", () => {
+  const OLD: FindingRecord = { ...FINDING, id: "old", title: "Old finding", review_id: "rOld" };
+  const NEW: FindingRecord = { ...FINDING, id: "new", title: "New finding", review_id: "rNew" };
+
+  it("renders only the newest review's finding when one agent has two reviews", () => {
+    state.reviews = [
+      review([OLD], { id: "rOld", created_at: "2026-10-11T08:00:00Z" }),
+      review([NEW], { id: "rNew", created_at: "2026-10-11T10:00:00Z" }),
+    ];
+    renderTab();
+    expect(screen.getByText("New finding")).toBeInTheDocument();
+    expect(screen.queryByText("Old finding")).toBeNull();
+  });
+
+  it("keeps the newest review of each agent", () => {
+    state.reviews = [
+      review([OLD], { id: "rOld", agent_id: "a1", created_at: "2026-10-11T08:00:00Z" }),
+      review([NEW], { id: "rNew", agent_id: "a2", created_at: "2026-10-11T07:00:00Z" }),
+    ];
+    renderTab();
+    expect(screen.getByText("Old finding")).toBeInTheDocument();
+    expect(screen.getByText("New finding")).toBeInTheDocument();
+  });
+});
+
+describe("DiffTab dismissed findings", () => {
+  const DISMISSED: FindingRecord = { ...FINDING, dismissed_at: "2026-10-11T11:00:00Z" };
+
+  it("keeps a dismissed finding in the diff, tagged, and still counts it", () => {
+    state.reviews = [review([DISMISSED])];
+    state.smart = { data: smartDiff([2]) };
+    renderTab();
+    expect(screen.getByText("Hardcoded secret")).toBeInTheDocument();
+    expect(document.querySelector('[data-finding-id="f1"]')).toHaveTextContent("dismissed");
+    // counted: the comments button, the group counter and the file dot
+    expect(screen.getByRole("button", { name: /Hide comments \(1\)/ })).toBeInTheDocument();
+    const core = screen.getByRole("button", { name: /Core logic/ });
+    expect(core.querySelector("[data-findings-count]")).toHaveTextContent("1");
     expect(document.querySelectorAll("[data-finding-dot]")).toHaveLength(1);
   });
 });

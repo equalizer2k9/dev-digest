@@ -1,9 +1,9 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
-import type { FindingRecord, PrFile } from "@devdigest/shared";
+import type { FindingRecord, PrFile, PrReviewComment } from "@devdigest/shared";
 import shellMessages from "../../../../messages/en/shell.json";
-import type { DiffFindingsApi } from "../comments";
+import type { DiffCommentApi, DiffFindingsApi } from "../comments";
 import { FileCard } from "./FileCard";
 
 afterEach(cleanup);
@@ -34,16 +34,33 @@ function finding(over: Partial<FindingRecord> = {}): FindingRecord {
   };
 }
 
-function api(findings: FindingRecord[], show = true): DiffFindingsApi {
+function api(findings: FindingRecord[]): DiffFindingsApi {
   return {
     findings,
-    show,
     renderFinding: (f) => (
       <div data-testid="finding" data-id={f.id}>
         {f.title}
       </div>
     ),
   };
+}
+
+const outdatedComment: PrReviewComment = {
+  id: 9,
+  path: "src/config.ts",
+  line: null,
+  original_line: 12,
+  side: "RIGHT",
+  body: "stale thread body",
+  user: "bob",
+  created_at: "2026-10-11T09:00:00Z",
+  html_url: "https://github.com/acme/app/pull/1#r9",
+  in_reply_to_id: null,
+  is_outdated: true,
+};
+
+function commentApi(showComments: boolean, comments: PrReviewComment[] = []): DiffCommentApi {
+  return { comments, canComment: false, showComments, posting: false, onSubmit: vi.fn() };
 }
 
 function renderCard(props: Partial<React.ComponentProps<typeof FileCard>> = {}, file = FILE) {
@@ -57,17 +74,15 @@ function renderCard(props: Partial<React.ComponentProps<typeof FileCard>> = {}, 
 const dot = () => document.querySelector<HTMLElement>("[data-finding-dot]");
 
 describe("FileCard findings", () => {
-  it("shows no dot without findings", () => {
-    renderCard({ findings: api([finding({ file: "other.ts" })]) });
+  it("shows no dot unless the caller says the file has findings", () => {
+    renderCard({ findings: api([finding()]) });
     expect(dot()).toBeNull();
   });
 
-  it("shows a dot with the worst severity, an accessible label and no number", () => {
-    renderCard({
-      findings: api([finding({ id: "a", severity: "SUGGESTION" }), finding({ id: "b", severity: "CRITICAL" })]),
-    });
+  it("shows a neutral dot with an accessible label and no number when hasFindings", () => {
+    renderCard({ hasFindings: true });
     const d = dot()!;
-    expect(d).toHaveAttribute("data-severity", "CRITICAL");
+    expect(d).not.toHaveAttribute("data-severity");
     expect(d).toHaveAttribute("aria-label", shellMessages.diffViewer.hasFindings);
     expect(d.textContent).toBe("");
   });
@@ -108,25 +123,43 @@ describe("FileCard findings", () => {
   });
 
   it("shows the outside block for a file with no patch, under the no-diff note", () => {
-    renderCard({ findings: api([finding({ id: "np", start_line: 1 })]) }, { ...FILE, patch: null });
+    renderCard(
+      { hasFindings: true, findings: api([finding({ id: "np", start_line: 1 })]) },
+      { ...FILE, patch: null },
+    );
     expect(screen.getByText(shellMessages.diffViewer.noDiffText)).toBeInTheDocument();
     expect(document.querySelector('[data-findings-outside] [data-id="np"]')).not.toBeNull();
     expect(dot()).not.toBeNull();
   });
 
-  it("show=false hides finding comments and the outside block but keeps dot, stripe and label", () => {
+  it("puts the outside-findings block before the outdated-comments block", () => {
     renderCard({
-      findings: api([finding({ id: "in", start_line: 3 }), finding({ id: "out", start_line: 99 })], false),
+      findings: api([finding({ id: "out", start_line: 99 })]),
+      commenting: commentApi(true, [outdatedComment]),
+    });
+    const outside = document.querySelector<HTMLElement>("[data-findings-outside]")!;
+    const outdated = screen.getByText(/comment\(s\) on older revisions/);
+    expect(outside).toBeInTheDocument();
+    expect(screen.getByText("stale thread body")).toBeInTheDocument();
+    expect(outside.compareDocumentPosition(outdated) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("showComments=false hides finding comments, the outside block and outdated threads but keeps dot, stripe and label", () => {
+    renderCard({
+      hasFindings: true,
+      commenting: commentApi(false, [outdatedComment]),
+      findings: api([finding({ id: "in", start_line: 3 }), finding({ id: "out", start_line: 99 })]),
     });
     expect(screen.queryAllByTestId("finding")).toHaveLength(0);
     expect(document.querySelector("[data-findings-outside]")).toBeNull();
+    expect(screen.queryByText("stale thread body")).toBeNull();
     expect(dot()).not.toBeNull();
     expect(document.querySelector('[data-line-key="RIGHT:3"]')).toHaveAttribute("data-finding-severity", "WARNING");
     expect(document.querySelector("[data-finding-label]")).not.toBeNull();
   });
 
   it("defaultOpen={false} starts collapsed and opens on click", () => {
-    renderCard({ defaultOpen: false, findings: api([finding()]) });
+    renderCard({ defaultOpen: false, hasFindings: true, findings: api([finding()]) });
     expect(screen.queryByText("const c = 4;")).toBeNull();
     expect(dot()).not.toBeNull();
     fireEvent.click(screen.getByText("src/config.ts"));

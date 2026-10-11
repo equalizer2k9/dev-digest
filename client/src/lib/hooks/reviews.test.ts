@@ -12,10 +12,11 @@ vi.mock("../api", () => ({
       if (path.endsWith("/smart-diff")) return { groups: [] };
       return [];
     }),
+    del: vi.fn(async () => ({ ok: true })),
   },
 }));
 
-import { useRefreshReviewsOnRunSettle } from "./reviews";
+import { useDeleteReview, useDeleteRun, useRefreshReviewsOnRunSettle } from "./reviews";
 
 afterEach(cleanup);
 beforeEach(() => {
@@ -69,5 +70,35 @@ describe("useRefreshReviewsOnRunSettle", () => {
     activeRuns = [{ run_id: "r1" }, { run_id: "r2" }];
     await refetchActive();
     expect(invalidate).not.toHaveBeenCalled();
+  });
+});
+
+describe("mutations that remove findings", () => {
+  function setupMutation<T>(useHook: () => T) {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      React.createElement(QueryClientProvider, { client: qc }, children);
+    return { invalidate, hook: renderHook(useHook, { wrapper }) };
+  }
+
+  it("deleting a review invalidates reviews and smart-diff", async () => {
+    const { invalidate, hook } = setupMutation(() => useDeleteReview("pr1"));
+    await act(async () => {
+      await hook.result.current.mutateAsync("rv1");
+    });
+    const keys = invalidatedKeys(invalidate);
+    expect(keys).toContain(JSON.stringify(["reviews", "pr1"]));
+    expect(keys).toContain(JSON.stringify(["smart-diff", "pr1"]));
+  });
+
+  it("deleting a run invalidates reviews and smart-diff", async () => {
+    const { invalidate, hook } = setupMutation(() => useDeleteRun("pr1"));
+    await act(async () => {
+      await hook.result.current.mutateAsync("run1");
+    });
+    const keys = invalidatedKeys(invalidate);
+    expect(keys).toContain(JSON.stringify(["reviews", "pr1"]));
+    expect(keys).toContain(JSON.stringify(["smart-diff", "pr1"]));
   });
 });
