@@ -59,7 +59,7 @@ describe('run_agent_on_pr', () => {
     mockApi({ ...BASE_ROUTES, ...start, 'GET /pulls/p-uuid/runs': [{ run_id: 'run1', status: 'failed', error: 'LLM down' }] });
     const r = await runTool(() => runAgentOnPr(args, fast));
     expect(r.isError).toBe(true);
-    expect(text(r)).toBe('Run failed: LLM down. Fix the cause and call run_agent_on_pr again.');
+    expect(JSON.parse(text(r))).toMatchObject({ error: 'Run failed.', run_error: 'LLM down' });
   });
 
   it('timeout → still running with a next step, not an error', async () => {
@@ -113,7 +113,7 @@ describe('run_agent_on_pr', () => {
     vi.stubGlobal('fetch', hangingAfter(['POST /pulls/p-uuid/review']));
     const r = await runTool(() => runAgentOnPr(args, { sleep: async () => {}, timeoutMs: 5_000, requestTimeoutMs: 30 }));
     expect(r.isError).toBe(true);
-    expect(text(r)).toMatch(/^DevDigest API is not reachable/);
+    expect(JSON.parse(text(r)).error).toMatch(/^DevDigest API is not reachable/);
   });
 
   it('a run whose status is null counts as still running, then completes', async () => {
@@ -147,12 +147,12 @@ describe('run_agent_on_pr', () => {
   it('unknown agent never reaches POST /review', async () => {
     const { calls } = mockApi({ ...BASE_ROUTES, ...start });
     const r = await runTool(() => runAgentOnPr({ pr_number: 12, agent: 'ghost' }, fast));
-    expect(text(r)).toMatch(/Agent 'ghost' not found/);
+    expect(JSON.parse(text(r))).toMatchObject({ error: 'Agent not found.', requested_agent: 'ghost' });
     expect(calls).not.toContain('POST /pulls/p-uuid/review');
   });
 
   it('429 from the API → rate-limit hint', async () => {
     mockApi({ ...BASE_ROUTES, 'POST /pulls/p-uuid/review': { status: 429, json: { error: { code: 'rate_limited', message: 'x' } } } });
-    expect(text(await runTool(() => runAgentOnPr(args, fast)))).toMatch(/^Rate limited/);
+    expect(JSON.parse(text(await runTool(() => runAgentOnPr(args, fast)))).error).toMatch(/^Rate limited/);
   });
 });

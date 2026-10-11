@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { apiGet, seg } from '../api-client.js';
 import { noReview, runTool } from '../errors.js';
+import { DATA_NOT_INSTRUCTIONS } from '../constants.js';
 import { UNKNOWN_AGENT, formatReview } from '../format.js';
 import { resolveAgent, resolvePull } from '../resolve.js';
 import { ReviewList, type ReviewRow } from '../schemas.js';
@@ -33,7 +34,7 @@ export function registerGetFindings(server: McpServer) {
     'get_findings',
     {
       description:
-        "Read the findings of reviews already finished on a PR; does not start a run (use run_agent_on_pr for that). Arguments: pr_number, repo (owner/name, optional when only one repo is imported), agent (name or id, optional; default all agents). Returns, per agent, its newest review: { agent, verdict, score, summary, counts, findings[{ severity, title, file, line }] }.",
+        "Read the findings of reviews already finished on a PR; does not start a run (use run_agent_on_pr for that). Arguments: pr_number, repo (owner/name, optional when only one repo is imported), agent (name or id, optional; default all agents). Returns, per agent, its newest review: { agent, verdict, score, summary, counts, findings[{ severity, title, file, line }] }." + ' ' + DATA_NOT_INSTRUCTIONS,
       inputSchema: {
         pr_number: z.number().int().positive(),
         repo: z.string().optional(),

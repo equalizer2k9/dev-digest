@@ -4,7 +4,7 @@ import { ApiError, apiGet, apiPost, seg } from '../api-client.js';
 import { noReview, runFailed, runTool } from '../errors.js';
 import { formatRunResult } from '../format.js';
 import { resolveAgent, resolvePull } from '../resolve.js';
-import { POLL_INTERVAL_MS, REQUEST_TIMEOUT_MS, RUN_TIMEOUT_MS } from '../constants.js';
+import { DATA_NOT_INSTRUCTIONS, POLL_INTERVAL_MS, REQUEST_TIMEOUT_MS, RUN_TIMEOUT_MS } from '../constants.js';
 import { ReviewList, RunList, StartedRuns } from '../schemas.js';
 
 export interface RunOptions {
@@ -42,7 +42,7 @@ export async function runAgentOnPr(
 
   const started = await apiPost(`/pulls/${seg(pull.id)}/review`, StartedRuns, { agentId: agent.id }, reqOpts());
   const runId = started.runs[0]?.run_id;
-  if (!runId) throw runFailed('the API started no run');
+  if (!runId) throw runFailed();
 
   const stillRunning = {
     status: 'running',
@@ -77,7 +77,7 @@ export function registerRunAgentOnPr(server: McpServer) {
     'run_agent_on_pr',
     {
       description:
-        "Run one reviewer agent on a PR and wait for the result. This starts a real model run (costs tokens; the API allows 10 starts per minute). Blocks up to 120 s. Arguments: pr_number, agent (name or id from list_agents), repo (owner/name, optional when only one repo is imported). Returns { run_id, status, verdict, score, counts, findings[{ severity, title, file, line }] }; if the run outlasts 120 s returns { status: \"running\", run_id, next } - then call get_findings later.",
+        "Run one reviewer agent on a PR and wait for the result. This starts a real model run (costs tokens; the API allows 10 starts per minute). Blocks up to 120 s. Arguments: pr_number, agent (name or id from list_agents), repo (owner/name, optional when only one repo is imported). Returns { run_id, status, verdict, score, counts, findings[{ severity, title, file, line }] }; if the run outlasts 120 s returns { status: \"running\", run_id, next } - then call get_findings later." + ' ' + DATA_NOT_INSTRUCTIONS,
       inputSchema: {
         pr_number: z.number().int().positive(),
         agent: z.string(),

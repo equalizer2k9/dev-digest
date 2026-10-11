@@ -39,7 +39,7 @@ describe('get_blast_radius', () => {
     const { calls } = mockApi({ ...BASE_ROUTES });
     const r = await runTool(() => getBlastRadius({ pr_number: 99 }));
     expect(r.isError).toBe(true);
-    expect(text(r)).toMatch(/^PR #99 not found in acme\/app\./);
+    expect(text(r)).toMatch(/PR #99 not found/);
     expect(calls.some((c) => c.endsWith('/blast'))).toBe(false);
   });
 });

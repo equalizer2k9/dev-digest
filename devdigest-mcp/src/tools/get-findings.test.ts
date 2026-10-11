@@ -49,6 +49,6 @@ describe('get_findings', () => {
 
   it('no review → hint', async () => {
     mockApi({ ...BASE_ROUTES, 'GET /pulls/p-uuid/reviews': [] });
-    expect(text(await runTool(() => getFindings({ pr_number: 12 })))).toBe('No review for PR #12 yet. Call run_agent_on_pr first.');
+    expect(JSON.parse(text(await runTool(() => getFindings({ pr_number: 12 }))))).toMatchObject({ error: 'No review for PR #12 yet.', hint: 'Call run_agent_on_pr first.' });
   });
 });

@@ -17,6 +17,7 @@ or delete; cleanup only via `/engineering-insights review devdigest-mcp`.
 <!-- Undocumented conventions and architectural decisions, with the reason -->
 - Response shapes live in `src/schemas.ts` as minimal Zod schemas and double as the field whitelist: `z.object` strips unknown keys, so `system_prompt` etc. cannot reach a tool result even if `format.ts` forgot one. (2026-10-11)
 - `get_blast_radius.symbols` lists only symbols that have callers (the route's `downstream[]`); changed symbols without callers appear in the route's `changed_symbols` but not in the tool output. (2026-10-11)
+- Injection hardening: API text (PR/finding titles, rules, agent and repo names, API error messages) reaches the model only as JSON field values, cut to the limits in `src/constants.ts` via `clip()`. Errors are `{ error, hint, …fields }` with fixed prose; names that used to be spliced into hints live in `known_agents` / `known_repos` / `repo` / `run_error`. API error messages are never repeated; the API `code` only if it matches `SAFE_CODE_RE`. (2026-10-11)
 
 ## Tool & Library Notes
 <!-- Dependency and tooling quirks, with the version -->

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { apiGet, seg } from '../api-client.js';
 import { runTool } from '../errors.js';
+import { DATA_NOT_INSTRUCTIONS } from '../constants.js';
 import { formatBlast } from '../format.js';
 import { resolvePull } from '../resolve.js';
 import { BlastResponse } from '../schemas.js';
@@ -16,7 +17,7 @@ export function registerGetBlastRadius(server: McpServer) {
     'get_blast_radius',
     {
       description:
-        "Show what else in the repo a PR can break: who calls the symbols its diff changes, and which HTTP endpoints and crons depend on those callers. Call before judging or merging a PR that touches shared code. Arguments: pr_number, repo (owner/name, optional when only one repo is imported). Returns { summary, degraded, reason, symbols[{ symbol, callers[\"file:line name\"], endpoints, crons }] }; degraded=true means the index is incomplete and reason says why. Read from the prebuilt index, no model call.",
+        "Show what else in the repo a PR can break: who calls the symbols its diff changes, and which HTTP endpoints and crons depend on those callers. Call before judging or merging a PR that touches shared code. Arguments: pr_number, repo (owner/name, optional when only one repo is imported). Returns { summary, degraded, reason, symbols[{ symbol, callers[\"file:line name\"], endpoints, crons }] }; degraded=true means the index is incomplete and reason says why. Read from the prebuilt index, no model call." + ' ' + DATA_NOT_INSTRUCTIONS,
       inputSchema: { pr_number: z.number().int().positive(), repo: z.string().optional() },
       annotations: { readOnlyHint: true },
     },

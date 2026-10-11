@@ -17,12 +17,12 @@ describe('resolveRepo', () => {
 
   it('is ambiguous without repo when several are imported', async () => {
     mockApi({ 'GET /repos': [{ id: 'r1', full_name: 'a/b' }, { id: 'r2', full_name: 'c/d' }] });
-    await expect(resolveRepo()).rejects.toThrow(/Known repos: a\/b, c\/d/);
+    await expect(resolveRepo()).rejects.toMatchObject({ details: { known_repos: ['a/b', 'c/d'] } });
   });
 
   it('rejects an unknown repo', async () => {
     mockApi(BASE_ROUTES);
-    await expect(resolveRepo('x/y')).rejects.toThrow(/Repo 'x\/y' is not imported/);
+    await expect(resolveRepo('x/y')).rejects.toMatchObject({ message: 'Repo is not imported or not given.', details: { requested_repo: 'x/y' } });
   });
 });
 
@@ -34,7 +34,7 @@ describe('resolvePull', () => {
 
   it('unknown PR names the number and the repo', async () => {
     mockApi(BASE_ROUTES);
-    await expect(resolvePull(99)).rejects.toThrow('PR #99 not found in acme/app.');
+    await expect(resolvePull(99)).rejects.toMatchObject({ message: 'PR #99 not found in the repo.', details: { repo: 'acme/app' } });
   });
 });
 
@@ -51,8 +51,8 @@ describe('resolveAgent', () => {
 
   it('unknown agent lists valid names', async () => {
     mockApi(BASE_ROUTES);
-    await expect(resolveAgent('nope')).rejects.toThrow(
-      `Call list_agents and pass one of: ${AGENTS.map((a) => a.name).join(', ')}.`,
-    );
+    await expect(resolveAgent('nope')).rejects.toMatchObject({
+      details: { known_agents: AGENTS.map((a) => a.name) },
+    });
   });
 });

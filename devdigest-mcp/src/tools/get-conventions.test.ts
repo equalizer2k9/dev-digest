@@ -23,7 +23,7 @@ describe('get_conventions', () => {
     const { calls } = mockApi({ ...BASE_ROUTES, 'GET /repos/r1/conventions': { candidates: [cand('p', 'pending')] } });
     const r = await runTool(() => getConventions({ repo: 'acme/app' }));
     expect(r.isError).toBe(true);
-    expect(text(r)).toBe('No accepted conventions for acme/app. Open its Conventions page in DevDigest, run a scan and accept rules.');
+    expect(JSON.parse(text(r))).toMatchObject({ error: 'No accepted conventions for the repo.', repo: 'acme/app' });
     expect(calls.some((c) => c.includes('/skills'))).toBe(false);
   });
 });
