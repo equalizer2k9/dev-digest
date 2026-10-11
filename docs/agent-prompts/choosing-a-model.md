@@ -7,7 +7,7 @@ studio (the model dropdown) or via `PUT /agents/:id { "model": "…" }`.
 
 The PR Brief is not an agent: its model is the **Risk Brief** slot in Settings → Models.
 It makes one call per generation and now gives up after 20 seconds, so pick a model that
-answers a ~4k-token prompt well inside that limit.
+answers a ~4k-token prompt well inside that limit; slow reasoning models will time out.
 
 ## Why the model matters
 
