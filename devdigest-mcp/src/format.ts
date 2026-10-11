@@ -1,5 +1,8 @@
 import type { AgentRow, BlastResponse, ConventionCandidate, FindingRow, ReviewRow } from './schemas.js';
 
+/** Shown when the API has no agent behind a review (deleted agent). */
+export const UNKNOWN_AGENT = 'unknown';
+
 // Field whitelists: anything not named here (system_prompt, rationale, ids…) never leaves.
 
 export const formatAgents = (agents: AgentRow[]) =>
@@ -26,7 +29,7 @@ export function countBySeverity(findings: FindingRow[]): Record<string, number> 
 }
 
 export const formatReview = (r: ReviewRow) => ({
-  agent: r.agent_name,
+  agent: r.agent_name ?? UNKNOWN_AGENT,
   verdict: r.verdict ?? null,
   score: r.score ?? null,
   summary: r.summary ?? '',

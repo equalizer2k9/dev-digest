@@ -28,7 +28,8 @@ export const StartedRuns = z.object({
 
 export const RunRow = z.object({
   run_id: z.string(),
-  status: z.string(),
+  // The API allows null (RunSummary.status); the tool treats it as "still running".
+  status: z.string().nullish(),
   error: z.string().nullish(),
 });
 export type RunRow = z.infer<typeof RunRow>;
@@ -44,8 +45,9 @@ export type FindingRow = z.infer<typeof FindingRow>;
 
 export const ReviewRow = z.object({
   run_id: z.string().nullish(),
-  agent_id: z.string(),
-  agent_name: z.string(),
+  // ReviewRecord: agent_id nullable, agent_name nullish (agent deleted / run gone).
+  agent_id: z.string().nullish(),
+  agent_name: z.string().nullish(),
   verdict: z.string().nullish(),
   summary: z.string().nullish(),
   score: z.number().nullish(),

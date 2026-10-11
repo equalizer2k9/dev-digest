@@ -40,6 +40,26 @@ describe('api-client', () => {
     vi.unstubAllEnvs();
   });
 
+  it('aborts a hanging request after timeoutMs → network_error', async () => {
+    vi.stubGlobal('fetch', vi.fn((_u: unknown, init?: RequestInit) => new Promise((_, reject) => {
+      init!.signal!.addEventListener('abort', () => reject(init!.signal!.reason));
+    })));
+    const t0 = Date.now();
+    const err = await apiGet('/x', z.unknown(), { timeoutMs: 30 }).catch((e) => e);
+    expect(err).toMatchObject({ name: 'ApiError', code: 'network_error', status: 0 });
+    expect(Date.now() - t0).toBeLessThan(1000);
+  });
+
+  it('a body that stalls past the timeout is network_error, not bad_response', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (_u: unknown, init?: RequestInit) => {
+      const body = new ReadableStream({
+        start(c) { init!.signal!.addEventListener('abort', () => c.error(init!.signal!.reason)); },
+      });
+      return new Response(body, { status: 200 });
+    }));
+    await expect(apiGet('/x', z.unknown(), { timeoutMs: 30 })).rejects.toMatchObject({ code: 'network_error' });
+  });
+
   it('URL-encodes path segments', () => {
     expect(seg('a/b c?')).toBe('a%2Fb%20c%3F');
   });

@@ -21,28 +21,40 @@ when only one repo is imported). Spec: [specs/mcp-tools.md](specs/mcp-tools.md).
 **Prerequisites:** Node >= 22, npm, Docker (Postgres for the API), and the DevDigest API with at
 least one imported repo. `get_blast_radius` needs the API build that has `GET /pulls/:id/blast`.
 
-1. **Install** (from the repo root):
+Every command says where to run it: **repo root** = the folder that holds `.mcp.json`,
+`scripts/` and `devdigest-mcp/`; **`devdigest-mcp/`** = this package.
+
+1. **Install** (from the repo root; `npm ci` installs exactly the committed lock file):
 
    ```bash
    cd devdigest-mcp
-   npm install
+   npm ci
+   cd ..                   # back to the repo root for step 2
    ```
 
-2. **Start the API** (the MCP server never starts it, and does not wait for it):
+2. **Start the API** (from the repo root; the MCP server never starts it, and does not wait
+   for it):
 
    ```bash
    ./scripts/dev.sh        # API on http://localhost:3001
-   curl localhost:3001/agents | head -c 200     # sanity check
    ```
 
-3. **Start command** (stdio — it waits for JSON-RPC on stdin, so on its own it just sits there;
-   `devdigest-mcp ready` on stderr means it is up):
+   `dev.sh` stays in the foreground until Ctrl-C, so open a **second terminal** (it starts in
+   the repo root) for everything below. Sanity check there:
+
+   ```bash
+   curl localhost:3001/agents | head -c 200
+   ```
+
+3. **Start command** (second terminal: `cd devdigest-mcp` first). It speaks stdio — it waits
+   for JSON-RPC on stdin, so on its own it just sits there; `devdigest-mcp ready` on stderr
+   means it is up:
 
    ```bash
    node_modules/.bin/tsx src/index.ts      # or: npm start
    ```
 
-4. **MCP Inspector** — lists and calls the tools in a browser:
+4. **MCP Inspector** (also from `devdigest-mcp/`) — lists and calls the tools in a browser:
 
    ```bash
    npm run inspect
@@ -81,6 +93,8 @@ To point Claude Code at another API, add `"env": { "DEVDIGEST_API_URL": "http://
 `devdigest` entry in `.mcp.json`.
 
 ## Checks
+
+From `devdigest-mcp/`:
 
 ```bash
 npm run typecheck && npm test      # fetch is mocked; no API needed

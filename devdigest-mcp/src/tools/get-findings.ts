@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { apiGet, seg } from '../api-client.js';
 import { noReview, runTool } from '../errors.js';
-import { formatReview } from '../format.js';
+import { UNKNOWN_AGENT, formatReview } from '../format.js';
 import { resolveAgent, resolvePull } from '../resolve.js';
 import { ReviewList, type ReviewRow } from '../schemas.js';
 
@@ -19,8 +19,10 @@ export async function getFindings(args: {
   const newest = new Map<string, ReviewRow>();
   for (const r of reviews) {
     if (agentId !== undefined && r.agent_id !== agentId) continue;
-    const cur = newest.get(r.agent_id);
-    if (!cur || r.created_at > cur.created_at) newest.set(r.agent_id, r);
+    // Reviews without an agent id (agent deleted) share one "unknown" bucket.
+    const key = r.agent_id ?? UNKNOWN_AGENT;
+    const cur = newest.get(key);
+    if (!cur || r.created_at > cur.created_at) newest.set(key, r);
   }
   if (newest.size === 0) throw noReview(args.pr_number);
   return [...newest.values()].map(formatReview);

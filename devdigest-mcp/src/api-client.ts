@@ -21,19 +21,26 @@ export function apiUrl(): string {
 /** URL-encode one path segment — ids and names never reach a URL raw. */
 export const seg = (value: string): string => encodeURIComponent(value);
 
+export interface RequestOptions {
+  /** Abort after this many ms (default `REQUEST_TIMEOUT_MS`); covers reading the body too. */
+  timeoutMs?: number;
+}
+
 async function request<S extends z.ZodType>(
   method: 'GET' | 'POST',
   path: string,
   schema: S,
   body?: unknown,
+  opts: RequestOptions = {},
 ): Promise<z.infer<S>> {
+  const signal = AbortSignal.timeout(Math.max(1, Math.ceil(opts.timeoutMs ?? REQUEST_TIMEOUT_MS)));
   let res: Response;
   try {
     res = await fetch(`${apiUrl()}${path}`, {
       method,
       headers: body === undefined ? undefined : { 'content-type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body),
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      signal,
     });
   } catch (err) {
     throw new ApiError('network_error', (err as Error).message, 0);
@@ -42,7 +49,9 @@ async function request<S extends z.ZodType>(
   let payload: unknown;
   try {
     payload = await res.json();
-  } catch {
+  } catch (err) {
+    // A stalled body hits the same abort signal — that is a network failure, not a bad body.
+    if (signal.aborted) throw new ApiError('network_error', (err as Error).message, 0);
     payload = undefined;
   }
 
@@ -63,8 +72,12 @@ async function request<S extends z.ZodType>(
 }
 
 /** Parses with `schema`, which also drops every field the tools do not use. */
-export const apiGet = <S extends z.ZodType>(path: string, schema: S) =>
-  request('GET', path, schema);
+export const apiGet = <S extends z.ZodType>(path: string, schema: S, opts?: RequestOptions) =>
+  request('GET', path, schema, undefined, opts);
 
-export const apiPost = <S extends z.ZodType>(path: string, schema: S, body: unknown) =>
-  request('POST', path, schema, body);
+export const apiPost = <S extends z.ZodType>(
+  path: string,
+  schema: S,
+  body: unknown,
+  opts?: RequestOptions,
+) => request('POST', path, schema, body, opts);
