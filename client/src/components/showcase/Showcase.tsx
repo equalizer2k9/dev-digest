@@ -340,9 +340,9 @@ export function Gallery() {
           <div style={s.w460}>
             <FileCard
               file={SHOWCASE_DIFF_FILE}
+              hasFindings
               findings={{
                 findings: [SHOWCASE_FINDING, SHOWCASE_FINDING_OUTSIDE],
-                show: true,
                 renderFinding: (f) => <FindingCard f={f} defaultExpanded />,
               }}
             />

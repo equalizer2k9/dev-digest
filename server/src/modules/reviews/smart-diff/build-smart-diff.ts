@@ -1,4 +1,4 @@
-import type { SmartDiff, SmartDiffFile } from '@devdigest/shared';
+import type { SmartDiff, SmartDiffFile, SmartDiffRole } from '@devdigest/shared';
 import { classifyFile } from './classify-file.js';
 import { DISPLAY_ORDER } from './constants.js';
 
@@ -17,11 +17,14 @@ export function buildSmartDiff(
     linesByFile.set(f.file, lines);
   }
 
-  const byRole = new Map(DISPLAY_ORDER.map((role) => [role, [] as SmartDiffFile[]]));
+  const byRole = Object.fromEntries(DISPLAY_ORDER.map((role) => [role, [] as SmartDiffFile[]])) as Record<
+    SmartDiffRole,
+    SmartDiffFile[]
+  >;
   let totalLines = 0;
   for (const f of files) {
     totalLines += f.additions + f.deletions;
-    byRole.get(classifyFile(f.path))!.push({
+    byRole[classifyFile(f.path)].push({
       path: f.path,
       additions: f.additions,
       deletions: f.deletions,
@@ -32,8 +35,10 @@ export function buildSmartDiff(
   return {
     groups: DISPLAY_ORDER.map((role) => ({
       role,
-      files: byRole.get(role)!.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)),
+      files: byRole[role].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)),
     })),
+    // Deliberate stub, not a computed result: docs/hw3/requirements.md asks for
+    // the field but no size threshold and no split heuristic.
     split_suggestion: { too_big: false, total_lines: totalLines, proposed_splits: [] },
   };
 }

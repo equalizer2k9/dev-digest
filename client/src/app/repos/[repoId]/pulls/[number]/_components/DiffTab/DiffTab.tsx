@@ -12,12 +12,12 @@ import {
   useFindingAction,
 } from "@/lib/hooks/reviews";
 import { notify } from "@/lib/toast";
+import { latestFindingsPerAgent } from "@/lib/findings";
 import type { PrFile } from "@devdigest/shared";
-import { latestFindingsPerAgent } from "../../../helpers";
 import { FindingCard } from "../FindingCard";
 import { DiffRoleGroup } from "../DiffRoleGroup";
 import { ROLE_META } from "./constants";
-import { countFilesWithFindings, findingsByPath, groupFiles } from "./helpers";
+import { countFilesWithFindings, groupFiles, pathsWithFindings } from "./helpers";
 import { s } from "./styles";
 
 interface DiffTabProps {
@@ -41,13 +41,18 @@ export function DiffTab({ prId, filesCount, files, canComment, repoFullName, hea
   // `undefined` until the user clicks; then their choice wins.
   const [userChoice, setUserChoice] = React.useState<boolean | undefined>(undefined);
 
-  // The same set the PR list's FINDINGS column counts. Findings for a file that
-  // is not in this PR have no card to attach to — they stay on Agent runs only.
+  // The finding CARDS (under lines / outside the patch): the same set the PR
+  // list's FINDINGS column counts. Findings for a file that is not in this PR
+  // have no card to attach to — they stay on Agent runs only.
   const findings = React.useMemo(() => {
     const paths = new Set(files.map((f) => f.path));
     return latestFindingsPerAgent(reviews ?? []).filter((f) => paths.has(f.file));
   }, [reviews, files]);
-  const byPath = React.useMemo(() => findingsByPath(findings), [findings]);
+  // Dots and group counters come from the smart-diff response, not from `findings`.
+  const withFindings = React.useMemo(
+    () => (smart.data ? pathsWithFindings(smart.data.groups) : new Set<string>()),
+    [smart.data],
+  );
 
   const commentCount = comments?.length ?? 0;
   const findingCount = findings.length;
@@ -73,7 +78,6 @@ export function DiffTab({ prId, filesCount, files, canComment, repoFullName, hea
 
   const findingsApi: DiffFindingsApi = {
     findings,
-    show: showComments,
     renderFinding: (f) => (
       <FindingCard
         f={f}
@@ -90,7 +94,14 @@ export function DiffTab({ prId, filesCount, files, canComment, repoFullName, hea
   const smartOrder = order === "smart" && grouped !== null;
 
   const card = (file: PrFile, defaultOpen?: boolean) => (
-    <FileCard key={file.path} file={file} commenting={commenting} findings={findingsApi} defaultOpen={defaultOpen} />
+    <FileCard
+      key={file.path}
+      file={file}
+      commenting={commenting}
+      findings={findingsApi}
+      hasFindings={withFindings.has(file.path)}
+      defaultOpen={defaultOpen}
+    />
   );
 
   const total = commentCount + findingCount;
@@ -137,7 +148,7 @@ export function DiffTab({ prId, filesCount, files, canComment, repoFullName, hea
                 label={t(meta.labelKey)}
                 hint={t(meta.hintKey)}
                 fileCount={groupFilesList.length}
-                filesWithFindings={countFilesWithFindings(groupFilesList, byPath)}
+                filesWithFindings={countFilesWithFindings(groupFilesList, withFindings)}
                 defaultOpen={meta.startsOpen}
               >
                 {groupFilesList.map((file) => card(file, meta.startsOpen ? undefined : false))}
@@ -147,7 +158,7 @@ export function DiffTab({ prId, filesCount, files, canComment, repoFullName, hea
           {grouped.rest.length > 0 && <div style={s.rest}>{grouped.rest.map((file) => card(file))}</div>}
         </div>
       ) : (
-        <DiffViewer files={files} commenting={commenting} findings={findingsApi} />
+        <DiffViewer files={files} commenting={commenting} findings={findingsApi} findingPaths={withFindings} />
       )}
     </section>
   );

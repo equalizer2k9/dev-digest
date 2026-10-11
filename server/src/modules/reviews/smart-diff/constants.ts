@@ -74,11 +74,19 @@ export const MATCH_RULES: readonly RoleRule[] = [
 /** Role of a path no rule matches. */
 export const FALLBACK_ROLE: SmartDiffRole = 'core';
 
+/**
+ * DISPLAY position of each role's group in the response. Typed over the enum,
+ * so a role added to `SmartDiffRole` without a position fails typecheck.
+ */
+const DISPLAY_POSITION: Record<SmartDiffRole, number> = {
+  core: 0,
+  tests: 1,
+  wiring: 2,
+  docs: 3,
+  boilerplate: 4,
+};
+
 /** DISPLAY order: where each role's group appears in the response. */
-export const DISPLAY_ORDER: readonly SmartDiffRole[] = [
-  'core',
-  'tests',
-  'wiring',
-  'docs',
-  'boilerplate',
-];
+export const DISPLAY_ORDER: readonly SmartDiffRole[] = (
+  Object.keys(DISPLAY_POSITION) as SmartDiffRole[]
+).sort((a, b) => DISPLAY_POSITION[a] - DISPLAY_POSITION[b]);

@@ -93,16 +93,15 @@ export function lineSignFor(kind: Line["kind"]): CSSProperties {
   };
 }
 
-/** Dot beside the file path, in the colour of the file's worst finding. */
-export function findingDotFor(sev: FindingSeverity): CSSProperties {
-  return {
-    width: 8,
-    height: 8,
-    borderRadius: "50%",
-    flexShrink: 0,
-    background: SEV[sev].c,
-  };
-}
+/** Dot beside the file path: the file has findings. One neutral colour — the
+   smart-diff response that drives it carries no severity. */
+export const findingDot: CSSProperties = {
+  width: 8,
+  height: 8,
+  borderRadius: "50%",
+  flexShrink: 0,
+  background: "var(--accent)",
+};
 
 /** Left stripe on a code row that has a finding. */
 export function findingStripeFor(sev: FindingSeverity): CSSProperties {

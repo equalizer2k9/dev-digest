@@ -5,7 +5,7 @@
  */
 import { describe, it, expect } from "vitest";
 import type { FindingRecord, ReviewRecord } from "@devdigest/shared";
-import { latestFindingsPerAgent } from "./helpers";
+import { latestFindingsPerAgent } from "./findings";
 
 function finding(over: Partial<FindingRecord> = {}): FindingRecord {
   return {

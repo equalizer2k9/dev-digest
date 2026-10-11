@@ -17,8 +17,9 @@ import {
 } from "@devdigest/ui";
 import type { PrMeta } from "@/lib/types";
 import { usePrReviews } from "@/lib/hooks/reviews";
-import { FINDINGS_SEVERITIES, SIZE_COLOR, STATUS_META } from "../../constants";
-import { latestFindingsPerAgent, relativeTime, sizeOf } from "../../helpers";
+import { FINDINGS_SEVERITIES, latestFindingsPerAgent } from "@/lib/findings";
+import { SIZE_COLOR, STATUS_META } from "../../constants";
+import { relativeTime, sizeOf } from "../../helpers";
 import { s } from "../../styles";
 
 export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {

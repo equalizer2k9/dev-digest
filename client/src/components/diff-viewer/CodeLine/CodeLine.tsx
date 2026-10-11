@@ -90,7 +90,7 @@ export function CodeLine({
         )}
       </div>
 
-      {findings && findings.show && lineFindings.length > 0 && (
+      {findings && (commenting?.showComments ?? true) && lineFindings.length > 0 && (
         <div style={cs.thread}>
           {lineFindings.map((f) => (
             <React.Fragment key={f.id}>{findings.renderFinding(f)}</React.Fragment>

@@ -13,13 +13,12 @@ import {
   keysForLine,
   partitionFindings,
   partitionThreads,
-  worstSeverity,
   type CommentThread,
   type DiffCommentApi,
   type DiffFindingsApi,
 } from "../comments";
 import type { FindingRecord } from "@devdigest/shared";
-import { s, chevronFor, findingDotFor } from "../styles";
+import { s, chevronFor, findingDot } from "../styles";
 import { CodeLine } from "../CodeLine";
 import { OutdatedComments } from "../OutdatedComments";
 import { FindingsOutsideDiff } from "../FindingsOutsideDiff";
@@ -50,11 +49,15 @@ export function FileCard({
   file,
   commenting,
   findings,
+  hasFindings = false,
   defaultOpen,
 }: {
   file: PrFile;
   commenting?: DiffCommentApi;
   findings?: DiffFindingsApi;
+  /** Draws the "has findings" dot. Decided by the caller from the smart-diff
+     response (`finding_lines`), not derived from `findings`. */
+  hasFindings?: boolean;
   /** Overrides the size rule (a collapsed group starts its cards closed). */
   defaultOpen?: boolean;
 }) {
@@ -87,7 +90,6 @@ export function FileCard({
     const { matched, outside } = partitionFindings(fileFindings, renderedKeys);
     return { matchedFindings: matched, outsideFindings: outside };
   }, [fileFindings, lines]);
-  const worst = worstSeverity(fileFindings);
 
   const commentCount = commenting
     ? commenting.comments.filter((c) => c.path === file.path).length
@@ -101,13 +103,12 @@ export function FileCard({
         <span className="mono" data-file-path="" style={s.filePath}>
           {file.path}
         </span>
-        {worst && (
+        {hasFindings && (
           <span
             role="img"
             aria-label={t("diffViewer.hasFindings")}
             data-finding-dot=""
-            data-severity={worst}
-            style={findingDotFor(worst)}
+            style={findingDot}
           />
         )}
         <span className="mono tnum" style={s.fileStat}>
@@ -140,7 +141,7 @@ export function FileCard({
               />
             ))
           )}
-          {findings && findings.show && (
+          {findings && (commenting?.showComments ?? true) && (
             <FindingsOutsideDiff findings={outsideFindings} renderFinding={findings.renderFinding} />
           )}
           {commenting && commenting.showComments && <OutdatedComments threads={outdated} />}

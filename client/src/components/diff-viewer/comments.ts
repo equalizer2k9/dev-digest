@@ -4,13 +4,15 @@
 import type { CSSProperties, ReactNode } from "react";
 import type { FindingRecord } from "@devdigest/shared";
 import type { PrReviewComment } from "../../lib/types";
+import { FINDINGS_SEVERITIES } from "../../lib/findings";
 import type { Line } from "./helpers";
 
 /** What the viewer needs to read + write inline comments. */
 export interface DiffCommentApi {
   comments: PrReviewComment[];
   canComment: boolean;
-  /** When false, existing comment threads are hidden (the "+" still works). */
+  /** The one visibility flag: when false, existing comment threads AND finding
+     comments are hidden (the "+" still works). */
   showComments: boolean;
   posting: boolean;
   onSubmit: (input: {
@@ -27,8 +29,6 @@ export interface DiffCommentApi {
    import a page-local component. */
 export interface DiffFindingsApi {
   findings: FindingRecord[];
-  /** Same flag as DiffCommentApi.showComments. */
-  show: boolean;
   renderFinding: (f: FindingRecord) => ReactNode;
 }
 
@@ -141,16 +141,16 @@ export function partitionFindings(
   return { matched, outside };
 }
 
-const SEVERITY_RANK = { CRITICAL: 0, WARNING: 1, SUGGESTION: 2 } as const;
-export type FindingSeverity = keyof typeof SEVERITY_RANK;
+export type FindingSeverity = (typeof FINDINGS_SEVERITIES)[number];
 
 /** The most severe of the findings, or null when there are none. */
 export function worstSeverity(findings: FindingRecord[]): FindingSeverity | null {
   let worst: FindingSeverity | null = null;
   for (const f of findings) {
     const sev = f.severity as FindingSeverity;
-    if (!(sev in SEVERITY_RANK)) continue;
-    if (worst === null || SEVERITY_RANK[sev] < SEVERITY_RANK[worst]) worst = sev;
+    const rank = FINDINGS_SEVERITIES.indexOf(sev);
+    if (rank === -1) continue;
+    if (worst === null || rank < FINDINGS_SEVERITIES.indexOf(worst)) worst = sev;
   }
   return worst;
 }
