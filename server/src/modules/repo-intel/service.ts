@@ -3,9 +3,9 @@
  *
  * Every method returns a DEGRADED-but-valid result (see types.ts header). The
  * only methods that do real work in T1 are:
- *   - `getBlastRadius`: best-effort port of blast/service.ts logic, mapped
- *     into the `BlastResult` shape (and always tagged `degraded: true,
- *     reason: 'no_data'`, because T1 has no persistent index yet).
+ *   - `getBlastRadius`: persistent-index blast, else a best-effort fallback
+ *     over `container.codeIndex`; always tagged with an honest `degraded` /
+ *     `reason` (see the method's doc).
  *   - `getIndexState`: queries `repo_index_state` if the table exists (T2+),
  *     otherwise synthesises a degraded row so callers never throw.
  *
@@ -33,6 +33,7 @@ import type {
   BlastCallerRow,
   BlastChangedSymbol,
   BlastResult,
+  DegradedReason,
   FileRankRow,
   IndexResult,
   IndexState,
@@ -209,28 +210,30 @@ export class RepoIntelService implements RepoIntel {
   // -------------------------------------------------------------------------
 
   /**
-   * Best-effort blast over `container.codeIndex` — a faithful port of
-   * blast/service.ts mapped into the facade's `BlastResult` shape, then
-   * tagged `degraded: true` so consumers can branch.
-   *
-   * Why "always degraded" in T1: there's no persistent rank/decl_file yet, so
-   * every caller gets `rank: 0` and HTTP impact is detected by re-reading the
-   * clone (not the index). T2 promotes this path to the persistent layer.
+   * Blast radius. Serves from the persistent index when it is usable, else a
+   * best-effort ripgrep fallback over `container.codeIndex` (rank 0, endpoints
+   * re-read from the clone). The facade owns the `degraded` / `reason` verdict:
+   *   flag off → fallback, `flag_off` · no usable data → `no_data` ·
+   *   index `partial` → persistent result, `index_partial` · `full` → not degraded.
+   * `index_failed` / `repo_too_large` are never produced here (no writer exists).
    */
   async getBlastRadius(repoId: string, changedFiles: string[]): Promise<BlastResult> {
     // T3: serve from the persistent index when it's built. Falls through to the
     // ripgrep best-effort below when the flag is off / index is absent.
-    if (this.container.config.repoIntelEnabled && changedFiles.length > 0) {
+    const flagOn = this.container.config.repoIntelEnabled;
+    if (flagOn && changedFiles.length > 0) {
       const persistent = await this.tryPersistentBlast(repoId, changedFiles);
       if (persistent) return persistent;
     }
+    // Row 1 of the reason table wins over row 2.
+    const fallbackReason: DegradedReason = flagOn ? 'no_data' : 'flag_off';
 
     const empty: BlastResult = {
       changedSymbols: [],
       callers: [],
       impactedEndpoints: [],
       degraded: true,
-      reason: 'no_data',
+      reason: fallbackReason,
     };
 
     const repo = await this.repo.getRepoBasics(repoId);
@@ -299,7 +302,7 @@ export class RepoIntelService implements RepoIntel {
       callers: callerRows,
       impactedEndpoints: [...endpoints],
       degraded: true,
-      reason: 'no_data',
+      reason: fallbackReason,
     };
   }
 
@@ -318,6 +321,11 @@ export class RepoIntelService implements RepoIntel {
   ): Promise<BlastResult | null> {
     const state = await this.repo.tryGetIndexState(repoId);
     if (!state || (state.status !== 'full' && state.status !== 'partial')) return null;
+    // A partial index still answers; the map is just possibly incomplete.
+    const verdict: Pick<BlastResult, 'degraded' | 'reason'> =
+      state.status === 'partial'
+        ? { degraded: true, reason: 'index_partial' }
+        : { degraded: false };
 
     // Changed symbols = declared in a changed file. Skip the qualified
     // `Class.method` dual-emit (the bare form already covers the name).
@@ -335,7 +343,7 @@ export class RepoIntelService implements RepoIntel {
       nameSet.add(s.name);
     }
     if (nameSet.size === 0) {
-      return { changedSymbols, callers: [], impactedEndpoints: [], degraded: false };
+      return { changedSymbols, callers: [], impactedEndpoints: [], ...verdict };
     }
 
     // Resolved cross-file callers.
@@ -371,9 +379,19 @@ export class RepoIntelService implements RepoIntel {
     }
     callers.sort((a, b) => b.rank - a.rank);
 
-    // Precomputed facts per caller file (endpoints + crons), so consumers can
+    // Cap PER changed symbol (list is rank-sorted, so each keeps its best).
+    const perSymbol = new Map<string, number>();
+    const keptCallers = callers.filter((c) => {
+      const n = perSymbol.get(c.viaSymbol) ?? 0;
+      if (n >= MAX_CALLERS_PER_SYMBOL) return false;
+      perSymbol.set(c.viaSymbol, n + 1);
+      return true;
+    });
+    const keptFiles = [...new Set(keptCallers.map((c) => c.file))];
+
+    // Precomputed facts per kept caller file (endpoints + crons), so consumers can
     // attribute them to the changed symbol whose callers live in that file.
-    const facts = await this.repo.getFileFacts(repoId, callerFiles);
+    const facts = await this.repo.getFileFacts(repoId, keptFiles);
     const endpoints = new Set<string>();
     const factsByFile: Record<string, { endpoints: string[]; crons: string[] }> = {};
     for (const f of facts) {
@@ -383,10 +401,10 @@ export class RepoIntelService implements RepoIntel {
 
     return {
       changedSymbols,
-      callers: callers.slice(0, MAX_CALLERS_PER_SYMBOL),
+      callers: keptCallers,
       impactedEndpoints: [...endpoints],
       factsByFile,
-      degraded: false,
+      ...verdict,
     };
   }
 

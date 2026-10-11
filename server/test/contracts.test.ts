@@ -4,6 +4,7 @@ import {
   Finding,
   Intent,
   BlastRadius,
+  BlastRadiusResponse,
   Risks,
   PrHistory,
   SmartDiff,
@@ -290,5 +291,21 @@ describe('platform DTOs', () => {
         commits: [],
       }),
     ).not.toThrow();
+  });
+});
+
+describe('BlastRadiusResponse', () => {
+  const base = { changed_symbols: [], downstream: [], summary: '0 symbols' };
+
+  it('parses with degraded + reason, and is a BlastRadius superset', () => {
+    const body = { ...base, degraded: true, reason: 'index_partial' };
+    expect(BlastRadiusResponse.parse(body).reason).toBe('index_partial');
+    expect(() => BlastRadius.parse(body)).not.toThrow();
+    expect(BlastRadiusResponse.parse({ ...base, degraded: false, reason: null }).reason).toBeNull();
+  });
+
+  it('rejects an unknown reason and a missing degraded flag', () => {
+    expect(() => BlastRadiusResponse.parse({ ...base, degraded: true, reason: 'bogus' })).toThrow();
+    expect(() => BlastRadiusResponse.parse({ ...base, reason: null })).toThrow();
   });
 });
