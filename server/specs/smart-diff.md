@@ -77,13 +77,13 @@ That is what lets it be called from anywhere later — the requirements name a p
 filter on L08 — and what lets its test be a plain table of strings.
 
 **Rules — the first one that matches wins.** The requirements' table, in the requirements'
-order, widened in six places (**bold**; see "Deviations" below):
+order, widened in seven places (**bold**; see "Deviations" below):
 
 | # | Role | Patterns |
 |---|---|---|
 | 1 | `boilerplate` | `*.lock` · `pnpm-lock.yaml` · `package-lock.json` · `yarn.lock` · **`skills-lock.json`** · **`**/dist/**`** · **`**/build/**`** · **`**/migrations/meta/**`** · `**/__snapshots__/**` · `*.snap` · `*.generated.*` · `*.min.js` |
 | 2 | `tests` | `**/*.test.ts` · `**/*.test.tsx` · `**/*.it.test.ts` · `**/*.spec.ts` · **`**/*.spec.tsx`** · `**/test/**` · `**/tests/**` · `**/__tests__/**` · `e2e/**` |
-| 3 | `wiring` | `index.ts` · `index.js` · **`index.tsx`** · `*.config.*` · `tsconfig*.json` · `.eslintrc*` · `.env*` · `docker-compose*.yml` · `.github/**` · `.claude/**` |
+| 3 | `wiring` | `index.ts` · `index.js` · **`index.tsx`** · **`package.json`** · `*.config.*` · `tsconfig*.json` · `.eslintrc*` · `.env*` · `docker-compose*.yml` · `.github/**` · `.claude/**` |
 | 4 | `docs` | `**/*.md` · `docs/**` · `README*` · `CHANGELOG*` · `LICENSE` |
 | 5 | `core` | everything else |
 
@@ -97,6 +97,7 @@ order, widened in six places (**bold**; see "Deviations" below):
 | `**/migrations/meta/**` | `core` | `boilerplate` | drizzle-kit output (`_journal.json`, `*_snapshot.json`), never hand-edited |
 | `*.spec.tsx` | `core` (only `*.spec.ts` listed) | `tests` | parity with `*.test.tsx` |
 | `index.tsx` | `core` (only `.ts` / `.js` listed) | `wiring` | a barrel is a barrel in a React package too |
+| `package.json` | `core` | `wiring` | a manifest wires dependencies and scripts; it is not the substance of a change (added 2026-10-11 after the PR #11 check) |
 
 One thing deliberately **not** widened: a migration `*.sql` stays `core`. It is generated, but it
 is the schema change itself and has to be reviewed. `…/migrations/0010_x.sql` → `core` is a row in
@@ -274,7 +275,7 @@ Written before the code they cover.
   disputed rows of §3; at least one row per pattern in §2; **one row per deviation** —
   `server/dist/x.js`, `client/build/x.js`, `skills-lock.json`,
   `server/src/db/migrations/meta/_journal.json` → `boilerplate`, `x/Foo.spec.tsx` → `tests`,
-  `x/Foo/index.tsx` → `wiring`, `server/src/db/migrations/0010_x.sql` → `core`; real paths from
+  `x/Foo/index.tsx` and `server/package.json` → `wiring`, `server/src/db/migrations/0010_x.sql` → `core`; real paths from
   this repo, including the fourth overlap `e2e/package-lock.json` → `boilerplate` and
   `server/src/modules/index.ts` → `wiring`; a plain source file → `core`. The test builds no app, no container and no mock —
   it can only stay that way while `classifyFile` is pure.
@@ -307,4 +308,3 @@ groups (§4); the pattern table is widened as listed under "Deviations" (§2).
   the only one used for counting — the client reads `finding_lines`. The client keeps
   `latestFindingsPerAgent` (now in `client/src/lib/findings.ts`) to pick which finding cards to
   draw. The two are coupled by intent, not by code.
-- `package.json` stays `core`. Not asked for; noted so nobody assumes it was considered wiring.

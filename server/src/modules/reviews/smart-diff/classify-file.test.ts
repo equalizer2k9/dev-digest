@@ -17,6 +17,7 @@ const CASES: [name: string, path: string, role: SmartDiffRole][] = [
   ['deviation: drizzle snapshot', 'server/src/db/migrations/meta/0010_snapshot.json', 'boilerplate'],
   ['deviation: *.spec.tsx', 'x/Foo.spec.tsx', 'tests'],
   ['deviation: nested index.tsx', 'x/Foo/index.tsx', 'wiring'],
+  ['deviation: package.json', 'server/package.json', 'wiring'],
   ['deviation: migration .sql stays core', 'server/src/db/migrations/0010_x.sql', 'core'],
 
   // ---- rule 1: boilerplate
@@ -63,7 +64,6 @@ const CASES: [name: string, path: string, role: SmartDiffRole][] = [
 
   // ---- rule 5: core
   ['core: plain source', 'server/src/modules/reviews/service.ts', 'core'],
-  ['core: package.json', 'package.json', 'core'],
   ['core: dist-lookalike dir name', 'src/distribution/a.ts', 'core'],
   ['core: docs-lookalike below root', 'src/docs/a.ts', 'core'],
 ];

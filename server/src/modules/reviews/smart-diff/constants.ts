@@ -56,6 +56,7 @@ export const MATCH_RULES: readonly RoleRule[] = [
       'index.ts',
       'index.js',
       'index.tsx',
+      'package.json',
       '*.config.*',
       'tsconfig*.json',
       '.eslintrc*',
