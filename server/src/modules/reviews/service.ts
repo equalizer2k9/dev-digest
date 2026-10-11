@@ -1,5 +1,5 @@
 import type { Container } from '../../platform/container.js';
-import type { FindingActionKind, RunEventKind, RunTrace } from '@devdigest/shared';
+import type { FindingActionKind, RunEventKind, RunTrace, SmartDiff } from '@devdigest/shared';
 import { AppError, NotFoundError } from '../../platform/errors.js';
 import type { AgentRow } from '../../db/rows.js';
 import { ReviewRepository } from './repository.js';
@@ -7,6 +7,8 @@ import { type ReviewDto, type ReviewDtoFinding } from './helpers.js';
 import { ReviewRunExecutor, type Logger } from './run-executor.js';
 import { actOnFinding as actOnFindingImpl } from './findings.js';
 import { reviewToDto } from './helpers.js';
+import { latestReviewPerAgent } from '../_shared/latest-reviews.js';
+import { buildSmartDiff } from './smart-diff/build-smart-diff.js';
 
 // Re-export DTO types + converters for backward-compatible imports from
 // './service.js' (these previously lived here; logic now in ./helpers.ts).
@@ -170,6 +172,24 @@ export class ReviewService {
     }
     return rows.map(({ review, findings, usage }) =>
       reviewToDto(review, findings, review.agentId ? names.get(review.agentId) : null, usage),
+    );
+  }
+
+  /**
+   * Smart Diff: the PR's files grouped by role, each with the lines of the
+   * current findings (each agent's latest review, dismissed included).
+   * Deterministic — no LLM, embedder, GitHub or git call.
+   */
+  async smartDiffForPull(workspaceId: string, prId: string): Promise<SmartDiff> {
+    const pull = await this.repo.getPull(workspaceId, prId);
+    if (!pull) throw new NotFoundError('Pull request not found');
+    const files = await this.repo.getPrFiles(prId);
+    const rows = await this.repo.reviewsForPull(prId);
+    const byId = new Map(rows.map((r) => [r.review.id, r.findings]));
+    const latest = latestReviewPerAgent(rows.map((r) => r.review).filter((r) => r.kind === 'review'));
+    return buildSmartDiff(
+      files,
+      latest.flatMap((r) => byId.get(r.id) ?? []),
     );
   }
 
