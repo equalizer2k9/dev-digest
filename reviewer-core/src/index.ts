@@ -15,6 +15,7 @@
 export {
   assemblePrompt,
   wrapUntrusted,
+  INJECTION_GUARD,
   approxTokens,
   type SkillPart,
   type PromptParts,

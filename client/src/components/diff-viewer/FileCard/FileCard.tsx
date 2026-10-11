@@ -6,8 +6,8 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Icon } from "@devdigest/ui";
 import type { PrFile } from "@/lib/types";
-import { AUTO_EXPAND_MAX_LINES } from "../constants";
-import { parsePatch, type Line } from "../helpers";
+import { AUTO_EXPAND_MAX_LINES, TARGET_HIGHLIGHT_MS } from "../constants";
+import { hasNewLine, parsePatch, type Line } from "../helpers";
 import {
   buildThreads,
   keysForLine,
@@ -51,6 +51,7 @@ export function FileCard({
   findings,
   hasFindings = false,
   defaultOpen,
+  target,
 }: {
   file: PrFile;
   commenting?: DiffCommentApi;
@@ -60,12 +61,36 @@ export function FileCard({
   hasFindings?: boolean;
   /** Overrides the size rule (a collapsed group starts its cards closed). */
   defaultOpen?: boolean;
+  /** Navigation target: forces the card open, scrolls to `line` (or the card top). */
+  target?: { line: number | null };
 }) {
   const t = useTranslations("shell");
   const [open, setOpen] = React.useState(
-    defaultOpen ?? (file.additions ?? 0) + (file.deletions ?? 0) <= AUTO_EXPAND_MAX_LINES
+    target ? true : defaultOpen ?? (file.additions ?? 0) + (file.deletions ?? 0) <= AUTO_EXPAND_MAX_LINES
   );
   const lines = React.useMemo(() => parsePatch(file.patch), [file.patch]);
+  const rootRef = React.useRef<HTMLDivElement>(null);
+  // Derived at mount: only a line the patch actually renders is highlighted.
+  const [highlightLine, setHighlightLine] = React.useState<number | null>(() =>
+    target && target.line != null && hasNewLine(lines, target.line) ? target.line : null,
+  );
+
+  // Mount-only: bring the target into view and clear the highlight after a moment.
+  React.useEffect(() => {
+    if (!target) return;
+    const root = rootRef.current;
+    if (!root) return;
+    const rowEl =
+      highlightLine != null
+        ? root.querySelector<HTMLElement>(`[data-line-key="RIGHT:${highlightLine}"]`)
+        : null;
+    if (rowEl) rowEl.scrollIntoView({ block: "center" });
+    else root.scrollIntoView({ block: "start" });
+    if (highlightLine == null) return;
+    const timer = setTimeout(() => setHighlightLine(null), TARGET_HIGHLIGHT_MS);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Group this file's comments into threads, then split into ones we can anchor
   // to a rendered line vs. "outdated" (GitHub dropped the line / it's not here).
@@ -96,7 +121,7 @@ export function FileCard({
     : 0;
 
   return (
-    <div style={s.fileCard}>
+    <div ref={rootRef} style={s.fileCard}>
       <div onClick={() => setOpen((o) => !o)} style={s.fileHeader}>
         <Icon.ChevronRight size={13} style={chevronFor(open)} />
         <Icon.FileText size={14} style={s.fileIcon} />
@@ -138,6 +163,9 @@ export function FileCard({
                 commenting={commenting}
                 findings={findings}
                 lineFindings={findingsForLine(ln, matchedFindings)}
+                highlighted={
+                  highlightLine != null && ln.kind !== "hunk" && ln.kind !== "del" && ln.newNo === highlightLine
+                }
               />
             ))
           )}

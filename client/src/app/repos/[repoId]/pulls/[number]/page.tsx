@@ -22,6 +22,7 @@ import { useActiveRepo, useRepoNotFound } from "../../../../../lib/repo-context"
 import { ApiError } from "../../../../../lib/api";
 import { githubPrUrl } from "../../../../../lib/github-urls";
 import type { FindingRecord } from "@devdigest/shared";
+import type { DiffTarget } from "@/components/diff-viewer";
 
 export default function PRDetailPage() {
   const params = useParams<{ repoId: string; number: string }>();
@@ -67,7 +68,16 @@ export default function PRDetailPage() {
     else sp.set(key, val);
     router.replace(`/repos/${repoId}/pulls/${number}${sp.toString() ? `?${sp.toString()}` : ""}`);
   };
-  const setTab = (t: string) => setParam("tab", t);
+  // File/line to open on Files changed; page state only, never written to the address.
+  const [diffTarget, setDiffTarget] = React.useState<DiffTarget | null>(null);
+  const setTab = (t: string) => {
+    setDiffTarget(null);
+    setParam("tab", t);
+  };
+  const openInDiff = (path: string, line: number | null) => {
+    setDiffTarget({ path, line });
+    setParam("tab", "diff");
+  };
 
   // Reviews come newest-first; each is its own run (grouped into accordions).
   const runs = reviews ?? [];
@@ -137,7 +147,11 @@ export default function PRDetailPage() {
 
       <div style={{ padding: "24px 32px 44px", display: "flex", flexDirection: "column", gap: 24, maxWidth: 1080, margin: "0 auto" }}>
         {tab === "overview" && (
-          <OverviewTab prBody={pr.body} prId={prId} repoFullName={repoFullName} headSha={pr.head_sha} />
+          <OverviewTab prBody={pr.body} prId={prId} repoFullName={repoFullName}
+            headSha={pr.head_sha}
+            files={pr.files}
+            onOpenFile={openInDiff}
+          />
         )}
 
         {tab === "findings" && (
@@ -167,6 +181,7 @@ export default function PRDetailPage() {
 
         {tab === "diff" && (
           <DiffTab
+            target={diffTarget}
             prId={prId}
             filesCount={pr.files_count}
             files={pr.files}

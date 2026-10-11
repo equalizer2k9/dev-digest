@@ -123,11 +123,36 @@ export const SmartDiff = z.object({
 });
 export type SmartDiff = z.infer<typeof SmartDiff>;
 
-// ---- Composed PR Brief (pr_brief.json) ----
-export const PrBrief = z.object({
-  intent: Intent,
-  blast: BlastRadius,
-  risks: Risks,
-  history: PrHistory,
+// ---- PR Brief (pr_brief.json) ----
+export const ReviewFocusItem = z.object({
+  file: z.string(),
+  line: z.number().int(),
+  reason: z.string(),
+});
+export type ReviewFocusItem = z.infer<typeof ReviewFocusItem>;
+
+/** The model's reply: only what the model writes. */
+export const PrBriefDraft = z.object({
+  summary: z.string(),
+  risks: z.array(Risk),
+  review_focus: z.array(ReviewFocusItem),
+});
+export type PrBriefDraft = z.infer<typeof PrBriefDraft>;
+
+/** Stored + served brief. intent / history stay null until those features exist. */
+export const PrBrief = PrBriefDraft.extend({
+  head_sha: z.string(),
+  intent: Intent.nullable(),
+  history: PrHistory.nullable(),
 });
 export type PrBrief = z.infer<typeof PrBrief>;
+
+export const PrBriefGenerateInput = z.object({
+  head_sha: z.string().min(1).max(64),
+});
+export type PrBriefGenerateInput = z.infer<typeof PrBriefGenerateInput>;
+
+export const PrBriefResponse = z.object({
+  brief: PrBrief.nullable(),
+});
+export type PrBriefResponse = z.infer<typeof PrBriefResponse>;

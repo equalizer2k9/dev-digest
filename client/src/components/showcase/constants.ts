@@ -1,5 +1,5 @@
 import type { Severity } from "@devdigest/ui";
-import type { BlastRadiusResponse, ConventionCandidate, FindingRecord, PrFile, SkillWithUsage } from "@devdigest/shared";
+import type { BlastRadiusResponse, PrBrief, ConventionCandidate, FindingRecord, PrFile, SkillWithUsage } from "@devdigest/shared";
 
 /** Constants for the Showcase Gallery (dev-only). */
 
@@ -112,4 +112,21 @@ export const SHOWCASE_BLAST: BlastRadiusResponse = {
   summary: "",
   degraded: false,
   reason: null,
+};
+
+export const SHOWCASE_BRIEF: PrBrief = {
+  summary: "Adds a price formatter and routes item listing through it.",
+  risks: [
+    {
+      kind: "behaviour",
+      title: "Rounding changed for prices",
+      explanation: "formatPrice now rounds half up; callers that compared strings may differ.",
+      severity: "medium",
+      file_refs: ["src/items.ts"],
+    },
+  ],
+  review_focus: [{ file: "src/items.ts", line: 12, reason: "New formatting entry point" }],
+  head_sha: "abc1234",
+  intent: null,
+  history: null,
 };

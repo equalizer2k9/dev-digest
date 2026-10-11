@@ -103,7 +103,7 @@ const review = (
     ...over,
   }) as unknown as ReviewRecord;
 
-function renderTab() {
+function renderTab(target?: { path: string; line: number | null }) {
   return render(
     <NextIntlClientProvider locale="en" messages={{ prReview: prReviewMessages, shell: shellMessages }}>
       <DiffTab
@@ -113,6 +113,7 @@ function renderTab() {
         canComment={false}
         repoFullName="acme/app"
         headSha="abc123"
+        target={target}
       />
     </NextIntlClientProvider>,
   );
@@ -352,5 +353,16 @@ describe("DiffTab without a review", () => {
     expect(screen.queryByText("gh thread body")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Show comments \(1\)/ }));
     expect(screen.getByText("gh thread body")).toBeInTheDocument();
+  });
+});
+
+describe("DiffTab target", () => {
+  it("opens the collapsed docs group and the targeted card, leaving boilerplate collapsed", () => {
+    Element.prototype.scrollIntoView = vi.fn();
+    renderTab({ path: "README.md", line: 2 });
+    expect(document.querySelector('[data-role-group="docs"]')).toHaveAttribute("aria-expanded", "true");
+    expect(document.querySelector('[data-role-group="boilerplate"]')).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByText("added1")).toBeInTheDocument();
+    expect(screen.queryByText("added2")).toBeNull();
   });
 });

@@ -8,6 +8,17 @@ export interface Line {
   newNo?: number;
 }
 
+/** A file (and optionally a new-side line) to open and bring into view. */
+export interface DiffTarget {
+  path: string;
+  line: number | null;
+}
+
+/** True when the rendered patch shows new-side line `n` (added or context row). */
+export function hasNewLine(lines: Line[], n: number): boolean {
+  return lines.some((l) => l.kind !== "hunk" && l.kind !== "del" && l.newNo === n);
+}
+
 /** Parse unified-diff patch text into renderable lines with old/new line numbers. */
 export function parsePatch(patch: string | null | undefined): Line[] {
   if (!patch) return [];

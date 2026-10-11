@@ -68,6 +68,13 @@ export const s = {
   } satisfies CSSProperties,
 } as const;
 
+/** Extra style for the line row a navigation target points at (CSS vars only). */
+export const targetHighlight: CSSProperties = {
+  outline: "2px solid var(--accent)",
+  outlineOffset: -2,
+  background: "var(--accent-bg)",
+};
+
 /** Chevron rotates 90deg when the file card is open. */
 export function chevronFor(open: boolean): CSSProperties {
   return {

@@ -19,7 +19,12 @@ import {
   PrMeta,
   RunSummary,
   ReviewRecord,
+  PrBrief,
+  PrBriefDraft,
+  PrBriefResponse,
 } from '@devdigest/shared';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 /**
  * Contract tests — parse/round-trip the fixtures from data.jsx/data2.jsx
@@ -307,5 +312,43 @@ describe('BlastRadiusResponse', () => {
   it('rejects an unknown reason and a missing degraded flag', () => {
     expect(() => BlastRadiusResponse.parse({ ...base, degraded: true, reason: 'bogus' })).toThrow();
     expect(() => BlastRadiusResponse.parse({ ...base, reason: null })).toThrow();
+  });
+});
+
+describe('PR Brief contracts', () => {
+  const draft = {
+    summary: 'Adds X.',
+    risks: [{ kind: 'security', title: 't', explanation: 'e', severity: 'high', file_refs: ['src/a.ts'] }],
+    review_focus: [{ file: 'src/a.ts', line: 3, reason: 'core change' }],
+  };
+
+  it('PrBriefDraft accepts a model reply', () => {
+    expect(PrBriefDraft.parse(draft).review_focus[0]!.line).toBe(3);
+  });
+
+  it('PrBriefDraft rejects a missing summary, a string line and a focus item without reason', () => {
+    const { summary: _s, ...noSummary } = draft;
+    expect(() => PrBriefDraft.parse(noSummary)).toThrow();
+    expect(() =>
+      PrBriefDraft.parse({ ...draft, review_focus: [{ file: 'a', line: '3', reason: 'r' }] }),
+    ).toThrow();
+    expect(() => PrBriefDraft.parse({ ...draft, review_focus: [{ file: 'a', line: 3 }] })).toThrow();
+  });
+
+  it('PrBrief requires head_sha and accepts null intent and history', () => {
+    const full = { ...draft, head_sha: 'abc', intent: null, history: null };
+    expect(PrBrief.parse(full).head_sha).toBe('abc');
+    const { head_sha: _h, ...noSha } = full;
+    expect(() => PrBrief.parse(noSha)).toThrow();
+  });
+
+  it('PrBriefResponse accepts { brief: null }', () => {
+    expect(PrBriefResponse.parse({ brief: null }).brief).toBeNull();
+  });
+
+  it('both contracts/brief.ts copies are byte-identical', () => {
+    const server = readFileSync(resolve(__dirname, '../src/vendor/shared/contracts/brief.ts'));
+    const client = readFileSync(resolve(__dirname, '../../client/src/vendor/shared/contracts/brief.ts'));
+    expect(server.equals(client)).toBe(true);
   });
 });

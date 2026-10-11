@@ -3,7 +3,7 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { SectionLabel, Button, Chip } from "@devdigest/ui";
-import { DiffViewer, FileCard, type DiffCommentApi, type DiffFindingsApi } from "@/components/diff-viewer";
+import { DiffViewer, FileCard, type DiffCommentApi, type DiffFindingsApi, type DiffTarget } from "@/components/diff-viewer";
 import {
   usePrComments,
   useCreatePrComment,
@@ -28,9 +28,11 @@ interface DiffTabProps {
   canComment?: boolean;
   repoFullName?: string | null;
   headSha?: string | null;
+  /** File (and line) to open: expands its role group and card, then scrolls. */
+  target?: DiffTarget | null;
 }
 
-export function DiffTab({ prId, filesCount, files, canComment, repoFullName, headSha }: DiffTabProps) {
+export function DiffTab({ prId, filesCount, files, canComment, repoFullName, headSha, target }: DiffTabProps) {
   const t = useTranslations("prReview");
   const { data: comments } = usePrComments(prId);
   const create = useCreatePrComment(prId);
@@ -101,6 +103,7 @@ export function DiffTab({ prId, filesCount, files, canComment, repoFullName, hea
       findings={findingsApi}
       hasFindings={withFindings.has(file.path)}
       defaultOpen={defaultOpen}
+      target={target && target.path === file.path ? { line: target.line } : undefined}
     />
   );
 
@@ -149,7 +152,7 @@ export function DiffTab({ prId, filesCount, files, canComment, repoFullName, hea
                 hint={t(meta.hintKey)}
                 fileCount={groupFilesList.length}
                 filesWithFindings={countFilesWithFindings(groupFilesList, withFindings)}
-                defaultOpen={meta.startsOpen}
+                defaultOpen={meta.startsOpen || (!!target && groupFilesList.some((f) => f.path === target.path))}
               >
                 {groupFilesList.map((file) => card(file, meta.startsOpen ? undefined : false))}
               </DiffRoleGroup>
@@ -158,7 +161,13 @@ export function DiffTab({ prId, filesCount, files, canComment, repoFullName, hea
           {grouped.rest.length > 0 && <div style={s.rest}>{grouped.rest.map((file) => card(file))}</div>}
         </div>
       ) : (
-        <DiffViewer files={files} commenting={commenting} findings={findingsApi} findingPaths={withFindings} />
+        <DiffViewer
+          files={files}
+          commenting={commenting}
+          findings={findingsApi}
+          findingPaths={withFindings}
+          target={target}
+        />
       )}
     </section>
   );

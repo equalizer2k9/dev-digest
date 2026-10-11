@@ -50,12 +50,14 @@ import { NextIntlClientProvider } from "next-intl";
 import skillMessages from "../../../messages/en/skills.json";
 import conventionMessages from "../../../messages/en/conventions.json";
 import blastMessages from "../../../messages/en/blast.json";
+import briefMessages from "../../../messages/en/brief.json";
 import prReviewMessages from "../../../messages/en/prReview.json";
 import shellMessages from "../../../messages/en/shell.json";
 import { FileCard } from "../diff-viewer";
 import { FindingCard } from "../../app/repos/[repoId]/pulls/[number]/_components/FindingCard";
 import { DiffRoleGroup } from "../../app/repos/[repoId]/pulls/[number]/_components/DiffRoleGroup";
 import { BlastRadius } from "../../app/repos/[repoId]/pulls/[number]/_components/BlastRadius";
+import { PrBriefBlock } from "../../app/repos/[repoId]/pulls/[number]/_components/PrBriefBlock";
 import { ConfirmDialog } from "../confirm-dialog";
 import { SkillCard } from "../../app/skills/_components/SkillCard";
 import { SkillPreviewDrawer } from "../../app/skills/_components/SkillPreviewDrawer";
@@ -69,6 +71,7 @@ import {
   SHOWCASE_FINDING,
   SHOWCASE_FINDING_OUTSIDE,
   SHOWCASE_BLAST,
+  SHOWCASE_BRIEF,
   SHOWCASE_SKILL,
   SHOWCASE_CONVENTION,
   SHOWCASE_CONVENTION_PENDING,
@@ -390,6 +393,38 @@ export function Gallery() {
               blast={{ ...SHOWCASE_BLAST, degraded: true, reason: "index_partial" }}
               repoFullName={null}
               headSha="abc1234"
+            />
+          </div>
+        </Group>
+      </NextIntlClientProvider>
+
+      {/* PR Brief: presentational, fed a fixture — needs only the intl provider. */}
+      <NextIntlClientProvider locale="en" messages={{ brief: briefMessages }}>
+        <Group title="PR Brief (stored / generating)">
+          <div style={s.w460}>
+            <PrBriefBlock
+              status="ready"
+              brief={SHOWCASE_BRIEF}
+              headSha="def5678"
+              prFilePaths={new Set(["src/items.ts"])}
+              generating={false}
+              generateError={null}
+              onGenerate={() => {}}
+              onRetryLoad={() => {}}
+              onOpenFile={() => {}}
+            />
+          </div>
+          <div style={s.w460}>
+            <PrBriefBlock
+              status="ready"
+              brief={null}
+              headSha="def5678"
+              prFilePaths={new Set()}
+              generating
+              generateError={null}
+              onGenerate={() => {}}
+              onRetryLoad={() => {}}
+              onOpenFile={() => {}}
             />
           </div>
         </Group>
