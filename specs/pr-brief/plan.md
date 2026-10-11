@@ -99,7 +99,7 @@ PrBriefResponse      = { brief: PrBrief.nullable() }                            
 
 - PR row: `container.reviewRepo.getPull(workspaceId, prId)` (`server/src/modules/reviews/repository/pull.repo.ts:9-19`) gives title and body.
 - Files: `container.reviewRepo.getPrFiles(prId)` (`pull.repo.ts:29-34`) gives path, additions, deletions, patch.
-- Role: `classifyFile(path)` (`server/src/modules/reviews/smart-diff/classify-file.ts:48-54`).
+- Role: `classifyFile(path)` (`server/src/modules/_shared/classify-file.ts:48-54`).
 - Hunk ranges: new side, from hunk headers only. A line-anchored `@@ -a[,b] +c[,d] @@` match per patch line gives `c .. c+d-1` (`d` defaults to 1; `d = 0` gives no range). Do not use `parseUnifiedDiff` on a bare patch: it drops hunks that have no `diff --git` / `+++` header (`server/src/adapters/git/diff-parser.ts:33-44,62`), and stored patches are bare (`server/src/modules/reviews/diff-loader.ts:36-42` has to synthesize headers).
 - Blast: `new BlastService(container, log).forPull(workspaceId, prId)` (`server/src/modules/blast/service.ts:19-61`) inside `try/catch`. On a throw the brief proceeds with PR files only. A degraded result is used as-is.
   - Service-to-service use follows `server/src/modules/conventions/service.ts:86`.

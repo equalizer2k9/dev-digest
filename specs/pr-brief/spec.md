@@ -175,7 +175,7 @@ Model input budget: **8 000 tokens** per call, whole input, counted by the serve
 |---|---|---|
 | PR title, PR description | `[reused: stored on the pull request at import]` | `server/src/modules/pulls/routes.ts:55`, `pulls/repository.ts:44-54` |
 | Changed files: path, additions, deletions | `[reused: PR files stored at detail import]` | `pulls/repository.ts:20-31` |
-| Smart Diff role | `[deterministic: existing path classifier]` | `server/src/modules/reviews/smart-diff/classify-file.ts:48-54` |
+| Smart Diff role | `[deterministic: existing path classifier]` | `server/src/modules/_shared/classify-file.ts:48-54` |
 | Hunk line ranges | `[deterministic: numbers of the hunk headers in the stored patch]` | patch stored at `pulls/repository.ts:28` |
 | Blast summary, caller file + line | `[reused: existing blast radius]` | `server/src/modules/blast/service.ts:19-61` |
 | Allowed path set, known lines | `[deterministic: unions of the rows above]` | — |

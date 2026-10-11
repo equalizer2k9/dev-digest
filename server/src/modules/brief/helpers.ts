@@ -1,6 +1,6 @@
 import type { BlastRadius, PrBrief, PrBriefDraft, RiskSeverity, SmartDiffRole } from '@devdigest/shared';
 import { INJECTION_GUARD, wrapUntrusted } from '@devdigest/reviewer-core';
-import { classifyFile } from '../reviews/smart-diff/classify-file.js';
+import { classifyFile } from '../_shared/classify-file.js';
 import {
   LABEL_CALLERS,
   LABEL_DESCRIPTION,

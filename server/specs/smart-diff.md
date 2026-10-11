@@ -45,12 +45,12 @@ them, nothing classifies a path, and `SmartDiffRole` has three values (`core`, `
 
 ```
 src/modules/reviews/smart-diff/
-  constants.ts              rules in match order · display order · fallback role
-  classify-file.ts          classifyFile
-  classify-file.test.ts
   build-smart-diff.ts       buildSmartDiff
   build-smart-diff.test.ts
 src/modules/_shared/
+  smart-diff-rules.ts       rules in match order · display order · fallback role
+  classify-file.ts          classifyFile — shared: `reviews` and `brief` both classify paths
+  classify-file.test.ts
   latest-reviews.ts         latestReviewPerAgent — the one copy of the rule (§4)
   latest-reviews.test.ts
 ```
@@ -59,7 +59,8 @@ The `reviews` module, because it already owns both reads the route needs — `ge
 `reviewsForPull` on [`ReviewRepository`](../src/modules/reviews/repository.ts). The route goes
 into [`reviews/routes.ts`](../src/modules/reviews/routes.ts), one method onto `ReviewService`.
 Dependency direction: route → service → repository; the service calls `buildSmartDiff`, which
-calls `classifyFile`. Nothing in `smart-diff/` imports upwards.
+calls `classifyFile`. Nothing in `smart-diff/` imports upwards; the classifier and its rules sit
+in `_shared/` since the `brief` module started using them (SPEC-01).
 
 ### 2. `classifyFile` — a pure function
 
@@ -69,7 +70,7 @@ export function classifyFile(path: string): SmartDiffRole
 
 - Input is the path alone. No file contents, no size, no PR metadata.
 - **No HTTP**: no Fastify type, no request, no reply. Also no container, no DB, no `fs`, no
-  network, no clock. Its only imports are `./constants` and the `SmartDiffRole` type.
+  network, no clock. Its only imports are `./smart-diff-rules` and the `SmartDiffRole` type.
 - Total and deterministic: every string maps to exactly one role; the same path always maps to
   the same role.
 
@@ -112,7 +113,7 @@ it (forward slashes, no leading `./`), case-sensitive:
   (`**/dist/**`, `**/migrations/meta/**`);
 - `name/**` → anchored at the repository root (`e2e/**`, `docs/**`, `.github/**`, `.claude/**`).
 
-**Two orders, one file, never conflated.** `constants.ts` holds both:
+**Two orders, one file, never conflated.** `_shared/smart-diff-rules.ts` holds both:
 
 - *match precedence* — `boilerplate` → `tests` → `wiring` → `docs` → `core`, the table above;
 - *display order* — `core` → `tests` → `wiring` → `docs` → `boilerplate`, what the route emits.
@@ -241,7 +242,7 @@ server half; criteria shared with the client appear in both specs.
       render a role label and a file count per group.
 - [x] **P1-2** *(server half)* A lock file — `pnpm-lock.yaml`, `package-lock.json`, `yarn.lock`,
       `*.lock`, at any depth — is classified `boilerplate`.
-- [x] **P2-1** Patterns and both role orders live in `smart-diff/constants.ts` and nowhere else;
+- [x] **P2-1** Patterns and both role orders live in `_shared/smart-diff-rules.ts` and nowhere else;
       `classify-file.test.ts` is a path → role table that includes the three disputed cases of §3
       as named rows.
 - [x] **P2-2** The route's 200 body passes `SmartDiff.parse`; the route declares
@@ -271,7 +272,7 @@ Scope: P1 and P2 in full; of P3 only P3-4 and P3-5. P3-1, P3-2, P3-3 are not imp
 
 Written before the code they cover.
 
-- `smart-diff/classify-file.test.ts` — unit, one `it.each` table of `[path, role]`. The three
+- `_shared/classify-file.test.ts` — unit, one `it.each` table of `[path, role]`. The three
   disputed rows of §3; at least one row per pattern in §2; **one row per deviation** —
   `server/dist/x.js`, `client/build/x.js`, `skills-lock.json`,
   `server/src/db/migrations/meta/_journal.json` → `boilerplate`, `x/Foo.spec.tsx` → `tests`,

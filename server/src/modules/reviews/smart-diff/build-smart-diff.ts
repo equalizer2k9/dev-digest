@@ -1,6 +1,6 @@
 import type { SmartDiff, SmartDiffFile, SmartDiffRole } from '@devdigest/shared';
-import { classifyFile } from './classify-file.js';
-import { DISPLAY_ORDER } from './constants.js';
+import { classifyFile } from '../../_shared/classify-file.js';
+import { DISPLAY_ORDER } from '../../_shared/smart-diff-rules.js';
 
 /**
  * PR files + the findings that count → the SmartDiff document. Pure: no model,
