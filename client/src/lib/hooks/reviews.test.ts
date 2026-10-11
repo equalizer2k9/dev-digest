@@ -13,10 +13,17 @@ vi.mock("../api", () => ({
       return [];
     }),
     del: vi.fn(async () => ({ ok: true })),
+    post: vi.fn(async () => ({ ok: true })),
   },
 }));
 
-import { useDeleteReview, useDeleteRun, useRefreshReviewsOnRunSettle } from "./reviews";
+import {
+  useDeleteReview,
+  useDeleteRun,
+  useFindingAction,
+  useRefreshReviewsOnRunSettle,
+  useRunReview,
+} from "./reviews";
 
 afterEach(cleanup);
 beforeEach(() => {
@@ -100,5 +107,33 @@ describe("mutations that remove findings", () => {
     const keys = invalidatedKeys(invalidate);
     expect(keys).toContain(JSON.stringify(["reviews", "pr1"]));
     expect(keys).toContain(JSON.stringify(["smart-diff", "pr1"]));
+  });
+});
+
+describe("mutations that change findings", () => {
+  function setupMutation<T>(useHook: () => T) {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      React.createElement(QueryClientProvider, { client: qc }, children);
+    return { invalidate, hook: renderHook(useHook, { wrapper }) };
+  }
+
+  it("running a review invalidates reviews and smart-diff", async () => {
+    const { invalidate, hook } = setupMutation(() => useRunReview());
+    await act(async () => {
+      await hook.result.current.mutateAsync({ prId: "pr1", all: true });
+    });
+    const keys = invalidatedKeys(invalidate);
+    expect(keys).toContain(JSON.stringify(["reviews", "pr1"]));
+    expect(keys).toContain(JSON.stringify(["smart-diff", "pr1"]));
+  });
+
+  it.each(["accept", "dismiss"] as const)("%s on a finding invalidates reviews", async (action) => {
+    const { invalidate, hook } = setupMutation(() => useFindingAction());
+    await act(async () => {
+      await hook.result.current.mutateAsync({ findingId: "f1", action, prId: "pr1" });
+    });
+    expect(invalidatedKeys(invalidate)).toContain(JSON.stringify(["reviews", "pr1"]));
   });
 });

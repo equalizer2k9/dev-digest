@@ -214,6 +214,11 @@ describe("DiffTab findings", () => {
     renderTab();
     expect(screen.getByText("Hardcoded secret")).toBeInTheDocument();
     expect(screen.getByText("A secret is committed.")).toBeInTheDocument();
+    // severity: the diff row's label, and the badge on the rendered card
+    expect(document.querySelector("[data-finding-label]")).toHaveTextContent("blocker");
+    const card = document.querySelector<HTMLElement>('[data-finding-id="f1"]')!;
+    expect(card.querySelector("svg")).not.toBeNull();
+    expect(card.querySelector("svg")).toHaveClass("lucide-octagon-alert");
     const core = screen.getByRole("button", { name: /Core logic/ });
     expect(core.querySelector("[data-findings-count]")).toHaveTextContent("1");
     expect(document.querySelectorAll("[data-finding-dot]")).toHaveLength(1);
@@ -319,6 +324,17 @@ describe("DiffTab dismissed findings", () => {
     const core = screen.getByRole("button", { name: /Core logic/ });
     expect(core.querySelector("[data-findings-count]")).toHaveTextContent("1");
     expect(document.querySelectorAll("[data-finding-dot]")).toHaveLength(1);
+  });
+});
+
+describe("DiffTab findings on files outside the PR", () => {
+  it("renders no card and does not count a finding whose path is not in files", () => {
+    state.reviews = [review([{ ...FINDING, file: "src/not-in-this-pr.ts" }])];
+    state.smart = { data: smartDiff([2]) };
+    renderTab();
+    expect(screen.queryByText("Hardcoded secret")).toBeNull();
+    expect(document.querySelector("[data-finding-id]")).toBeNull();
+    expect(screen.queryByRole("button", { name: /comments/i })).toBeNull();
   });
 });
 

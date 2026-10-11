@@ -150,3 +150,20 @@ Files read, all under `/home/oles/Projects/dev-digest/`:
 ---
 
 *Orchestrator note, added after the verifier finished (not part of its report):* `./scripts/e2e.sh` was run on 2026-10-11 with `AGENT_BROWSER_BIN` set — **8/8 flows passed**, including `05-pr-diff`, so C-21 is green at runtime. The server gate (typecheck, unit, integration on Docker) and the client gate (typecheck, tests) were re-run by the orchestrator before the `docs(hw3): second review pass` commit.
+
+## Closed after review
+
+Added by the orchestrator after the second pass; the reviewers' conclusions above are unchanged
+and no third review pass was run. All items landed in the commit
+`fix(smart-diff): refresh counters after run + close remaining test gaps`.
+
+| Item | Closed by |
+|---|---|
+| N2 (architecture review) — `useRunReview.onSuccess` did not invalidate `["smart-diff", prId]` | `client/src/lib/hooks/reviews.ts` (`useRunReview`); test `client/src/lib/hooks/reviews.test.ts:122` |
+| N1 (architecture review) — severity order copied in `FindingsPanel/constants.ts` | `FILTER_SEVERITIES` and `SEVERITY_ORDER` now derive from `FINDINGS_SEVERITIES` in `client/src/lib/findings.ts`; existing FindingsPanel tests |
+| P1-5 — severity in the finding comment not asserted | `DiffTab.test.tsx:213` — row label reads `blocker`, card contains the CRITICAL badge icon |
+| P2-5 — `useFindingAction` invalidation untested | `client/src/lib/hooks/reviews.test.ts:132` — accept and dismiss both invalidate `["reviews", prId]` |
+| C-15 — client filter for findings on files outside the PR untested | `DiffTab.test.tsx:330` — no card, no comments button |
+| C-21 — e2e flow `05-pr-diff` | `./scripts/e2e.sh` 8/8 on 2026-10-11 |
+
+Not touched, by the owner's decision: N3, N4.
