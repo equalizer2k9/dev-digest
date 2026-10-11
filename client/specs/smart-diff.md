@@ -1,6 +1,6 @@
 # Smart Diff — client
 
-**Status:** approved · **Package:** client · **Date:** 2026-10-11
+**Status:** implemented · **Package:** client · **Date:** 2026-10-11
 
 Sibling: [`server/specs/smart-diff.md`](../../server/specs/smart-diff.md) ·
 requirements: [`docs/hw3/requirements.md`](../../docs/hw3/requirements.md)
@@ -56,14 +56,18 @@ comments switch, and hands the diff viewer what to draw.
   `patch`) from `pr.files`, in the order the smart-diff response lists them. A file in `pr.files`
   that the response does not mention is rendered after the last group as a plain card — never
   dropped. A path in the response with no `PrFile` is skipped.
-- **Findings** are `latestFindingsPerAgent(reviews)`
-  ([`pulls/helpers.ts`](<../src/app/repos/[repoId]/pulls/helpers.ts>)) — each agent's latest
-  review, dismissed included. It is the existing client helper behind the PR list's hover
-  preview, so the group counter and the file dot count **the same set the FINDINGS column
-  counts**; no new copy of the rule is written. `/pulls/:id/reviews` returns an array of
-  reviews, each with `findings[]`, not a flat list.
-- All three surfaces in §3–§5 are derived from that one findings set, so they cannot disagree
-  with each other. The UI does not read `finding_lines`.
+- **Counting has one source: the smart-diff response.** A file has findings iff its
+  `finding_lines` is non-empty. The group counter (§2) and the file dot (§3) read that and
+  nothing else, so they count what the server counts — the same set as the PR list's FINDINGS
+  column. *(Changed 2026-10-11 after the first architecture review: the client used to re-derive
+  the counts from the reviews cache.)*
+- **Finding cards** — the comment under a line, the row stripe and label, the outside-patch
+  block — need the finding itself, so they come from `latestFindingsPerAgent(reviews)` in
+  [`lib/findings.ts`](../src/lib/findings.ts): each agent's latest review, dismissed included.
+  The helper and the severity order it uses live in `lib/` and are shared with the PR list.
+  `/pulls/:id/reviews` returns an array of reviews, each with `findings[]`, not a flat list.
+- Mutations that change which findings exist (delete review, delete run, a run settling)
+  invalidate both `["reviews", prId]` and `["smart-diff", prId]`.
 - While the smart-diff request is loading or has failed, the tab renders original order (§7) and
   the order switch is not rendered. The diff is never blocked on grouping.
 
@@ -94,8 +98,9 @@ Header, left to right: chevron · role label · hint · **`● N`** · `N files`
 ### 3. File card — the dot
 
 [`FileCard`](../src/components/diff-viewer/FileCard/FileCard.tsx) gains optional `findings` and
-`defaultOpen` props. A file with at least one finding shows a dot beside its path, in the colour
-of its worst severity, with an accessible label. **No number** — the number in the header stays
+`defaultOpen` props, plus `hasFindings`, which `DiffTab` sets from the smart-diff response. Such
+a file shows a dot beside its path, in one neutral colour — `finding_lines` carries no severity —
+with an accessible label. **No number** — the number in the header stays
 the GitHub comment counter, and the two must not be confused.
 
 ### 4. The finding under its line
@@ -118,10 +123,9 @@ A finding is anchored to the row whose key is `RIGHT:${finding.start_line}` — 
 // components/diff-viewer/comments.ts
 export interface DiffFindingsApi {
   findings: FindingRecord[];
-  /** Same flag as DiffCommentApi.showComments. */
-  show: boolean;
   renderFinding: (f: FindingRecord) => React.ReactNode;
 }
+// visibility is the one existing flag, DiffCommentApi.showComments
 ```
 
 - Accept / Dismiss call `action.mutate({ findingId, action, prId })`. `prId` is not optional
@@ -214,11 +218,12 @@ Files:
 
 | Where | Change |
 |---|---|
-| `_components/DiffTab/` | `DiffTab.tsx` reworked; new `helpers.ts` (`groupFiles`, `findingsByPath`, `countFilesWithFindings`), `constants.ts` (role metadata) |
+| `_components/DiffTab/` | `DiffTab.tsx` reworked; new `helpers.ts` (`groupFiles`, `pathsWithFindings`, `countFilesWithFindings`), `constants.ts` (role metadata) |
 | `_components/DiffRoleGroup/` | new — `DiffRoleGroup.tsx`, `index.ts`, `styles.ts` |
 | `[number]/page.tsx` | pass `repoFullName` and `headSha` to `DiffTab`; call `useRefreshReviewsOnRunSettle` |
 | `components/diff-viewer/` | `comments.ts` (`DiffFindingsApi`, `partitionFindings`, `worstSeverity`), `FileCard`, `CodeLine`, `DiffViewer`, `styles.ts`, `index.ts`; new `FindingsOutsideDiff/` |
 | `lib/hooks/reviews.ts` | `useSmartDiff`, `useRefreshReviewsOnRunSettle` |
+| `lib/findings.ts` | `latestFindingsPerAgent` + `FINDINGS_SEVERITIES`, moved from the PR-list route |
 | `specs/pages.md` | PR-detail hooks table and `diff` tab line |
 | `components/showcase/` | entries for `FileCard` with findings and `DiffRoleGroup` |
 
@@ -229,26 +234,26 @@ is added there.
 
 Numbered by [`docs/hw3/requirements.md`](../../docs/hw3/requirements.md).
 
-- [ ] **P1-1** Files changed shows five groups in the order core → tests → wiring → docs →
+- [x] **P1-1** Files changed shows five groups in the order core → tests → wiring → docs →
       boilerplate, each with its role label and its file count.
-- [ ] **P1-2** A lock file is inside the boilerplate group; the docs and boilerplate groups are
+- [x] **P1-2** A lock file is inside the boilerplate group; the docs and boilerplate groups are
       collapsed when the tab opens.
-- [ ] **P1-3** After Run review, a group header shows the number of its files that have findings.
-- [ ] **P1-4** A file card with findings shows a dot indicator, without a number.
-- [ ] **P1-5** In an expanded file, under the line a finding points at, there is a comment with
+- [x] **P1-3** After Run review, a group header shows the number of its files that have findings.
+- [x] **P1-4** A file card with findings shows a dot indicator, without a number.
+- [x] **P1-5** In an expanded file, under the line a finding points at, there is a comment with
       severity, title and explanation.
-- [ ] **P1-6** `Original order` puts the files back in GitHub's order; `Smart order` restores the
+- [x] **P1-6** `Original order` puts the files back in GitHub's order; `Smart order` restores the
       groups.
-- [ ] **P2-2** *(client half)* `SmartDiffRole` has five values in the client `brief.ts`, identical
+- [x] **P2-2** *(client half)* `SmartDiffRole` has five values in the client `brief.ts`, identical
       to the server copy.
-- [ ] **P2-4** A row with a finding has a coloured stripe and a severity label — blocker /
+- [x] **P2-4** A row with a finding has a coloured stripe and a severity label — blocker /
       warning / suggestion.
-- [ ] **P2-5** Accept / Dismiss in the comment work and change the finding's state.
-- [ ] **P2-6** A finding whose line is not in the patch is shown as a separate block at the end
+- [x] **P2-5** Accept / Dismiss in the comment work and change the finding's state.
+- [x] **P2-6** A finding whose line is not in the patch is shown as a separate block at the end
       of its file, including for a file with no patch.
-- [ ] **P2-7** Finding comments are hidden by the same switch as GitHub comments.
-- [ ] **P3-4** Counters update after Run review without a page reload.
-- [ ] **P3-5** Group labels come from `prReview.json` (`smartDiff`), not from the component.
+- [x] **P2-7** Finding comments are hidden by the same switch as GitHub comments.
+- [x] **P3-4** Counters update after Run review without a page reload.
+- [x] **P3-5** Group labels come from `prReview.json` (`smartDiff`), not from the component.
 
 Out of scope: P3-1, P3-2, P3-3. P2-1 and P2-3 are server-only; P1-7 and P2-8 are delivery (PR
 description + demo video). The group counter and the file dot count the same findings as the PR
@@ -264,7 +269,7 @@ resolve `var(--…)`, so severity is asserted through `data-*` / `aria-*`, never
   `RIGHT:<n>`; a line outside → `outside`; no rendered keys → all `outside`. `worstSeverity`.
 - `diff-viewer/FileCard/FileCard.test.tsx` — dot only with findings and without a number; the
   rendered finding follows the row for its line; stripe attribute and label per severity; the
-  outside block, also with `patch: null`; `show: false` hides comments and the block but keeps
+  outside block, also with `patch: null`; `showComments: false` hides comments and the block but keeps
   the dot; `defaultOpen={false}` starts collapsed. `renderFinding` returns a plain node.
 - `_components/DiffTab/helpers.test.ts` — `groupFiles` keeps the response order and appends
   unmatched files; two findings in one file count as **one** file.
@@ -290,12 +295,11 @@ Decided 2026-10-11: comments shown by default when the PR has findings (§6); hi
 stay, muted, and count — as in the FINDINGS column (§1).
 
 - **Section caption.** The prototype titles the section `REVIEWER-ORDERED DIFF`; the tab says
-  `Files changed · N files`, and an unused `smartDiff.groupedByRole` ("Smart Diff · grouped by
-  role") exists. Kept as `Files changed · N files` until someone asks otherwise.
-- **`finding_lines` is not read.** The UI derives everything from the reviews cache, as the
-  requirements' step 5 describes; the server still fills `finding_lines` per the contract.
-- **Placement.** `DiffTab` would import `latestFindingsPerAgent` from the parent route's
-  `pulls/helpers.ts`. Reuse beats a third copy of the rule, but it is a child route reaching up;
-  for the architecture reviewer.
+  `Files changed · N files`. Kept as `Files changed · N files` until someone asks otherwise;
+  `smartDiff.groupedByRole` ("Smart Diff · grouped by role") is used as the order switch's
+  `aria-label`.
+- **Showcase imports page-local components.** `Showcase.tsx` imports `DiffRoleGroup` from the
+  route folder, as it already does for `FindingCard`, `SkillCard` and `ConventionCard`. An
+  existing repo pattern, left as is.
 - **Original order offline.** GitHub's order is preserved only when `GET /pulls/:id` reaches
   GitHub; the offline path reads `pr_files` with no `ORDER BY`.

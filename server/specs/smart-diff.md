@@ -1,6 +1,6 @@
 # Smart Diff — server
 
-**Status:** approved · **Package:** server · **Date:** 2026-10-11
+**Status:** implemented · **Package:** server · **Date:** 2026-10-11
 
 Sibling: [`client/specs/smart-diff.md`](../../client/specs/smart-diff.md) ·
 requirements: [`docs/hw3/requirements.md`](../../docs/hw3/requirements.md)
@@ -105,7 +105,8 @@ the test, next to `…/migrations/meta/_journal.json` → `boilerplate`.
 **How a pattern is read.** Like a `.gitignore` entry, against the path exactly as GitHub reports
 it (forward slashes, no leading `./`), case-sensitive:
 
-- no slash → matched against the basename, at any depth (`*.lock`, `index.ts`, `README*`);
+- no slash, or `**/` followed by a slash-free glob → matched against the basename, at any depth
+  (`*.lock`, `index.ts`, `README*`, `**/*.test.ts`, `**/*.md`);
 - `**/a/**`, `**/a/b/**` → that run of directory segments at any depth, the root included
   (`**/dist/**`, `**/migrations/meta/**`);
 - `name/**` → anchored at the repository root (`e2e/**`, `docs/**`, `.github/**`, `.claude/**`).
@@ -163,9 +164,9 @@ there is nothing for a model to decide.
 `latestReviewPerAgent` — which reviews count. **One server function, two callers; no second
 copy of the rule.**
 
-- The rule already exists inline in the PR list
-  ([`pulls/routes.ts`](../src/modules/pulls/routes.ts) lines 119-143), where it picks the reviews
-  behind `findings_counts`. That logic is **moved** into `latestReviewPerAgent` and the list calls
+- The rule used to live inline in the PR list
+  ([`pulls/routes.ts`](../src/modules/pulls/routes.ts)), where it picks the reviews behind
+  `findings_counts`. That logic is **moved** into `latestReviewPerAgent` and the list calls
   it; `smartDiffForPull` calls the same function. The list's response does not change.
 - Given reviews of `kind = 'review'`, it returns the newest one per `(prId, agentId)`; reviews
   without an agent share one key per PR. It sorts by `createdAt` itself and does not rely on the
@@ -234,23 +235,23 @@ SmartDiff      = { groups: SmartDiffGroup[],
 Numbered by [`docs/hw3/requirements.md`](../../docs/hw3/requirements.md). This spec holds the
 server half; criteria shared with the client appear in both specs.
 
-- [ ] **P1-1** *(server half)* The response's `groups` has five entries with roles in the order
+- [x] **P1-1** *(server half)* The response's `groups` has five entries with roles in the order
       `core` → `tests` → `wiring` → `docs` → `boilerplate`, each with its files, so the client can
       render a role label and a file count per group.
-- [ ] **P1-2** *(server half)* A lock file — `pnpm-lock.yaml`, `package-lock.json`, `yarn.lock`,
+- [x] **P1-2** *(server half)* A lock file — `pnpm-lock.yaml`, `package-lock.json`, `yarn.lock`,
       `*.lock`, at any depth — is classified `boilerplate`.
-- [ ] **P2-1** Patterns and both role orders live in `smart-diff/constants.ts` and nowhere else;
+- [x] **P2-1** Patterns and both role orders live in `smart-diff/constants.ts` and nowhere else;
       `classify-file.test.ts` is a path → role table that includes the three disputed cases of §3
       as named rows.
-- [ ] **P2-2** The route's 200 body passes `SmartDiff.parse`; the route declares
+- [x] **P2-2** The route's 200 body passes `SmartDiff.parse`; the route declares
       `response: { 200: SmartDiffResponse }`; `SmartDiffRole` has five values in both `brief.ts`
       copies and the copies are still identical.
-- [ ] **P2-3** A Smart Diff request makes no model call — the injected LLM mock records zero
+- [x] **P2-3** A Smart Diff request makes no model call — the injected LLM mock records zero
       calls — and a PR with no review returns 200 with five groups and empty `finding_lines`.
-- [ ] *(requirements, «Можлива реалізація» 3)* `finding_lines` holds the `start_line` of each
+- [x] *(requirements, «Можлива реалізація» 3)* `finding_lines` holds the `start_line` of each
       agent's latest-review findings on that file; `split_suggestion` is
       `{ too_big: false, total_lines: Σ, proposed_splits: [] }`.
-- [ ] *(decision 2026-10-11)* "Each agent's latest review" is implemented once on the server —
+- [x] *(decision 2026-10-11)* "Each agent's latest review" is implemented once on the server —
       `latestReviewPerAgent` — and called by both the PR list and Smart Diff; the list's
       `findings_counts` are unchanged.
 
@@ -302,6 +303,8 @@ groups (§4); the pattern table is widened as listed under "Deviations" (§2).
 
 - **First `response` schema.** How `fastify-type-provider-zod` treats keys outside the schema
   (strip vs fail) was not checked. The integration test asserts the 200 and the parse either way.
-- **Server and client still each hold the rule.** The server has one copy after §4; the client
-  keeps its existing `latestFindingsPerAgent`. The two are coupled by intent, not by code.
+- **Server and client still each hold the rule.** The server has one copy after §4, and it is
+  the only one used for counting — the client reads `finding_lines`. The client keeps
+  `latestFindingsPerAgent` (now in `client/src/lib/findings.ts`) to pick which finding cards to
+  draw. The two are coupled by intent, not by code.
 - `package.json` stays `core`. Not asked for; noted so nobody assumes it was considered wiring.

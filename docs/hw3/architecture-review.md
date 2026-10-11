@@ -1,87 +1,62 @@
-# Architecture review: Smart Diff (uncommitted, branch feat/homework-3)
+# Architecture review, second pass: Smart Diff (branch feat/homework-3, all committed)
 
-Method: I read every new and modified source file in scope against the two skills and `server/AGENTS.md` / `client/AGENTS.md`. I read both `brief.ts` copies in full. Specs were treated as context only. I could not run git or typecheck.
+Method: I read the 15 files the fix pass changed, plus `DiffTab/constants.ts`, `FindingsPanel/constants.ts`, `reviews/service.ts` and `Showcase.tsx` where they bear on a finding. I checked each of #1–#12 against the code as it is now, not against the fix list. I greped client `src/` for leftover users of the moved or removed symbols. I did not run typecheck or tests.
 
-Result: no blockers. The server side is clean. The weak points are on the client: one repeated "latest review per agent" rule, one shared-to-route import, and some misplaced logic.
+## TABLE 1: status of the first-pass findings
+
+| # | Severity | Finding (short) | Status | Evidence path:line |
+|---|---|---|---|---|
+| 1 | major | "Latest review per agent" rule duplicated; client never read `finding_lines` | PARTLY FIXED | Dot and counter are now sourced from `finding_lines`: `DiffTab/helpers.ts:36-42` (`pathsWithFindings`), `DiffTab.tsx:52-55`, `:102`, `:151`, `:161`. The rule is still implemented twice (`server/.../service.ts:189` and `client/src/lib/findings.ts:12-29`). The cards and the show/hide total still come from `usePrReviews` (`DiffTab.tsx:47-50`, `:58`). |
+| 2 | major | Shared `Showcase` imports route-private `DiffRoleGroup` | UNCHANGED — existing repo pattern (FindingCard, SkillCard, ConventionCard), accepted by the owner | `Showcase.tsx:56` (siblings `:55`, `:58-60`) |
+| 3 | minor | Detail tab reached up into the list route's `pulls/helpers.ts` | FIXED | `client/src/lib/findings.ts:12`. `pulls/helpers.ts:1-26` no longer holds it. `DiffTab.tsx:15` and `PRRow.tsx:20` both import `@/lib/findings`. The test moved to `lib/findings.test.ts`. No `lib/` file imports from `app/`. |
+| 4 | minor | `comments.ts` (non-fixed name) hosts finding logic; `styles.ts` imports a type from it | UNCHANGED — NOT IN SCOPE | `comments.ts:125-156` (`partitionFindings`, `FindingSeverity`, `worstSeverity`); `styles.ts:3` `import type { FindingSeverity } from "./comments"` |
+| 5 | minor | `SEVERITY_RANK` was a third copy of the severity order | PARTLY FIXED | `SEVERITY_RANK` is gone. `worstSeverity` (`comments.ts:151-153`) reuses `FINDINGS_SEVERITIES`, now exported from `lib/findings.ts:5`. Two other copies remain: `FindingsPanel/constants.ts:4-9` (`SEVERITY_ORDER`) and `:23` (`FILTER_SEVERITIES`). See N1. |
+| 6 | minor | Viewer is handed raw `FindingRecord[]`, casts severity; `show` duplicated `showComments` | PARTLY FIXED | The duplicate flag is gone: `DiffFindingsApi` is now `{findings, renderFinding}` (`comments.ts:30-33`) and visibility reads `commenting.showComments` (`CodeLine.tsx:93`, `FileCard.tsx:144`). The leak remains: `comments.ts:31` (`FindingRecord[]`), `:132` (`f.start_line`), `:150` (`f.severity as FindingSeverity`), `FileCard.tsx:84` (`f.file`). |
+| 7 | minor | `DISPLAY_ORDER` hand-kept, `!` assertion | FIXED | `server/.../smart-diff/constants.ts:81-92`: `Record<SmartDiffRole, number>` drives the order, so a missing role fails typecheck. `build-smart-diff.ts:20-23,27` builds `byRole` as a `Record` and the `!` is gone. |
+| 8 | minor | `split_suggestion` stub reads like a computed claim | PARTLY FIXED | A comment now marks the stub at `build-smart-diff.ts:40-41`, and `docs/hw3/requirements.md` exists. The contract (`server/src/vendor/shared/contracts/brief.ts:108`) is unchanged, so a consumer still cannot tell stub from computed. `pseudocode_summary` (`brief.ts:86`) is still never filled. |
+| 9 | nit | `renderedKeys` built twice; per-card re-filter by path | UNCHANGED — NOT IN SCOPE | `FileCard.tsx:76-77` and `:88-89` build the keys; `:83-86` filters by `f.file` |
+| 10 | nit | `ROLE_META` message keys are plain strings | UNCHANGED — NOT IN SCOPE | `DiffTab/constants.ts:8,10-18` (the role key is exhaustive; `labelKey`/`hintKey` are `string`) |
+| 11 | nit | `DiffRoleGroup` is a sibling of `DiffTab`, not a child | UNCHANGED — NOT IN SCOPE | `DiffTab.tsx:18` `from "../DiffRoleGroup"` |
+| 12 | nit | `smartDiffForPull` over-fetches via `reviewsForPull` (usage aggregation) | UNCHANGED — NOT IN SCOPE | `server/.../service.ts:187` |
+
+## TABLE 2: new findings from this pass
 
 | # | Severity | Area | File:line | Finding | Suggested direction |
 |---|---|---|---|---|---|
-| 1 | major | Duplicated rule / dead data | `client/src/app/repos/[repoId]/pulls/[number]/_components/DiffTab/DiffTab.tsx:46-50` vs `server/src/modules/_shared/latest-reviews.ts:8` and `client/src/app/repos/[repoId]/pulls/helpers.ts:15` | "Each agent's latest review" is implemented on both sides. The server copy feeds `finding_lines` (`build-smart-diff.ts:28`, `service.ts:183-193`). The client never reads `finding_lines`, so on one screen the groups come from the server and the dots and counters from a client re-derivation. | Pick one source of truth. Either the client reads `finding_lines` for counters and dots, or the server stops computing it and the contract field is dropped. At minimum keep a shared-fixture test so the two implementations cannot drift. |
-| 2 | major | Shared to route import | `client/src/components/showcase/Showcase.tsx:56` (also :55, :58-60) | The shared `components/showcase` imports the page-local `.../pulls/[number]/_components/DiffRoleGroup` straight from a route folder. The skill says "Do not import a page-local `_components` folder from another route; promote it to `src/components/`". The change adds one more instance to an existing pattern (`FindingCard`, `SkillCard`, `ConventionCard`). | Promote the presentational `DiffRoleGroup` to `src/components/diff-viewer/` or a `smart-diff` folder. Alternatively, accept the showcase exception explicitly in the skill. |
-| 3 | minor | Coupling (child route reaches up) | `.../[number]/_components/DiffTab/DiffTab.tsx:16` | `import { latestFindingsPerAgent } from "../../../helpers"` pulls the list route's `pulls/helpers.ts` into the detail tab. That file imports the list's `constants.ts` (`FINDINGS_SEVERITIES`, `PrMeta`). The function is now used by two routes (`PRRow`, `DiffTab`). | Move `latestFindingsPerAgent` to a neutral module, e.g. `src/lib/` or a `findings` helper under `components/`. Do this together with #1. |
-| 4 | minor | Misplaced logic and inverted dependency | `client/src/components/diff-viewer/comments.ts:144-156`, `:125-142`; `diff-viewer/styles.ts:3` | `comments.ts` is a non-fixed name. The change grew it with finding logic (`partitionFindings`, `worstSeverity`, `SEVERITY_RANK`, `FindingSeverity`). `styles.ts` now imports a type from this logic file (`import type { FindingSeverity } from "./comments"`). | Put `SEVERITY_RANK` and `FindingSeverity` in `constants.ts`. Put `worstSeverity` and `partitionFindings` in `helpers.ts`, which already holds `Line` and `parsePatch`. |
-| 5 | minor | Duplicated constant | `comments.ts:144` | `SEVERITY_RANK` is a third copy of the severity ordering. The others are `FindingsPanel/constants.ts:4` (`SEVERITY_ORDER`) and the list's `FINDINGS_SEVERITIES`. It is also a magic value outside `constants.ts`. | Reuse the existing ordering from one place. |
-| 6 | minor | Leaking abstraction | `comments.ts:28-33`, `:132`, `:151`; `DiffTab.tsx:74-87` | `DiffFindingsApi` hands the shared viewer raw `FindingRecord[]`. The viewer reads transport fields (`f.file`, `f.start_line`) and casts `f.severity as FindingSeverity`. `show` duplicates `DiffCommentApi.showComments` ("Same flag as…"). `DiffTab` fills both from the same variable (`DiffTab.tsx:61`, `:76`). | Map once in `DiffTab` to a small viewer-owned shape such as `{ id, path, line, severity }`. Keep one visibility flag. |
-| 7 | minor | Unchecked invariant (server) | `server/src/modules/reviews/smart-diff/constants.ts:78` with `build-smart-diff.ts:20,24,34` | `DISPLAY_ORDER` is a hand-kept `readonly SmartDiffRole[]`, and `byRole.get(...)!` uses a non-null assertion. A role added to the enum but not to this list passes typecheck and throws at runtime. The client side is exhaustive by comparison (`Record<SmartDiffRole, …>` in `DiffTab/constants.ts:6`). | Derive from `SmartDiffRole.options`, or make the order a `Record<SmartDiffRole, number>`. |
-| 8 | minor | Contract promises more than it delivers | `build-smart-diff.ts:37` | `split_suggestion` is hard-coded to `too_big: false, proposed_splits: []`, and `pseudocode_summary` is never filled. A consumer cannot tell "computed and small" from "not implemented". `total_lines` is real, so `too_big: false` reads as a computed claim. | Name the stub in `constants.ts`, or make the field optional until it is implemented. |
-| 9 | nit | Duplicate work | `diff-viewer/FileCard/FileCard.tsx:70-89` and `DiffTab.tsx:50` | `renderedKeys` is built twice (lines 73-74 and 85-86). Each card re-filters all findings by path (:80-83), while `DiffTab` already builds `findingsByPath` but only uses it for counts. | Build the keys once, or pass the per-file slice. |
-| 10 | nit | Untyped i18n keys | `DiffTab/constants.ts:10-18` | `ROLE_META` stores message keys as plain strings. A typo in a key only fails at render time. | Derive `` `smartDiff.${role}Label` `` or type the keys. |
-| 11 | nit | Placement | `.../[number]/_components/DiffRoleGroup/` | The component is used only by `DiffTab` (plus the showcase), so the skill's "component-local child" slot (`DiffTab/_components/DiffRoleGroup/`) fits. It is currently a sibling. | Moot if #2 promotes it. |
-| 12 | nit | Over-fetch | `server/src/modules/reviews/service.ts:187` | `smartDiffForPull` calls `repo.reviewsForPull`, which also aggregates per-review `usage`. Only findings are needed. | A narrower repository method. |
+| N1 | minor | Duplicated constant / misleading doc | `client/src/lib/findings.ts:3-5`, `:24-27`; `FindingsPanel/constants.ts:4,23` | The new doc comment calls `FINDINGS_SEVERITIES` "the one source for every place that sorts or ranks findings". That is not true: `SEVERITY_ORDER` and `FILTER_SEVERITIES = ["CRITICAL","WARNING","SUGGESTION"]` sit in `FindingsPanel/constants.ts`. `latestFindingsPerAgent` also has its own inline `rank` (`lib/findings.ts:24-27`), and `worstSeverity` repeats the `indexOf` ranking (`comments.ts:151-153`). `FindingSeverity` is declared in `comments.ts:144` instead of next to the constant. | Export `FindingSeverity` and one `severityRank` from `lib/findings.ts`. Reuse them in `comments.ts` and `FindingsPanel`. This also resolves the `styles.ts` to `comments.ts` import (#4). If that is deferred, soften the doc comment. |
+| N2 | minor | Cache coherence after the source split | `client/src/lib/hooks/reviews.ts:164-166` | Dots and counters now come from the `["smart-diff", prId]` query, but `useRunReview.onSuccess` invalidates only `["reviews", prId]`. Smart-diff is refreshed only when the active-runs poll sees a some-to-none transition (`reviews.ts:41-54`). If the cards update before that, the cards and the dot/counter could disagree for a while. I did not check whether `POST /review` returns before the run finishes, so this is a risk, not a confirmed bug. | Invalidate `["smart-diff", prId]` in `useRunReview.onSuccess` too, as `useDeleteRun` and `useDeleteReview` already do. |
+| N3 | nit | Coupling | `CodeLine.tsx:93`, `FileCard.tsx:144` | After removing `show`, finding visibility depends on the comment API object: `(commenting?.showComments ?? true)`. `DiffFindingsApi` cannot be hidden on its own, and the `?? true` default makes behaviour depend on whether `commenting` was passed. | Acceptable as the owner's chosen minimal fix. If #6 is revisited later, give `DiffFindingsApi` its own visibility or rename the flag to a neutral "show annotations". |
+| N4 | nit | Unchecked invariant | `server/.../smart-diff/constants.ts:81-92` | `DISPLAY_POSITION` is checked for completeness, but not for unique values. Duplicate numbers give an unstable order. `Object.keys(...) as SmartDiffRole[]` is a cast. | Optional: use an ordered tuple with `satisfies readonly SmartDiffRole[]`, or leave as is. |
 
-## Evidence per finding
+## Evidence for anything not FIXED
 
-**#1 (major).**
-- Server side: `latestReviewPerAgent` in `_shared/latest-reviews.ts:8` (keyed `prId|agentId ?? 'none'`, sorted by `createdAt`). `smartDiffForPull` (`service.ts:189`) uses it to fill `finding_lines` (`build-smart-diff.ts:28`).
-- Client side: `latestFindingsPerAgent` in `pulls/helpers.ts:15` (keyed `agent_id ?? "none"`, sorted by `created_at.localeCompare`).
-- The client does not use the server's result. A grep for `finding_lines` in non-test client source hits only the contract (`vendor/shared/contracts/brief.ts:89`). `DiffTab` uses `smart.data.groups` for file order only (`DiffTab.tsx:89`). Dots, counters and stripes come from `usePrReviews` (`DiffTab.tsx:46-49`).
-- The client spec admits this ("`finding_lines` is not read").
-- Consequence: a rule change, or the Date vs ISO-string sort difference, has to be made in two places. The server computes and ships a field no one reads.
-- The server extraction itself is fine, since the inline code in `pulls/routes.ts` became a helper. The problem is the second consumer that is never read.
+**#1 (partly).**
+- The counting half is done. `pathsWithFindings` reads `f.finding_lines.length > 0` (`DiffTab/helpers.ts:39`). Its result feeds the file dot via `hasFindings` (`DiffTab.tsx:102`, `FileCard.tsx:106`) and the group counter via `countFilesWithFindings` (`DiffTab.tsx:151`). The `DiffViewer` path gets it through `findingPaths` (`DiffTab.tsx:161`, `DiffViewer.tsx:38`).
+- The tests also pin this ("draws the dot and counter from finding_lines alone": `DiffTab.test.tsx:254,263`).
+- The rule is still duplicated for the cards. The server filter and sort are at `service.ts:189`, the client's at `lib/findings.ts:13-23`. Both sides count dismissed findings, so they agree today.
+- The remaining double source is what the owner described ("`usePrReviews` only for finding cards"), so I rate it partly fixed rather than unchanged.
 
-**#2 (major).**
-- `Showcase.tsx:56`: `import { DiffRoleGroup } from "../../app/repos/[repoId]/pulls/[number]/_components/DiffRoleGroup";`
-- The rule being broken is in `frontend-architecture` "Do not". `AGENTS.md` and rule 8 force a showcase entry for a changed UI component, which is what pushes the import.
-- The shared `diff-viewer` itself is clean. A grep for `app/`, `_components` and `pulls` imports under `components/diff-viewer` returns nothing. `DiffFindingsApi.renderFinding` is the render-prop seam that keeps `FindingCard` out (`comments.ts:25-27`).
+**#4 (not in scope).** `comments.ts` is still a non-fixed internals file. It now imports `FINDINGS_SEVERITIES` from `lib/findings` (`:7`). `styles.ts:3` still type-imports from it, so the inverted dependency is intact.
 
-**#3 (minor).**
-- Reaching `pulls/helpers.ts` from `_components/DiffTab/` takes three `..` hops. The skill does allow route-root helpers.
-- The reach is still debatable, because `pulls/helpers.ts` is the list page's file. It now sits on the detail tab's dependency path, which includes the list-only constants.
-- `PRRow.tsx:21` uses the same file with `../../helpers`, which is legitimate.
+**#5 (partly).** See N1. The removal the owner asked for was done. The cross-package consolidation was not, and the new doc comment claims more than the code delivers.
 
-**#4 and #5 (minor).**
-- `client/AGENTS.md` and the skill say internals are `constants.ts` / `helpers.ts` / `styles.ts` only.
-- `comments.ts` was already a named exception, and it also hosts the `cs` style object. The change deepened it instead of using the fixed files.
-- The spec chose "extend `comments.ts`, no new sibling". That keeps the file count down but not the layering.
+**#6 (partly).** Only the duplicate flag was removed, as intended. The wire-shape leak into the shared viewer is unchanged (`comments.ts:31,132,150`; `FileCard.tsx:84`).
 
-**#6 (minor).**
-- `partitionFindings` (`comments.ts:131-132`) keys on `f.start_line`. `FileCard.tsx:81` filters on `f.file`. The shared viewer is now coupled to the review record's wire shape, with `severity` cast from `string`.
+**#8 (partly).** The comment is accurate but lives only in the server builder. The contract at `brief.ts:108` still has no marker, so a client reading `too_big: false` cannot tell it is a stub.
 
-**#7 (minor).**
-- `classifyFile` returns whatever the rules say, typed `SmartDiffRole`.
-- `DISPLAY_ORDER` is separate from the enum, so nothing links the two.
+**#2, #9, #10, #11, #12.** The code is as in the first pass (lines in Table 1). #2 is accepted by the owner. The rest are not in scope by the owner's decision.
 
 ## Checked and found sound
 
-- **Server layering.**
-  - `reviews/routes.ts` has no adapter, DB or drizzle import. The smart-diff handler is `getContext`, then `service.smartDiffForPull`.
-  - Validation is by route `params` plus a `response: { 200: SmartDiffResponse }` schema, with no `parse` inside the handler.
-  - `ReviewService.smartDiffForPull` (`service.ts:183`) is workspace-scoped through `repo.getPull(workspaceId, …)`. It then reads `repo.getPrFiles` and `repo.reviewsForPull`.
-  - The service imports no Fastify types.
-- **No adapter on the smart-diff path.** The service function uses only `this.repo`. `smart-diff/*` imports only `@devdigest/shared` types and its own files. There is no GitHub, git, LLM, embedder or container access.
-- **`classifyFile` is pure.**
-  - `classify-file.ts` imports only the type and `./constants.js`.
-  - `COMPILED` is built at module load from static constants.
-  - There is no I/O, clock, container or mutable shared state. `buildSmartDiff` only mutates arrays it created.
-- **`pulls/routes.ts`.**
-  - The only new dependency is `../_shared/latest-reviews.js`, a pure function with no framework imports.
-  - Its legacy DB and GitHub access (listed as a known exception in the skill) is unchanged.
-  - The edit swapped inline logic for the shared helper and did not add DB or adapter reach.
-- **`_shared/latest-reviews.ts`.** It is a pure domain helper that does not import across module folders. This matches rule 10 and the `_shared` convention.
-- **Both `vendor/shared` copies.**
-  - I read `server/src/vendor/shared/contracts/brief.ts` and `client/src/vendor/shared/contracts/brief.ts` in full. They are identical, including the new `SmartDiffRole` enum and the SmartDiff block.
-  - `review-api.ts:67-69` (`SmartDiffResponse`) and the `SmartDiff` import matched on both sides, per grep.
-  - `contracts.test.ts` covers all five roles and an unknown role.
-- **Client placement and naming.**
-  - `DiffRoleGroup` and `DiffTab` use fixed internals only: `constants.ts`, `helpers.ts`, `styles.ts`.
-  - PascalCase folder, same-named file and `index.ts` barrel hold for `DiffRoleGroup/` and `FindingsOutsideDiff/`.
-  - Tests sit beside subjects: `FileCard.test.tsx`, `comments.test.ts`, `helpers.test.ts`, `DiffTab.test.tsx`, `reviews.test.ts`.
-  - Hooks follow the rules: no `fetch` in components, a new `useSmartDiff` in `lib/hooks/reviews.ts`, and `page.tsx` only gained the hook call.
-- **i18n.** All new copy lives in `messages/en/prReview.json` → `smartDiff.*` and `shell.json` → `diffViewer.*`. `FindingsOutsideDiff`, `FileCard` and `CodeLine` read `shell`, matching their siblings.
-- **Colours.** New styles use CSS vars. Severity colours come from `SEV` via the `@devdigest/ui` barrel (`styles.ts:2`).
-- **Classification stays server-only.** The client holds no glob patterns. `ROLE_META` is `Record<SmartDiffRole, …>`, so it is exhaustive against the contract.
-- **Server file naming.** `smart-diff/` uses kebab-case names (`classify-file.ts`, `build-smart-diff.ts`, `constants.ts`). The integration test is `*.it.test.ts` and imports `test/helpers/pg.ts`, as the convention requires.
+- `lib/findings.ts` placement. `lib/` already holds flat non-fixed modules (`model-label.ts`, `github-urls.ts`, `feature-models.ts`). It imports only `@devdigest/shared` types. A grep for `app/` imports under `client/src/lib` finds none. The test sits beside it (`lib/findings.test.ts`).
+- No leftover `latestFindingsPerAgent` or `FINDINGS_SEVERITIES` in `pulls/helpers.ts` or `pulls/constants.ts`. `pulls/helpers.ts` only imports `./constants`. The `PrMeta` re-export in `pulls/constants.ts:59-60` is unchanged.
+- Both users import the same module: `PRRow.tsx:20` and `DiffTab.tsx:15`. The `PRRow` to `../../constants`, `../../helpers`, `../../styles` imports are legitimate route-root reach.
+- No `SEVERITY_RANK` remains anywhere in `client/src`. No dead `show` field or reference to `findings.show` remains (grep).
+- `DiffTab` is thin. It uses fixed internals only (`./constants`, `./helpers`, `./styles`). Hooks are called through `@/lib/hooks/reviews`. There is no `fetch` and no `API_BASE`.
+- `DiffViewer` and `FileCard` import nothing from `app/` or `_components`. `FindingCard` still arrives via the `renderFinding` render prop (`DiffTab.tsx:81-90`, `Showcase.tsx:346`).
+- `useSmartDiff` and the query key `["smart-diff", prId]` are invalidated consistently in `useRefreshReviewsOnRunSettle`, `useDeleteRun` and `useDeleteReview` (`reviews.ts:50,97,116`).
+- `DISPLAY_ORDER` is still a `readonly SmartDiffRole[]`, so `build-smart-diff.ts` consumers are unchanged. `buildSmartDiff` is still pure.
+- The `finding_lines` contract is untouched in this pass. I did not diff the two `vendor/shared` copies, since this pass changed neither (grep shows `client/.../brief.ts:89`).
+- Showcase (`Showcase.tsx:339-376`) was updated to the new `FileCard` props (`hasFindings`, `findings: {findings, renderFinding}`), with no stale `show`.
 
-Files checked: all files in the changed list that I opened. Not opened: `client/specs/pages.md`, `server/specs/*`, the `DiffTab.test.tsx` / `DiffRoleGroup.test.tsx` bodies, and `showcase/constants.ts` beyond its imports.
-
-Verdict: PASS (no CRITICAL). 2 major, 6 minor, 4 nit.
+Verdict: PASS — no blocker. Of the 12 first-pass findings, 3 are fixed, 4 are partly fixed (#1, #5, #6, #8) and 5 are unchanged by the owner's decision (#2, #4, #9–#12 less #4 counted below). Counting exactly: FIXED #3 and #7 (2); PARTLY FIXED #1, #5, #6, #8 (4); UNCHANGED #2, #4, #9, #10, #11, #12 (6). New findings: 0 blocker, 0 major, 2 minor (N1, N2), 2 nit (N3, N4).
