@@ -3,6 +3,7 @@ import { pgTable, uuid, text, integer, jsonb, timestamp, doublePrecision } from 
 import { now } from './_shared';
 import { workspaces } from './core';
 import { pullRequests } from './pulls';
+import type { IntentSource } from '@devdigest/shared';
 
 // ============================================================ Review & findings
 
@@ -52,6 +53,15 @@ export const prIntent = pgTable('pr_intent', {
   intent: text('intent').notNull(),
   inScope: jsonb('in_scope').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
   outOfScope: jsonb('out_of_scope').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  confidence: text('confidence'),
+  sources: jsonb('sources').$type<IntentSource[]>().notNull().default(sql`'[]'::jsonb`),
+  provider: text('provider'),
+  model: text('model'),
+  headSha: text('head_sha'),
+  tokensIn: integer('tokens_in'),
+  tokensOut: integer('tokens_out'),
+  costUsd: doublePrecision('cost_usd'),
+  generatedAt: timestamp('generated_at', { withTimezone: true }),
 });
 
 export const prBrief = pgTable('pr_brief', {

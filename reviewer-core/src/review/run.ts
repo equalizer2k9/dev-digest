@@ -7,7 +7,7 @@ import type {
   UnifiedDiff,
 } from '@devdigest/shared';
 import { Review as ReviewSchema } from '@devdigest/shared';
-import { assemblePrompt, type SkillPart } from '../prompt.js';
+import { assemblePrompt, type PromptParts, type PromptSection, type SkillPart } from '../prompt.js';
 import { groundFindings, groundingSummary } from '../grounding.js';
 import { reduceReviews, scoreFromFindings, sliceDiff } from './reduce.js';
 
@@ -80,6 +80,13 @@ export interface ReviewInput {
   /** PR author's description/body (untrusted; truncated + delimiter-wrapped in
       the prompt). Empty/undefined → section omitted. */
   prDescription?: string;
+  /** PR title (untrusted; rendered as its own delimiter-wrapped section). */
+  prTitle?: string;
+  /**
+   * Derived PR intent/scope (untrusted section + trusted SCOPE_RULE). Prompt
+   * level only — it never filters, downgrades or merges a finding.
+   */
+  intent?: PromptParts['intent'];
   /** Task framing line, e.g. "Review PR #482 …". */
   task?: string;
   /** Override the structured-output retry budget. */
@@ -91,6 +98,24 @@ export interface ReviewInput {
    * review group into one session in the OpenRouter dashboard.
    */
   sessionId?: string;
+  /**
+   * Called once per LLM call with the label of the chunk and the sections that
+   * were assembled for it (names, sources, token sizes — never text).
+   */
+  onPromptAssembled?: (e: { label: string; sections: PromptSection[] }) => void;
+  /** Opt-in: sections carry a short text `preview` (verbose local logging only). */
+  includePreviews?: boolean;
+  /**
+   * Called once per LLM call, right after it returns, with that call's own
+   * usage — one per chunk in map-reduce (never a sum over the run).
+   */
+  onLlmCall?: (e: {
+    label: string;
+    tokensIn: number;
+    tokensOut: number;
+    costUsd: number | null;
+    durationMs: number;
+  }) => void;
   /** Progress sink. */
   onEvent?: (e: ReviewEvent) => void;
   /**
@@ -140,12 +165,16 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
     system: input.systemPrompt,
     skills: input.skills,
     countTokens: input.countTokens,
+    countSectionTokens: input.countTokens,
     memory: input.memory,
     specs: input.specs,
     callers: input.callers,
     repoMap: input.repoMap,
     prDescription: input.prDescription,
+    prTitle: input.prTitle,
+    intent: input.intent,
     task: input.task,
+    ...(input.includePreviews ? { includePreviews: true } : {}),
   };
 
   // Whole-diff assembly is the trace default; overwritten below for single-pass.
@@ -181,6 +210,8 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
     );
     const a = assemblePrompt({ ...promptParts, diff: chunk.diffText });
     if (mode === 'single-pass') assembly = a.assembly;
+    input.onPromptAssembled?.({ label: chunk.label, sections: a.sections });
+    const callStart = Date.now();
     const res = await input.llm.completeStructured<Review>({
       model: input.model,
       schema: ReviewSchema,
@@ -188,6 +219,13 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
       messages: a.messages,
       maxRetries,
       ...(input.sessionId ? { sessionId: input.sessionId } : {}),
+    });
+    input.onLlmCall?.({
+      label: chunk.label,
+      tokensIn: res.tokensIn,
+      tokensOut: res.tokensOut,
+      costUsd: res.costUsd,
+      durationMs: Date.now() - callStart,
     });
     tokensIn += res.tokensIn;
     tokensOut += res.tokensOut;

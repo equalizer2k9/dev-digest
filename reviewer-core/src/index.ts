@@ -16,6 +16,9 @@ export {
   assemblePrompt,
   wrapUntrusted,
   approxTokens,
+  INJECTION_GUARD,
+  SCOPE_RULE,
+  type PromptSection,
   type SkillPart,
   type PromptParts,
   type AssembledPrompt,
@@ -59,3 +62,16 @@ export {
 // The single OpenAI-compatible structured provider (OpenRouter), shared by the
 // CI runner and the server's openrouter path. Owns session grouping + guards.
 export { OpenRouterProvider, type OpenRouterProviderOptions } from './llm/openrouter.js';
+
+// Intent classifier: one cheap structured call → { intent, in_scope, out_of_scope, confidence }.
+export {
+  assembleIntentPrompt,
+  deriveIntent,
+  INTENT_INPUT_BUDGET_TOKENS,
+  type IntentIssuePart,
+  type IntentFilePart,
+  type IntentPromptParts,
+  type IntentPrompt,
+  type DeriveIntentInput,
+  type DeriveIntentResult,
+} from './intent/derive-intent.js';

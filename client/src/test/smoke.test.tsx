@@ -5,6 +5,7 @@ import { Gallery } from "../components/showcase";
 import { DiffViewer } from "../components/diff-viewer";
 import type { PrFile } from "../lib/types";
 import shellMessages from "../../messages/en/shell.json";
+import intentMessages from "../../messages/en/intent.json";
 
 afterEach(cleanup);
 
@@ -45,5 +46,26 @@ describe("web smoke (both themes)", () => {
     );
     expect(screen.getByText("src/config.ts")).toBeInTheDocument();
     expect(screen.getByText("const c = 4;")).toBeInTheDocument();
+  });
+});
+
+describe("showcase: IntentCard variants (C-AC-10)", () => {
+  it("AC-10: the gallery mounts IntentCard loaded, empty, generating and error", () => {
+    render(
+      <div data-theme="dark">
+        <Gallery />
+      </div>,
+    );
+    // loaded (also stale + sources)
+    expect(screen.getAllByText("Add retry with backoff to the payments webhook handler.").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(intentMessages.inScope).length).toBeGreaterThan(0);
+    // empty
+    expect(screen.getAllByText(intentMessages.empty.title).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(intentMessages.actions.generate).length).toBeGreaterThan(0);
+    // generating
+    expect(screen.getAllByText(intentMessages.generating).length).toBeGreaterThan(0);
+    // errors: inline recalc error and load error
+    expect(screen.getAllByText(intentMessages.error.paymentRequired).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(intentMessages.error.load).length).toBeGreaterThan(0);
   });
 });

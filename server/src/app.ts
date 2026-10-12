@@ -25,6 +25,22 @@ declare module 'fastify' {
   }
 }
 
+/**
+ * pino `redact` paths: credentials in request headers and any key/token field at
+ * the top level or one level down. Exported so it can be tested without booting
+ * the app.
+ */
+const SECRET_KEYS = ['apiKey', 'api_key', 'token', 'accessToken', 'secret', 'password'];
+export const LOG_REDACT = {
+  paths: [
+    'req.headers.authorization',
+    'req.headers.cookie',
+    ...SECRET_KEYS,
+    ...SECRET_KEYS.map((k) => `*.${k}`),
+  ],
+  censor: '[redacted]',
+};
+
 export interface BuildAppOptions {
   config?: AppConfig;
   db?: Db;
@@ -52,6 +68,7 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
         ? false
         : {
             level: config.logLevel,
+            redact: LOG_REDACT,
             transport:
               config.nodeEnv === 'development'
                 ? { target: 'pino-pretty', options: { colorize: true } }

@@ -13,7 +13,8 @@ describe('taskLine', () => {
   it('names the PR being reviewed', () => {
     const line = taskLine(pull);
     expect(line).toContain('#3');
-    expect(line).toContain('test: vulnerable fixture');
+    // the title is author text: it travels as its own untrusted part, not in the task line
+    expect(line).not.toContain('test: vulnerable fixture');
   });
 
   it('keeps the non-negotiable "never withhold security" rule', () => {
