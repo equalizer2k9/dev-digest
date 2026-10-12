@@ -11,6 +11,15 @@ export const s = {
     whiteSpace: "pre-wrap",
     lineHeight: 1.55,
   } satisfies CSSProperties,
+  columns: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(380px, 1fr))",
+    gap: 24,
+    alignItems: "start",
+  } satisfies CSSProperties,
+  column: {
+    minWidth: 0,
+  } satisfies CSSProperties,
   error: {
     fontSize: 14,
     color: "var(--text-muted)",

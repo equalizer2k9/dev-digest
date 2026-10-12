@@ -8,6 +8,12 @@ import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './reposit
 import { REVIEW_STRATEGY } from './constants.js';
 import { taskLine } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
+import { randomUUID } from 'node:crypto';
+import { IntentService } from './intent/intent-service.js';
+import { logLlmCall, logPromptAssembly } from '../../platform/prompt-log.js';
+
+/** The derived PR intent as the reviewer prompt takes it. */
+type ReviewIntent = NonNullable<Parameters<typeof reviewPullRequest>[0]['intent']>;
 
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
 export class RunCancelledError extends Error {
@@ -41,11 +47,15 @@ export type RunOutcome = {
  * review. Per-agent failures are isolated.
  */
 export class ReviewRunExecutor {
+  private intents: IntentService;
+
   constructor(
     private container: Container,
     private repo: ReviewRepository,
     private agents: Container['agentsRepo'],
-  ) {}
+  ) {
+    this.intents = new IntentService(container, repo);
+  }
 
   /**
    * Background execution of the queued agent runs (NOT awaited by the route).
@@ -105,6 +115,41 @@ export class ReviewRunExecutor {
     }
     runLog.info(`Diff ready — ${diff.files.length} changed file(s); starting ${jobs.length} agent run(s)`);
 
+    // One id ties the classifier call to every review call of this trigger in
+    // the structured logs.
+    const correlationId = randomUUID();
+
+    // PR intent, once for all queued agents: reuse the stored row (flagged when
+    // stale) or derive it with ONE classifier call. A failure never fails the
+    // review — it just runs without an intent section.
+    const intentResult = await this.intents.ensureForReview(
+      workspaceId,
+      pull,
+      repo,
+      diff,
+      logger,
+      correlationId,
+      (label, fn) => runLog.step(label, fn, { kind: 'tool' }),
+    );
+    let intent: ReviewIntent | undefined;
+    if (intentResult.outcome === 'failed') {
+      runLog.error(`PR intent unavailable — reviewing without it: ${intentResult.error}`);
+    } else {
+      const d = intentResult.detail;
+      intent = { summary: d.intent, inScope: d.in_scope, outOfScope: d.out_of_scope, confidence: d.confidence };
+      if (intentResult.outcome === 'derived' && intentResult.joined) {
+        runLog.info(
+          `PR intent derived by a concurrent request (${d.provider ?? 'unknown'}/${d.model ?? 'unknown'}, ${d.confidence} confidence)`,
+        );
+      }
+      if (intentResult.outcome === 'reused') {
+        runLog.info(
+          `PR intent reused (${d.provider ?? 'unknown'}/${d.model ?? 'unknown'}, ${d.confidence} confidence)` +
+            (d.stale ? ' — stale: the PR head moved since it was derived; recalculate to refresh' : ''),
+        );
+      }
+    }
+
     for (const { agent, runId } of jobs) {
       const agentStart = Date.now();
       logger?.info(
@@ -112,7 +157,11 @@ export class ReviewRunExecutor {
         `review: agent "${agent.name}" started (${agent.provider}/${agent.model})`,
       );
       try {
-        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, agent, runId, runLog);
+        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, agent, runId, runLog, {
+          intent,
+          correlationId,
+          logger,
+        });
         logger?.info(
           {
             runId,
@@ -144,6 +193,7 @@ export class ReviewRunExecutor {
     agent: AgentRow,
     runId: string,
     parentLog: RunLogger,
+    shared: { intent: ReviewIntent | undefined; correlationId: string; logger: Logger | undefined },
   ): Promise<RunOutcome> {
     const start = Date.now();
     // Narrow the fanned-out pre-work logger to THIS run; the shared diff/intent
@@ -195,6 +245,14 @@ export class ReviewRunExecutor {
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
       // the CI runner). The service owns only I/O: repo-intel context resolution
       // above, and persistence + observability below.
+      const callIds = {
+        call: 'review' as const,
+        correlationId: shared.correlationId,
+        prId: pull.id,
+        provider: agent.provider,
+        model: agent.model,
+      };
+      const verbose = this.container.config?.promptLogVerbose === true;
       const outcome = await reviewPullRequest({
         systemPrompt: agent.systemPrompt,
         model: agent.model,
@@ -211,6 +269,36 @@ export class ReviewRunExecutor {
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
+        // PR title is author text: its own untrusted part, never in the task line.
+        prTitle: pull.title,
+        // Derived PR intent/scope (untrusted section + trusted scope rule);
+        // omitted when none is available.
+        ...(shared.intent ? { intent: shared.intent } : {}),
+        // Section text previews exist only in verbose local logging.
+        ...(verbose ? { includePreviews: true } : {}),
+        onPromptAssembled: ({ sections }) =>
+          logPromptAssembly(shared.logger, {
+            ...callIds,
+            sections,
+            totalTokens: sections.reduce((n, s) => n + s.tokens, 0),
+            ...(verbose
+              ? {
+                  verbose: true,
+                  previews: sections.map((s) => ({ name: s.name, text: s.preview ?? '' })),
+                }
+              : {}),
+          }),
+        // One llm_call line per model call (per chunk in map-reduce); agent_runs
+        // keep the summed totals below.
+        onLlmCall: (c) =>
+          logLlmCall(shared.logger, {
+            ...callIds,
+            tokensIn: c.tokensIn,
+            tokensOut: c.tokensOut,
+            costUsd: c.costUsd,
+            durationMs: c.durationMs,
+            label: c.label,
+          }),
         // Skills Lab — omitted entirely when the agent has no enabled skill.
         ...(skills.length > 0 ? { skills } : {}),
         // Token attribution for the skills block. The engine stays dependency-

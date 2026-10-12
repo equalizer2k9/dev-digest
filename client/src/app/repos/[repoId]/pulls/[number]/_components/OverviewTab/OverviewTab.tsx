@@ -5,9 +5,11 @@ import { useTranslations } from "next-intl";
 import { SectionLabel, Skeleton } from "@devdigest/ui";
 import type { PrFile } from "@devdigest/shared";
 import { ApiError } from "@/lib/api";
+import { useIntent, useRecalculateIntent } from "@/lib/hooks/intent";
 import { useBlastRadius } from "@/lib/hooks/blast";
 import { useGenerateBrief, usePrBrief } from "@/lib/hooks/brief";
 import { BlastRadius } from "../BlastRadius";
+import { IntentCard } from "../IntentCard";
 import { PrBriefBlock } from "../PrBriefBlock";
 import { s } from "./styles";
 
@@ -24,6 +26,8 @@ export function OverviewTab({ prBody, prId, repoFullName, headSha, files, onOpen
   const t = useTranslations("blast");
   const tPr = useTranslations("prReview");
   const { data, isPending, isError } = useBlastRadius(prId);
+  const intent = useIntent(prId);
+  const recalc = useRecalculateIntent(prId);
   const briefQuery = usePrBrief(prId);
   const generate = useGenerateBrief(prId);
   const prFilePaths = React.useMemo(() => new Set(files.map((f) => f.path)), [files]);
@@ -33,8 +37,39 @@ export function OverviewTab({ prBody, prId, repoFullName, headSha, files, onOpen
       : "failed"
     : null;
 
+  const blast = isError ? (
+    <div role="alert" style={s.error}>{t("error")}</div>
+  ) : isPending || !data ? (
+    <div data-testid="blast-loading" style={s.loading}>
+      <Skeleton width={160} height={14} />
+      <Skeleton height={72} />
+    </div>
+  ) : (
+    <BlastRadius blast={data} repoFullName={repoFullName} headSha={headSha} />
+  );
+
   return (
     <>
+      {/* Intent on the left, blast radius on the right — the prototype's two-column Overview. */}
+      {prId ? (
+        <div style={s.columns}>
+          <div style={s.column}>
+            <IntentCard
+              intent={intent.data?.intent}
+              isLoading={intent.isLoading}
+              isError={intent.isError}
+              onRetry={() => intent.refetch()}
+              onRecalculate={() => recalc.mutate()}
+              isRecalculating={recalc.isPending}
+              recalcError={recalc.error instanceof ApiError ? recalc.error : recalc.error ? new ApiError("", 0) : null}
+            />
+          </div>
+          <div style={s.column}>{blast}</div>
+        </div>
+      ) : (
+        blast
+      )}
+
       {prBody && (
         <section>
           <SectionLabel icon="MessageSquare">{tPr("overview.description")}</SectionLabel>
@@ -53,17 +88,6 @@ export function OverviewTab({ prBody, prId, repoFullName, headSha, files, onOpen
         onRetryLoad={() => briefQuery.refetch()}
         onOpenFile={onOpenFile}
       />
-
-      {isError ? (
-        <div role="alert" style={s.error}>{t("error")}</div>
-      ) : isPending || !data ? (
-        <div data-testid="blast-loading" style={s.loading}>
-          <Skeleton width={160} height={14} />
-          <Skeleton height={72} />
-        </div>
-      ) : (
-        <BlastRadius blast={data} repoFullName={repoFullName} headSha={headSha} />
-      )}
     </>
   );
 }

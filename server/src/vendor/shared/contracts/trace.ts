@@ -61,6 +61,10 @@ export const PromptAssembly = z.object({
   repo_map: z.string().nullish(),
   /** PR author's description/body (truncated); null when absent. */
   pr_description: z.string().nullish(),
+  /** PR title, wrapped as untrusted data; null when absent. */
+  pr_title: z.string().nullish(),
+  /** Derived PR intent/scope section (untrusted-wrapped); null when absent. */
+  intent: z.string().nullish(),
   /** One entry per assembled skill, in prompt order; null when none ran.
       Nullish so every trace persisted before Skills Lab stays valid. */
   skill_blocks: z.array(SkillBlock).nullish(),

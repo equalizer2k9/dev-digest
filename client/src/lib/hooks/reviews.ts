@@ -48,6 +48,7 @@ export function useRefreshReviewsOnRunSettle(prId: string | null | undefined) {
     if (prev.current > 0 && activeCount === 0) {
       qc.invalidateQueries({ queryKey: ["reviews", prId] });
       qc.invalidateQueries({ queryKey: ["smart-diff", prId] });
+      qc.invalidateQueries({ queryKey: ["pr-intent", prId] });
     }
     prev.current = activeCount;
   }, [activeCount, prId, qc]);

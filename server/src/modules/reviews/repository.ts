@@ -13,8 +13,9 @@ import type { Finding, Intent, RunSummary, RunTrace } from '@devdigest/shared';
  * composes them so its public API stays identical.
  */
 
-import type { FindingRow, PullRow } from '../../db/rows.js';
-export type { FindingRow, PullRow };
+import type { FindingRow, PullRow, RepoRow } from '../../db/rows.js';
+import type { IntentRecord } from './repository/pull.repo.js';
+export type { FindingRow, PullRow, RepoRow, IntentRecord };
 
 export type ReviewRow = typeof t.reviews.$inferSelect;
 export type { ReviewUsage };
@@ -135,6 +136,14 @@ export class ReviewRepository {
 
   getIntent(prId: string): Promise<Intent | undefined> {
     return pullRepo.getIntent(this.db, prId);
+  }
+
+  getIntentRecord(prId: string): Promise<pullRepo.IntentRecord | undefined> {
+    return pullRepo.getIntentRecord(this.db, prId);
+  }
+
+  saveIntentRecord(prId: string, rec: pullRepo.IntentRecord): Promise<void> {
+    return pullRepo.saveIntentRecord(this.db, prId, rec);
   }
 
   // ---- observability: agent_runs + run_traces ----------------------------

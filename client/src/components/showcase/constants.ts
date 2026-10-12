@@ -1,5 +1,13 @@
 import type { Severity } from "@devdigest/ui";
-import type { BlastRadiusResponse, PrBrief, ConventionCandidate, FindingRecord, PrFile, SkillWithUsage } from "@devdigest/shared";
+import type {
+  BlastRadiusResponse,
+  ConventionCandidate,
+  FindingRecord,
+  PrBrief,
+  PrFile,
+  PrIntentDetail,
+  SkillWithUsage,
+} from "@devdigest/shared";
 
 /** Constants for the Showcase Gallery (dev-only). */
 
@@ -129,4 +137,23 @@ export const SHOWCASE_BRIEF: PrBrief = {
   head_sha: "abc1234",
   intent: null,
   history: null,
+};
+
+/** Sample PR intent used by the IntentCard gallery group. */
+export const SHOWCASE_INTENT: PrIntentDetail = {
+  pr_id: "00000000-0000-4000-8000-000000000001",
+  intent: "Add retry with backoff to the payments webhook handler.",
+  in_scope: ["Retry failed webhook deliveries", "Backoff configuration"],
+  out_of_scope: [],
+  confidence: "medium",
+  sources: [
+    { kind: "pr_title", ref: "PR title", status: "used" },
+    { kind: "pr_description", ref: "PR description", status: "used" },
+    { kind: "spec_file", ref: "docs/webhooks.md", status: "missing", reason: "notFound" },
+  ],
+  provider: "openrouter",
+  model: "deepseek/deepseek-v4-flash",
+  head_sha: "abc1234",
+  generated_at: "2026-10-12T10:00:00.000Z",
+  stale: true,
 };

@@ -6,6 +6,7 @@ import type { PrBrief } from "@devdigest/shared";
 import briefMessages from "../../../../../../messages/en/brief.json";
 import blastMessages from "../../../../../../messages/en/blast.json";
 import prReviewMessages from "../../../../../../messages/en/prReview.json";
+import intentMessages from "../../../../../../messages/en/intent.json";
 
 /* Wiring only: Overview → click in the brief → Files changed gets the file and
    line. Data hooks and the heavy children are mocked; OverviewTab and
@@ -78,6 +79,10 @@ vi.mock("../../../../../lib/repo-context", () => ({
 vi.mock("@/lib/hooks/blast", () => ({
   useBlastRadius: () => ({ isPending: true, isError: false, data: undefined }),
 }));
+vi.mock("@/lib/hooks/intent", () => ({
+  useIntent: () => ({ isLoading: false, isError: false, data: { intent: null }, refetch: vi.fn() }),
+  useRecalculateIntent: () => ({ mutate: vi.fn(), isPending: false, error: null }),
+}));
 vi.mock("@/lib/hooks/brief", () => ({
   usePrBrief: () => ({ isPending: false, isError: false, data: { brief: BRIEF }, refetch: vi.fn() }),
   useGenerateBrief: () => ({ mutate: vi.fn(), isPending: false, isError: false, error: null }),
@@ -90,7 +95,7 @@ function renderPage() {
     <QueryClientProvider client={new QueryClient()}>
       <NextIntlClientProvider
         locale="en"
-        messages={{ brief: briefMessages, blast: blastMessages, prReview: prReviewMessages }}
+        messages={{ brief: briefMessages, blast: blastMessages, prReview: prReviewMessages, intent: intentMessages }}
       >
         <PRDetailPage />
       </NextIntlClientProvider>

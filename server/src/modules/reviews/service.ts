@@ -1,5 +1,6 @@
 import type { Container } from '../../platform/container.js';
-import type { FindingActionKind, RunEventKind, RunTrace, SmartDiff } from '@devdigest/shared';
+import type { FindingActionKind, PrIntentDetail, RunEventKind, RunTrace, SmartDiff } from '@devdigest/shared';
+import { randomUUID } from 'node:crypto';
 import { AppError, NotFoundError } from '../../platform/errors.js';
 import type { AgentRow } from '../../db/rows.js';
 import { ReviewRepository } from './repository.js';
@@ -9,6 +10,7 @@ import { actOnFinding as actOnFindingImpl } from './findings.js';
 import { reviewToDto } from './helpers.js';
 import { latestReviewPerAgent } from '../_shared/latest-reviews.js';
 import { buildSmartDiff } from './smart-diff/build-smart-diff.js';
+import { IntentService } from './intent/intent-service.js';
 
 // Re-export DTO types + converters for backward-compatible imports from
 // './service.js' (these previously lived here; logic now in ./helpers.ts).
@@ -31,11 +33,13 @@ export class ReviewService {
   private repo: ReviewRepository;
   private agents: Container['agentsRepo'];
   private executor: ReviewRunExecutor;
+  private intents: IntentService;
 
   constructor(private container: Container) {
     this.repo = new ReviewRepository(container.db);
     this.agents = container.agentsRepo;
     this.executor = new ReviewRunExecutor(container, this.repo, this.agents);
+    this.intents = new IntentService(container, this.repo);
   }
 
   // ===========================================================================
@@ -191,6 +195,16 @@ export class ReviewService {
       files,
       latest.flatMap((r) => byId.get(r.id) ?? []),
     );
+  }
+
+  /** Stored PR intent (no model call); null when none was derived yet. */
+  async intentForPull(workspaceId: string, prId: string): Promise<PrIntentDetail | null> {
+    return this.intents.get(workspaceId, prId);
+  }
+
+  /** Re-derive the PR intent: exactly one classifier call. */
+  async recalculateIntent(workspaceId: string, prId: string, logger?: Logger): Promise<PrIntentDetail> {
+    return this.intents.recalculate(workspaceId, prId, logger, randomUUID());
   }
 
   async getRunTrace(runId: string): Promise<RunTrace | undefined> {
