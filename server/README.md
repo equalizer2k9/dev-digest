@@ -147,3 +147,5 @@ hermetic:
 
 A DB-backed test (one that imports `test/helpers/pg.ts`) **must** use the
 `*.it.test.ts` suffix so the split stays correct. See [`../TESTING.md`](../TESTING.md).
+
+Retry back-off for outbound calls is computed by `retryDelayMs` in `src/platform/retry-delay.ts`.
