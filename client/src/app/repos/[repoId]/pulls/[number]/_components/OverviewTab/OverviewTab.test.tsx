@@ -281,6 +281,14 @@ describe("OverviewTab — stored intent in the brief (AC-5, AC-31, AC-33)", () =
     expect(screen.getByText(briefMessages.inputs.noSpecs)).toBeInTheDocument();
   });
 
+  it("AC-5: brief shown and the intent query in error (no intent can be shown): 'No intent available' is shown", () => {
+    state.intent = { data: undefined, isLoading: false, isError: true };
+    withBrief();
+    renderTab();
+    expect(screen.getByText(briefMessages.inputs.noIntent)).toBeInTheDocument();
+    expect(screen.getByText(briefMessages.inputs.noSpecs)).toBeInTheDocument();
+  });
+
   it("AC-33: a stale stored intent is displayed marked as stale", () => {
     state.intent = loaded({ ...STORED, stale: true });
     withBrief();

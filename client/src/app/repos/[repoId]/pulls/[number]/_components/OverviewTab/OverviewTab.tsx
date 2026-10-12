@@ -72,7 +72,7 @@ export function OverviewTab({ prBody, prId, repoFullName, headSha, files, onOpen
       onRetryLoad={() => briefQuery.refetch()}
       onOpenFile={onOpenFile}
       intent={intentCard}
-      noIntent={!!prId && intent.isSuccess && intent.data?.intent == null}
+      noIntent={!!prId && (intent.isSuccess || intent.isError) && intent.data?.intent == null}
     />
   );
 

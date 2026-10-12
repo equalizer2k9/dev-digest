@@ -12,4 +12,4 @@ plan).
 
 | Spec | ID | Status | Summary |
 |---|---|---|---|
-| [pr-brief](pr-brief/spec.md) | SPEC-01 | approved | PR Why + Risk Brief: one grounded model call over computed PR facts — including the PR intent when the Intent Layer has stored one (AC-31 to AC-33, added 2026-10-12, not implemented yet) — stored per PR with the head SHA; a brief block on Overview whose entries open the file and line on Files changed. [Plan](pr-brief/plan.md) · [verification](../docs/hw5/plan-verification.md) — AC-13 and AC-22 are PARTIAL, with reasons. |
+| [pr-brief](pr-brief/spec.md) | SPEC-01 | implemented | PR Why + Risk Brief: one grounded model call over computed PR facts — including the PR intent when the Intent Layer has stored one (AC-31 to AC-33, added 2026-10-12) — stored per PR with the head SHA; a brief block on Overview whose entries open the file and line on Files changed. [Plan](pr-brief/plan.md) · [verification](../docs/hw5/plan-verification.md) — AC-13 and AC-22 are PARTIAL, with reasons. |

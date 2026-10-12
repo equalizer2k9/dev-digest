@@ -212,6 +212,8 @@ export interface BriefInput {
   user: string;
   /** Tokens of `system + "\n\n" + user`, the number that goes into the log record. */
   tokens: number;
+  /** False when the budget step cut the whole intent section (or none was given). */
+  intentIncluded: boolean;
 }
 
 const formatRanges = (ranges: LineRange[]) =>
@@ -314,7 +316,7 @@ export function buildBriefInput(
   const fits = () => measure() <= budget;
   const done = (): BriefInput => {
     const user = render(st);
-    return { system, user, tokens: count(`${system}\n\n${user}`) };
+    return { system, user, tokens: count(`${system}\n\n${user}`), intentIncluded: st.intent !== null };
   };
 
   if (fits()) return done();

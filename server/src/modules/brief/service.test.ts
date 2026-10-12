@@ -345,6 +345,31 @@ describe('BriefService.generate: stored intent (AC-31, AC-32, AC-33)', () => {
   });
 });
 
+describe('BriefService.generate: stored intent vs. what the model was given (AC-31)', () => {
+  it('AC-31: the whole intent cut from the model input -> stored intent is null', async () => {
+    count = (t) => t.length;
+    intentSvc.get.mockResolvedValue({ ...INTENT_DETAIL, intent: 'very long summary '.repeat(1500) });
+    const res = await make().generate(WS, PR, 'sha');
+    expect(modelText()).not.toContain('pr-intent');
+    expect(res.brief!.intent).toBeNull();
+    expect((repo.upsert.mock.calls[0]![1] as PrBrief).intent).toBeNull();
+  });
+
+  it('AC-31: only the lists cut from the model input -> stored intent is still set', async () => {
+    count = (t) => t.length;
+    intentSvc.get.mockResolvedValue({
+      ...INTENT_DETAIL,
+      in_scope: Array.from({ length: 300 }, (_, i) => `in-scope item number ${i} `.padEnd(60, 'x')),
+      out_of_scope: Array.from({ length: 300 }, (_, i) => `out-of-scope item ${i} `.padEnd(60, 'y')),
+    });
+    const res = await make().generate(WS, PR, 'sha');
+    expect(intentBlock(modelText())).toContain(INTENT_DETAIL.intent);
+    expect(res.brief!.intent).not.toBeNull();
+    expect(res.brief!.intent!.intent).toBe(INTENT_DETAIL.intent);
+    expect((repo.upsert.mock.calls[0]![1] as PrBrief).intent).not.toBeNull();
+  });
+});
+
 describe('BriefService.get', () => {
   it('returns { brief: null } when no row is stored', async () => {
     expect(await make().get(WS, PR)).toEqual({ brief: null });

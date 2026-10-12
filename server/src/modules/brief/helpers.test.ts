@@ -634,4 +634,30 @@ describe('buildBriefInput: stored intent', () => {
     const { user } = buildBriefInput(buildFacts(pull, [{ ...files[0]!, patch: PATCH + '\n+SECRET_BODY' }], null, INTENT), SYS, count, BRIEF_INPUT_TOKEN_BUDGET);
     expect(user).not.toContain('SECRET_BODY');
   });
+
+  it('plan order: intent lists, then the whole intent, are cut before any caller file:line is dropped', () => {
+    const ALL_CALLERS = ['src/call-a.ts:3', 'src/call-a.ts:9', 'src/call-b.ts:4', 'src/call-c.ts:5'];
+    const base = buildFacts({ title: 'Add the thing', body: LONG_BODY }, FIXTURE_FILES, FIXTURE_BLAST);
+    // Budget = the no-intent input plus a little room: an oversized intent cannot fit.
+    const budget = buildBriefInput(base, SYS, chars, Number.MAX_SAFE_INTEGER).tokens + 300;
+    const lists = {
+      ...INTENT,
+      in_scope: Array.from({ length: 300 }, (_, i) => `in-scope deliverable ${i} with a long description`),
+      out_of_scope: Array.from({ length: 300 }, (_, i) => `out-of-scope thing ${i} with a long description`),
+    };
+    const huge = { ...INTENT, intent: 'very long summary '.repeat(1500) };
+    for (const intent of [lists, huge]) {
+      const facts = buildFacts({ title: 'Add the thing', body: LONG_BODY }, FIXTURE_FILES, FIXTURE_BLAST, intent);
+      const out = buildBriefInput(facts, SYS, chars, budget);
+      expect(out.tokens).toBeLessThanOrEqual(budget);
+      expect(blocks(out.user)['blast-callers']!.split('\n')).toEqual(ALL_CALLERS);
+    }
+    const listsOut = buildBriefInput(
+      buildFacts({ title: 'Add the thing', body: LONG_BODY }, FIXTURE_FILES, FIXTURE_BLAST, lists),
+      SYS,
+      chars,
+      budget,
+    );
+    expect(blocks(listsOut.user)['pr-intent'] ?? '').not.toContain('in-scope deliverable 0');
+  });
 });

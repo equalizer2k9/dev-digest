@@ -118,9 +118,11 @@ export class BriefService {
       const brief: PrBrief = {
         ...groundDraft(draft, facts),
         head_sha: headSha,
-        intent: intent
-          ? { intent: intent.intent, in_scope: intent.in_scope, out_of_scope: intent.out_of_scope }
-          : null,
+        // Only what the model was actually given: null when the budget cut the section.
+        intent:
+          intent && input.intentIncluded
+            ? { intent: intent.intent, in_scope: intent.in_scope, out_of_scope: intent.out_of_scope }
+            : null,
         history: null,
       };
       await this.repo.upsert(prId, brief);

@@ -74,7 +74,7 @@ PrBriefResponse      = { brief: PrBrief.nullable() }                            
 
 - `Risk` is reused unchanged (`brief.ts:61-67`). `file_refs` stay plain paths with no line suffix.
 - `PrBrief.risks` becomes `Risk[]`, not the `Risks` wrapper. `blast` is removed from `PrBrief`. `Intent`, `PrHistory`, `Risks`, `BlastRadius` exports stay.
-- `intent` and `history` stay in `PrBrief` as nullable fields and are always written as `null` in this fork. **Decided by the spec owner (cross-model review F-3 proposed removing them):** they are fields of the starter contract, to be filled by the Intent Layer and PR history when those exist, so the stored JSON shape will not have to change; and `null` lets the UI show "no intent available" from the data rather than from a hard-coded assumption (AC-5).
+- `intent` and `history` stay in `PrBrief` as nullable fields. `history` is always written as `null`. `intent` was always `null` until AC-31 to AC-33 (2026-10-12): it now holds the stored PR intent that was given to the model, or `null` when none was stored or the budget cut it (see "AC-31 to AC-33" below). Original note: **Decided by the spec owner (cross-model review F-3 proposed removing them):** they are fields of the starter contract, to be filled by the Intent Layer and PR history when those exist, so the stored JSON shape will not have to change; and `null` lets the UI show "no intent available" from the data rather than from a hard-coded assumption (AC-5).
 - `PrBriefDraft` carries no refinements (`min`, `positive`, `max`). Strict `json_schema` is sent as-is (`openai.ts:105`) and number or length keywords are a rejection risk. Positivity of `line` and the caps are enforced by grounding.
 - `GET` returns `200 { brief: null }` when nothing is stored, so "no brief yet" is never confused with the `404` of AC-30 or a load failure (AC-27).
 
@@ -89,6 +89,7 @@ PrBriefResponse      = { brief: PrBrief.nullable() }                            
 - Budget: `BRIEF_INPUT_TOKEN_BUDGET = 8_000`. It covers the whole input: system text (template + injection guard) plus the user message. The JSON-schema / tool envelope a provider adds around the messages is not counted.
 - Measured as `container.tokenizer.count(system + "\n\n" + user)` (`server/src/platform/container.ts:134-138`; `server/src/adapters/tokenizer/index.ts:28-42`, cl100k_base, `ceil(chars/4)` fallback at `:24-26`).
 - The builder is a pure function taking `count` as an argument. Build the full input first; if over budget, cut in this order, recounting the whole input after each cut and stopping as soon as it fits:
+  0. *(added with AC-31)* The stored PR intent: its in-scope and out-of-scope lists first, then the whole intent section. It goes before everything else, so no caller and no file row is cut to make room for it.
   1. Blast radius caller files, one caller file at a time, last in blast order first (blast order is rank-descending, `server/src/modules/blast/helpers.ts:40-41,67`). The blast summary line stays.
   2. File rows with role `boilerplate` or `docs`, lowest churn (`additions + deletions`) first.
   3. The tail of the PR description: keep the longest prefix that fits; if an empty description still does not fit, drop the description section.
@@ -115,6 +116,7 @@ PrBriefResponse      = { brief: PrBrief.nullable() }                            
 
 ### Untrusted data
 
+- *(AC-31)* The stored intent is a fifth block, label `pr-intent`; a stale intent gets a fixed, trusted note outside the block.
 - Title, description, the file-row block and the caller block are each wrapped with `wrapUntrusted(label, text)` (`reviewer-core/src/prompt.ts:30-34`, exported at `reviewer-core/src/index.ts:17`). Labels: `pr-title`, `pr-description`, `changed-files`, `blast-callers`.
 - System text = `renderPrompt('brief.system.md', {})` (`server/src/platform/prompts.ts:40-42`) + `"\n\n"` + `INJECTION_GUARD` — the same composition as `reviewer-core/src/prompt.ts:150`. The guard is a module-private `const` today (`prompt.ts:16-28`); T-4 exports it, text unchanged.
 - The template describes the job only. Per `reviewer-core/CLAUDE.md` it does not describe the JSON shape.

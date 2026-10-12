@@ -1,6 +1,6 @@
 # Spec: PR Why + Risk Brief
 Spec ID: SPEC-01
-Status: approved
+Status: implemented
 Supersedes: —
 
 Source: `docs/hw5/requirements.md`; its criteria are referenced as `P<level>-<n>`.
@@ -222,3 +222,7 @@ above; details that are implementation rather than behaviour moved to the plan n
   ([`server/specs/intent-layer.md`](../../server/specs/intent-layer.md)) reached this branch, so "no
   intent exists in this fork" no longer holds. The status returns to `implemented` when the
   plan-verifier matrix for the touched criteria has no MISSING row.
+- 2026-10-12 — Status `approved` → `implemented`: the plan-verifier matrix for the touched criteria
+  (AC-5, AC-13 to AC-15, AC-31 to AC-33) has no MISSING row; AC-13 stays PARTIAL by the earlier decision
+  recorded under Deviations in the plan. See
+  [`docs/hw5/plan-verification.md`](../../docs/hw5/plan-verification.md), section 7.
