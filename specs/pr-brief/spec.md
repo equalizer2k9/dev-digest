@@ -171,6 +171,10 @@ Feedback and access
   example `+1,10000000`) → the brief is still generated within NFR-7: a hunk range is kept as its two
   numbers and never expanded line by line, and a line outside every range of its file is still dropped
   (AC-11). The model input of a PR that fits the budget without cuts is unchanged.
+- EC-14. A PR description longer than 16 000 characters → only its first 16 000 characters are
+  considered for the model input; a text longer than 12 characters per budget token is treated as over
+  budget without being tokenized. A path with a control character (a newline) is given to the model
+  with that character replaced by a space; grounding still uses the real path.
 
 ## Non-functional requirements
 
@@ -238,3 +242,6 @@ above; details that are implementation rather than behaviour moved to the plan n
   files or callers and for a hunk header with a huge count. Reason: the push security review flagged
   the budget step (one full render and tokenizer call per removed row) and the line-by-line expansion
   of hunk ranges as work an oversized PR could use to stall the API. No acceptance criterion changes.
+- 2026-10-12 — EC-14 added after the security review of the module
+  ([`docs/hw5/security-review.md`](../../docs/hw5/security-review.md)): description cap, length
+  pre-check before tokenizing, control characters in paths. No acceptance criterion changes.
