@@ -1,6 +1,7 @@
 {
   "mcpServers": {
     "devdigest": {
+      "type": "stdio",
       "command": "devdigest-mcp/node_modules/.bin/tsx",
       "args": ["devdigest-mcp/src/index.ts"]
     }

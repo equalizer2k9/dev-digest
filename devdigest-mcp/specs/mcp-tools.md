@@ -69,9 +69,9 @@ Arguments are flat. A PR is addressed as a human would: `pr_number` plus optiona
 
 | Tool | Type | Arguments | API calls | Returns |
 |---|---|---|---|---|
-| `list_agents` | read | — | `GET /agents` | `[{ id, name, description, enabled, provider, model }]` — never `system_prompt` |
+| `list_agents` | read | — | `GET /agents` | `[{ id, name, description, model, enabled }]` — never `system_prompt`, no `provider` |
 | `run_agent_on_pr` | **write** | `pr_number`, `agent` (name or id), `repo?` | resolve → `POST /pulls/:id/review` → poll `GET /pulls/:id/runs` until that run leaves `running` or 120 s pass → `GET /pulls/:id/reviews`, picked by `run_id` | `{ run_id, status, verdict, score, counts, findings[] }`; on timeout `{ status: "running", run_id, next }` — not an error |
-| `get_findings` | read | `pr_number`, `repo?`, `agent?` | resolve → `GET /pulls/:id/reviews` | per agent, its newest review: `{ agent, verdict, score, summary, counts, findings[{ severity, title, file, line }] }` |
+| `get_findings` | read | `pr_number`, `repo?`, `agent?` | resolve → `GET /pulls/:id/reviews` | per agent, its newest review: `{ review_id, agent, verdict, score, summary, counts, total_findings, findings[{ severity, title, file, line }] }` — `total_findings` counts every finding of the review, `findings` lists at most 50 |
 | `get_conventions` | read | `repo?` | resolve repo → `GET /repos/:id/conventions`, keep `status === 'accepted'` | `[{ rule, category, evidence: "file:line" }]` — accepted conventions of that repo only |
 | `get_blast_radius` | read | `pr_number`, `repo?` | resolve → `GET /pulls/:id/blast` — that one call; the route loads the PR's files itself | `{ summary, degraded, reason, symbols[{ symbol, callers["file:line name"], endpoints, crons }] }` |
 
@@ -86,7 +86,7 @@ Every failure is `isError: true` with text, never a bare status code.
 
 | Failure | Message |
 |---|---|
-| API unreachable | "DevDigest API is not reachable at <url>. Start it with ./scripts/dev.sh, then retry." |
+| API unreachable | "DevDigest API is not reachable at <origin>. Start it from the repo root with ./scripts/dev.sh (or `pnpm dev` in server/), then retry. Set DEVDIGEST_API_URL if the API runs elsewhere." — `<origin>` is scheme + host + port of `DEVDIGEST_API_URL` only: no credentials, path, query or fragment |
 | Unknown agent | "Agent '<x>' not found. Call list_agents and pass one of: <names>." |
 | Unknown PR | "PR #<n> not found in <repo>. Check the number with `gh pr list`; the PR must be imported in DevDigest." |
 | Unknown / ambiguous repo | "Repo '<x>' is not imported. Known repos: <list>. Pass repo as owner/name." |
@@ -106,6 +106,7 @@ Root `.mcp.json` (new):
 {
   "mcpServers": {
     "devdigest": {
+      "type": "stdio",
       "command": "devdigest-mcp/node_modules/.bin/tsx",
       "args": ["devdigest-mcp/src/index.ts"]
     }
@@ -176,8 +177,12 @@ P2-9 (PR description + video).
 - `api-client.test.ts` — error envelope → `ApiError`; network failure → `network_error`.
 - `resolve.test.ts` — repo by `full_name`; single-repo default; ambiguous; unknown PR; agent by
   name (case-insensitive) and by id.
-- `errors.test.ts` — one row per message in §3.
-- `format.test.ts` — `system_prompt` and other non-whitelisted fields never leave.
+- `errors.test.ts` — one row per message in §3; the unreachable-API text names the API origin and
+  never credentials, path or query of `DEVDIGEST_API_URL`.
+- `format.test.ts` — `system_prompt`, `provider` and other non-whitelisted fields never leave.
+- `tools/get-findings.test.ts` — newest review per agent; `review_id`; `total_findings` is the
+  full count when `findings` is cut to 50.
+- `mcp-config.test.ts` — root `.mcp.json` declares `"type": "stdio"`.
 - `tools/run-agent-on-pr.test.ts` — done → findings; failed → hint; timeout → "still running".
 - `tools/get-blast-radius.test.ts` — after resolving the PR, exactly one call, to
   `/pulls/:id/blast`; output keeps `degraded` and `reason`; unknown PR → hint.

@@ -7,9 +7,8 @@ export const AgentRow = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string().nullish(),
-  enabled: z.boolean(),
-  provider: z.string(),
   model: z.string(),
+  enabled: z.boolean(),
 });
 export type AgentRow = z.infer<typeof AgentRow>;
 export const AgentList = z.array(AgentRow);
@@ -44,6 +43,7 @@ export const FindingRow = z.object({
 export type FindingRow = z.infer<typeof FindingRow>;
 
 export const ReviewRow = z.object({
+  id: z.string(),
   run_id: z.string().nullish(),
   // ReviewRecord: agent_id nullable, agent_name nullish (agent deleted / run gone).
   agent_id: z.string().nullish(),

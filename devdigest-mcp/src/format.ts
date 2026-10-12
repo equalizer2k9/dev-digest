@@ -5,16 +5,15 @@ import type { AgentRow, BlastResponse, ConventionCandidate, FindingRow, ReviewRo
 /** Shown when the API has no agent behind a review (deleted agent). */
 export const UNKNOWN_AGENT = 'unknown';
 
-// Field whitelists: anything not named here (system_prompt, rationale, ids…) never leaves.
+// Field whitelists: anything not named here (system_prompt, provider, rationale…) never leaves.
 
 export const formatAgents = (agents: AgentRow[]) =>
   agents.slice(0, MAX_LIST).map((a) => ({
     id: a.id,
     name: clip(a.name, MAX_NAME),
     description: clip(a.description ?? '', MAX_TEXT),
-    enabled: a.enabled,
-    provider: clip(a.provider, MAX_NAME),
     model: clip(a.model, MAX_NAME),
+    enabled: a.enabled,
   }));
 
 export const formatFinding = (f: FindingRow) => ({
@@ -31,11 +30,14 @@ export function countBySeverity(findings: FindingRow[]): Record<string, number> 
 }
 
 export const formatReview = (r: ReviewRow) => ({
+  review_id: r.id,
   agent: clip(r.agent_name ?? UNKNOWN_AGENT, MAX_NAME),
   verdict: r.verdict == null ? null : clip(r.verdict, MAX_NAME),
   score: r.score ?? null,
   summary: clip(r.summary ?? '', MAX_TEXT),
   counts: countBySeverity(r.findings),
+  // Every finding of the run; `findings` below holds at most MAX_LIST of them.
+  total_findings: r.findings.length,
   findings: r.findings.slice(0, MAX_LIST).map(formatFinding),
 });
 

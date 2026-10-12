@@ -18,6 +18,20 @@ export function apiUrl(): string {
   return (raw || DEFAULT_API_URL).replace(/\/+$/, '');
 }
 
+/**
+ * The API's base address for messages: scheme + host + port only. Credentials, path, query and
+ * fragment of `DEVDIGEST_API_URL` never reach a tool result.
+ */
+export function apiOrigin(): string {
+  try {
+    const { protocol, host } = new URL(apiUrl());
+    if (host && (protocol === 'http:' || protocol === 'https:')) return `${protocol}//${host}`;
+  } catch {
+    // fall through — an unparsable value is not echoed either
+  }
+  return 'the address in DEVDIGEST_API_URL';
+}
+
 /** URL-encode one path segment — ids and names never reach a URL raw. */
 export const seg = (value: string): string => encodeURIComponent(value);
 

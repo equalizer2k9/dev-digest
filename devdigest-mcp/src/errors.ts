@@ -1,4 +1,4 @@
-import { ApiError, apiUrl } from './api-client.js';
+import { ApiError, apiOrigin } from './api-client.js';
 import { ELLIPSIS, MAX_ECHO, MAX_KNOWN, MAX_NAME, MAX_TEXT, SAFE_CODE_RE } from './constants.js';
 
 /** Cuts `s` to at most `max` chars, ending in a visible marker when it was cut. */
@@ -73,7 +73,10 @@ function failureFor(err: unknown): Record<string, unknown> {
   if (err instanceof HintError) return { error: err.message, hint: err.hint, ...err.details };
   if (err instanceof ApiError) {
     if (err.code === 'network_error') {
-      return { error: `DevDigest API is not reachable at ${apiUrl()}.`, hint: 'Start it with ./scripts/dev.sh, then retry.' };
+      return {
+        error: `DevDigest API is not reachable at ${apiOrigin()}.`,
+        hint: 'Start it from the repo root with ./scripts/dev.sh (or `pnpm dev` in server/), then retry. Set DEVDIGEST_API_URL if the API runs elsewhere.',
+      };
     }
     if (err.status === 429) {
       return { error: 'Rate limited (10 review starts per minute).', hint: 'Wait a minute and retry.' };
@@ -83,7 +86,7 @@ function failureFor(err: unknown): Record<string, unknown> {
       error: 'DevDigest API returned an error.',
       status: err.status,
       ...(SAFE_CODE_RE.test(err.code) ? { code: err.code } : {}),
-      hint: `Check the arguments and that the API at ${apiUrl()} is healthy, then retry.`,
+      hint: `Check the arguments and that the API at ${apiOrigin()} is healthy, then retry.`,
     };
   }
   console.error('devdigest-mcp: unexpected error', err);
