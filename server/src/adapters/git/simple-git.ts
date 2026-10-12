@@ -129,6 +129,16 @@ export class SimpleGitClient implements GitClient {
   async readFile(repo: RepoRef, path: string): Promise<string> {
     return readFile(join(this.clonePathFor(repo), path), 'utf8');
   }
+
+  async readFileAtRef(repo: RepoRef, ref: string, path: string): Promise<string> {
+    // The ref and path become one git argument (no shell); refuse anything that
+    // is not a plain hex SHA or that could climb out of the tree.
+    if (!/^[0-9a-f]{7,40}$/i.test(ref)) throw new Error(`invalid ref: ${ref}`);
+    if (path.startsWith('/') || path.split(/[\\/]/).includes('..') || path.includes('\0')) {
+      throw new Error(`invalid path: ${path}`);
+    }
+    return this.git(repo).show([`${ref}:${path}`]);
+  }
 }
 
 function parseBlamePorcelain(raw: string): BlameLine[] {

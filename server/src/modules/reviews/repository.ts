@@ -137,6 +137,14 @@ export class ReviewRepository {
     return pullRepo.getIntent(this.db, prId);
   }
 
+  getIntentRecord(prId: string): Promise<pullRepo.IntentRecord | undefined> {
+    return pullRepo.getIntentRecord(this.db, prId);
+  }
+
+  saveIntentRecord(prId: string, rec: pullRepo.IntentRecord): Promise<void> {
+    return pullRepo.saveIntentRecord(this.db, prId, rec);
+  }
+
   // ---- observability: agent_runs + run_traces ----------------------------
 
   /** Create an agent_runs row in `running` state; returns its id (= the runId). */

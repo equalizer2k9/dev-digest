@@ -130,6 +130,8 @@ export interface MockGitHubOptions {
   login?: string;
   /** Existing inline review comments returned by listReviewComments. */
   comments?: PrReviewComment[];
+  /** Repo files by path, served by getFileContent (anything else → null). */
+  fileContents?: Record<string, string>;
 }
 
 export class MockGitHubClient implements GitHubClient {
@@ -239,6 +241,10 @@ export class MockGitHubClient implements GitHubClient {
     return { number: n, title: `Issue #${n}`, body: 'mock issue', state: 'open' };
   }
 
+  async getFileContent(_repo: RepoRef, path: string, _ref: string): Promise<string | null> {
+    return this.opts.fileContents?.[path] ?? null;
+  }
+
   async currentLogin(): Promise<string> {
     return this.opts.login ?? 'mock-user';
   }
@@ -297,6 +303,11 @@ export class MockGitClient implements GitClient {
   }
   async readFile(_repo: RepoRef, path: string): Promise<string> {
     return this.opts.files?.[path] ?? '';
+  }
+  async readFileAtRef(_repo: RepoRef, _ref: string, path: string): Promise<string> {
+    const text = this.opts.files?.[path];
+    if (text === undefined) throw new Error(`path ${path} not found at ref`);
+    return text;
   }
 }
 
