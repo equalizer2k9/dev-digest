@@ -87,13 +87,24 @@ the tail is not sent) or its text holds a run of more than 64 letters, spaces or
 - **Client.** All model text is rendered as React text nodes; no `dangerouslySetInnerHTML`, no
   `href` built from model output; navigation only to a path in the PR's own file list.
 
-## 6. Tests added
+## 6. After the report: the commit check
+
+The automatic check of the fix commit flagged `brief/helpers.ts` again (prompt injection through an
+under-validated value). It gave no detail, so the fix covers the gap found on re-reading F3: the path
+clean-up handled ASCII control characters only.
+
+| Value | Was | Now |
+| --- | --- | --- |
+| File path, caller path | ASCII control characters replaced | every control and format character (NEL, line and paragraph separators, bidi overrides) replaced; `|` replaced too, so a path cannot forge the role or line-range cell of its own row |
+| Intent in-scope / out-of-scope item | passed as it was — a newline started a list item of its own | made one line the same way |
+
+## 7. Tests added
 
 | File | Covers |
 | --- | --- |
-| `server/src/modules/brief/helpers.bounds.test.ts` (15) | tokenizer calls for 3 000 files / callers; hunk count 10 000 000; grounding at range edges; ordinary PR unchanged; cut order; forged row (F3); description cap and length pre-check (F2) |
+| `server/src/modules/brief/helpers.bounds.test.ts` (21) | tokenizer calls for 3 000 files / callers; hunk count 10 000 000; grounding at range edges; ordinary PR unchanged; cut order; forged row (F3); description cap and length pre-check (F2); one-line cells (§6) |
 | `server/src/modules/brief/routes.test.ts` (2) | per-route rate limit on the POST, none on the GET (F1) |
 | `server/src/adapters/tokenizer/index.test.ts` (5) | exact count without a long run; 65 000-character runs of letters, whitespace, punctuation; text around a run (F2) |
 
-Gate after the fixes: server 559 / 559, client 356 / 356, reviewer-core 74 / 74, typecheck clean in
+Gate after the fixes: server 565 / 565, client 356 / 356, reviewer-core 74 / 74, typecheck clean in
 all three.
