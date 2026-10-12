@@ -66,8 +66,7 @@ const SYSTEM_INSTRUCTIONS =
   'changes if found in the diff;\n' +
   '- confidence: "high" only when the description or a linked issue/spec states the goal ' +
   'clearly, "medium" when you infer it from partial information, "low" when you are guessing.\n' +
-  'Never invent goals that are not supported by the provided data. Answer in the language ' +
-  'of the PR title.';
+  'Never invent goals that are not supported by the provided data. Write the answer in English.';
 
 function safeCount(count: (t: string) => number, text: string): number {
   try {

@@ -88,6 +88,8 @@ export function parseReferences(
     // Ordinary backticked text (`foo`, `a b`) is not a file reference; only
     // something that looks like a path with an extension is recorded as refused.
     if (kind === 'backtick' && !HAS_EXTENSION.test(raw.split('#')[0]!.split('?')[0]!)) return;
+    // A backticked code path (`src/a.ts`) is how a description names code, not a spec link.
+    if (kind === 'backtick' && r.reason === 'not_markdown') return;
     if (kind === 'link' && /^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(raw.trim())) return; // URLs and anchors are not file refs
     if (rejected.length >= MAX_REJECTED_REFS) return;
     const ref = displayRef(raw);
