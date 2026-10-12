@@ -220,3 +220,10 @@ steps B2 and B3.
 - **Gate, on the final code:** server `pnpm typecheck` clean, `pnpm test` 43 files / 410 tests;
   reviewer-core `npm run typecheck` clean, `npm test` 74 tests; client `pnpm typecheck` clean,
   `pnpm test` 39 files / 289 tests.
+
+### Follow-up on S-AC-9
+
+`OctokitGitHubClient.getFileContent` with `maxBytes` is now tested
+(`server/test/octokit-file-content.test.ts`). The size check there runs after the response
+arrives, which is bounded anyway: the GitHub contents API returns at most 1 MB of file content
+inline. The client copy of `vendor/shared/adapters.ts` was synced with the server copy.

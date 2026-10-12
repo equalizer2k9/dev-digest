@@ -124,8 +124,8 @@ describe('collectSources: SSRF / traversal (S-AC-9)', () => {
     const out = await run('`docs/big.md`', new FakeGit({ 'docs/big.md': big }, {}), new FakeGitHub());
     expect(out.files).toEqual([]);
     const s = out.sources.find((x) => x.ref === 'docs/big.md')!;
-    expect(s.status).not.toBe('used');
-    expect(s.reason).toBeTruthy();
+    expect(s.status).toBe('skipped');
+    expect(s.reason).toBe('too_large');
   });
 });
 
