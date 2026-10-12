@@ -20,6 +20,7 @@ Reusable AI skills that provide specialized knowledge and workflows. Canonical l
 | [mermaid-diagram](mermaid-diagram/SKILL.md) | Shared | Mermaid diagrams in markdown (flowcharts, sequence, ERD, …) |
 | [engineering-insights](engineering-insights/SKILL.md) | Workflow | Capture non-obvious insights into module `INSIGHTS.md` (append-only, 7 sections) |
 | [pr-self-review](pr-self-review/SKILL.md) | Workflow | Gate the uncommitted diff: route by surface, run package checks, block merge on a critical (user-invoked only) |
+| [workflow-retro](workflow-retro/SKILL.md) | Workflow | Numbers of a multi-agent run from the session logs (tokens, agents, parallelism, duplicated context) → three actions and a row in `docs/retros/ledger.md` (user-invoked only; `deep` reads subagent logs) |
 
 ## What Are Skills?
 
