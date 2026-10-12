@@ -22,3 +22,5 @@ delegated to the `ms` package, which is added as a dependency. The helper is exp
   adapters) — they keep their current delays;
 - jitter and a maximum delay cap;
 - retry policy: which errors are retried and how many times.
+
+See the linked issue for the acceptance examples.
