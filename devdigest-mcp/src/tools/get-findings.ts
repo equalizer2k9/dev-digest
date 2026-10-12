@@ -34,7 +34,7 @@ export function registerGetFindings(server: McpServer) {
     'get_findings',
     {
       description:
-        "Read the findings of reviews already finished on a PR; does not start a run (use run_agent_on_pr for that). Arguments: pr_number, repo (owner/name, optional when only one repo is imported), agent (name or id, optional; default all agents). Returns, per agent, its newest review: { agent, verdict, score, summary, counts, findings[{ severity, title, file, line }] }." + ' ' + DATA_NOT_INSTRUCTIONS,
+        "Read the findings of reviews already finished on a PR; does not start a run (use run_agent_on_pr for that). Arguments: pr_number, repo (owner/name, optional when only one repo is imported), agent (name or id, optional; default all agents). Returns, per agent, its newest review: { review_id, agent, verdict, score, summary, counts, total_findings, findings[{ severity, title, file, line }] }. total_findings is the full number of findings of that review; findings lists at most 50 of them." + ' ' + DATA_NOT_INSTRUCTIONS,
       inputSchema: {
         pr_number: z.number().int().positive(),
         repo: z.string().optional(),

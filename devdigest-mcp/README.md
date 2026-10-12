@@ -7,9 +7,9 @@ HTTP API — it holds no data and no domain logic.
 
 | Tool | Type | What |
 |---|---|---|
-| `list_agents` | read | configured reviewers (`id`, `name`, `description`, `enabled`, `provider`, `model`) |
+| `list_agents` | read | configured reviewers (`id`, `name`, `description`, `model`, `enabled`) |
 | `run_agent_on_pr` | **write** | starts a review, waits up to 120 s, returns the findings |
-| `get_findings` | read | newest review per agent for a PR |
+| `get_findings` | read | newest review per agent for a PR, each with `review_id` and `total_findings` (the full count; the list holds at most 50) |
 | `get_conventions` | read | accepted conventions of a repo (`rule`, `category`, `file:line`) |
 | `get_blast_radius` | read | callers, endpoints and crons a PR's changed symbols reach |
 
@@ -67,6 +67,7 @@ Every command says where to run it: **repo root** = the folder that holds `.mcp.
 
    ```json
    { "mcpServers": { "devdigest": {
+       "type": "stdio",
        "command": "devdigest-mcp/node_modules/.bin/tsx",
        "args": ["devdigest-mcp/src/index.ts"] } } }
    ```
@@ -103,7 +104,8 @@ npm run typecheck && npm test      # fetch is mocked; no API needed
 ## Errors
 
 Every failure comes back as a tool error with the next step, e.g. "DevDigest API is not reachable
-at http://localhost:3001. Start it with ./scripts/dev.sh, then retry." or "Agent 'x' not found.
+at http://localhost:3001. Start it from the repo root with ./scripts/dev.sh ..." (the address is
+scheme + host + port only — never credentials or a query string from `DEVDIGEST_API_URL`) or "Agent 'x' not found.
 Call list_agents and pass one of: ...". Full table: spec §3.
 
 More: [AGENTS.md](AGENTS.md) (rules for contributors) · [docs/](docs/README.md) ·

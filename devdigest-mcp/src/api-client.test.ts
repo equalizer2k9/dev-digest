@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { ApiError, apiGet, apiPost, seg } from './api-client.js';
+import { ApiError, apiGet, apiOrigin, apiPost, seg } from './api-client.js';
 import { mockApi } from './mock-api.js';
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 describe('api-client', () => {
   it('decodes the { error: { code, message } } envelope into ApiError', async () => {
@@ -62,5 +62,28 @@ describe('api-client', () => {
 
   it('URL-encodes path segments', () => {
     expect(seg('a/b c?')).toBe('a%2Fb%20c%3F');
+  });
+
+  describe('AC-C: apiOrigin', () => {
+    it('defaults to http://localhost:3001 when the env is unset', () => {
+      vi.stubEnv('DEVDIGEST_API_URL', '');
+      expect(apiOrigin()).toBe('http://localhost:3001');
+    });
+    it('keeps scheme + host + port, drops credentials, path, query, fragment', () => {
+      vi.stubEnv('DEVDIGEST_API_URL', 'http://user:s3cret@api.example.com:8443/base/path?token=abc123#frag');
+      expect(apiOrigin()).toBe('http://api.example.com:8443');
+    });
+    it('supports https', () => {
+      vi.stubEnv('DEVDIGEST_API_URL', 'https://api.example.com/');
+      expect(apiOrigin()).toBe('https://api.example.com');
+    });
+    it('echoes nothing of an unparsable value', () => {
+      vi.stubEnv('DEVDIGEST_API_URL', 'not a url ?token=abc123');
+      expect(apiOrigin()).not.toMatch(/token|abc123|not a url/);
+    });
+    it('echoes nothing of a non-http scheme', () => {
+      vi.stubEnv('DEVDIGEST_API_URL', 'ftp://u:pw@host/x?token=abc123');
+      expect(apiOrigin()).not.toMatch(/ftp|pw|token|abc123|host/);
+    });
   });
 });

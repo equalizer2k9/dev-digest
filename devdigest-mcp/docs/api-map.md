@@ -5,9 +5,9 @@ Spec of record: [`../specs/mcp-tools.md`](../specs/mcp-tools.md). Response shape
 
 | Tool | Calls (in order) | Reads | Returns |
 |---|---|---|---|
-| `list_agents` | `GET /agents` | `id name description enabled provider model` | same fields, no `system_prompt` |
-| `run_agent_on_pr` | `GET /repos` → `GET /repos/:id/pulls` → `GET /agents` → `POST /pulls/:id/review {agentId}` → poll `GET /pulls/:id/runs` (2 s) → `GET /pulls/:id/reviews` | run `run_id status error`; review `run_id verdict score findings` | `{ run_id, status, verdict, score, counts, findings[] }`; after 120 s `{ status: "running", run_id, next }` |
-| `get_findings` | `GET /repos` → `GET /repos/:id/pulls` → (`GET /agents` if `agent`) → `GET /pulls/:id/reviews` | review `agent_id agent_name verdict score summary created_at findings` | newest review per agent |
+| `list_agents` | `GET /agents` | `id name description model enabled` | same fields, no `system_prompt`, no `provider` |
+| `run_agent_on_pr` | `GET /repos` → `GET /repos/:id/pulls` → `GET /agents` → `POST /pulls/:id/review {agentId}` → poll `GET /pulls/:id/runs` (2 s) → `GET /pulls/:id/reviews` | run `run_id status error`; review `id run_id verdict score findings` | `{ run_id, status, verdict, score, counts, findings[] }`; after 120 s `{ status: "running", run_id, next }` |
+| `get_findings` | `GET /repos` → `GET /repos/:id/pulls` → (`GET /agents` if `agent`) → `GET /pulls/:id/reviews` | review `id agent_id agent_name verdict score summary created_at findings` | newest review per agent, with `review_id` and `total_findings` (full count; `findings` ≤ 50) |
 | `get_conventions` | `GET /repos` → `GET /repos/:id/conventions` | candidate `rule category status evidence_path evidence_start_line` | accepted only, `evidence: "path:line"` |
 | `get_blast_radius` | `GET /repos` → `GET /repos/:id/pulls` → `GET /pulls/:id/blast` | `summary degraded reason downstream[]` | `symbols[{ symbol, callers["file:line name"], endpoints, crons }]` |
 

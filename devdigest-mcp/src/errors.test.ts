@@ -13,12 +13,28 @@ const body = (e: unknown) => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe('toToolError — one row per message of the spec (fixed wording, data in fields)', () => {
-  it('API unreachable', () => {
-    vi.stubEnv('DEVDIGEST_API_URL', 'http://localhost:3001');
-    expect(body(new ApiError('network_error', 'fetch failed', 0))).toEqual({
-      error: 'DevDigest API is not reachable at http://localhost:3001.',
-      hint: 'Start it with ./scripts/dev.sh, then retry.',
-    });
+  it('AC-C: API unreachable names the origin and how to start the API', () => {
+    vi.stubEnv('DEVDIGEST_API_URL', '');
+    const b = body(new ApiError('network_error', 'fetch failed', 0));
+    expect(b.error).toContain('http://localhost:3001');
+    expect(b.hint).toContain('./scripts/dev.sh');
+  });
+  it('AC-C: only scheme+host+port of DEVDIGEST_API_URL leak', () => {
+    vi.stubEnv('DEVDIGEST_API_URL', 'http://user:s3cret@api.example.com:8443/base/path?token=abc123#frag');
+    for (const e of [new ApiError('network_error', 'fetch failed', 0), new ApiError('validation_error', 'bad', 422)]) {
+      const s = JSON.stringify(body(e));
+      expect(s).toContain('http://api.example.com:8443');
+      for (const bad of ['user', 's3cret', 'token', 'abc123', 'frag', '/base/path']) expect(s).not.toContain(bad);
+    }
+  });
+  it('AC-C: an unparsable DEVDIGEST_API_URL is not echoed', () => {
+    vi.stubEnv('DEVDIGEST_API_URL', 'not a url ?token=abc123');
+    for (const e of [new ApiError('network_error', 'x', 0), new ApiError('validation_error', 'bad', 422)]) {
+      expect(JSON.stringify(body(e))).not.toMatch(/token|abc123|not a url/);
+    }
+  });
+  it('AC-C: the underlying fetch error message is never echoed', () => {
+    expect(JSON.stringify(body(new ApiError('network_error', 'ECONNREFUSED 10.0.0.9', 0)))).not.toMatch(/ECONNREFUSED|10\.0\.0\.9/);
   });
   it('unknown agent', () => {
     expect(body(unknownAgent('x', ['A', 'B']))).toEqual({
@@ -74,6 +90,7 @@ describe('toToolError — one row per message of the spec (fixed wording, data i
       error: 'DevDigest API returned an error.', status: 422, code: 'validation_error',
     });
     expect(JSON.stringify(body(new ApiError('validation_error', 'bad id', 422)))).not.toMatch(/bad id/);
+    expect(body(new ApiError('validation_error', 'bad', 422)).hint).toContain('http://localhost:3001');
   });
   it('unknown exception is generic and leaks nothing', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});

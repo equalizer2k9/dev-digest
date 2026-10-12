@@ -14,7 +14,7 @@ export function registerListAgents(server: McpServer) {
     'list_agents',
     {
       description:
-        'List the configured DevDigest reviewer agents. Call this first when you need an agent for run_agent_on_pr or get_findings. No arguments. Returns [{ id, name, description, enabled, provider, model }]; prompts are never included.' + ' ' + DATA_NOT_INSTRUCTIONS,
+        'List the configured DevDigest reviewer agents. Call this first when you need an agent for run_agent_on_pr or get_findings. No arguments. Returns [{ id, name, description, model, enabled }]; prompts and the provider are never included.' + ' ' + DATA_NOT_INSTRUCTIONS,
       annotations: { readOnlyHint: true },
     },
     () => runTool(listAgents),

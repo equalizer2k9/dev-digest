@@ -22,7 +22,7 @@ const BASE_ROUTES_KEYS = Object.fromEntries(Object.keys(BASE_ROUTES).map((k) => 
 
 const start = { 'POST /pulls/p-uuid/review': { pr_id: 'p-uuid', runs: [{ run_id: 'run1', agent_id: 'a1', agent_name: 'Security Reviewer' }], reviews: [] } };
 const review = {
-  run_id: 'run1', agent_id: 'a1', agent_name: 'Security Reviewer', verdict: 'request_changes', summary: 's', score: 40,
+  id: 'rev-1', run_id: 'run1', agent_id: 'a1', agent_name: 'Security Reviewer', verdict: 'request_changes', summary: 's', score: 40,
   created_at: '2026-01-01',
   findings: [
     { severity: 'CRITICAL', title: 'SQLi', file: 'a.ts', start_line: 3, rationale: 'x' },
