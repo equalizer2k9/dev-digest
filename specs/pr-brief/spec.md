@@ -1,6 +1,6 @@
 # Spec: PR Why + Risk Brief
 Spec ID: SPEC-01
-Status: implemented
+Status: approved
 Supersedes: —
 
 Source: `docs/hw5/requirements.md`; its criteria are referenced as `P<level>-<n>`.
@@ -25,8 +25,10 @@ tied to files, and gives an ordered `file:line` reading list, without inventing 
 
 Non-goals:
 
-- NG1. PR intent and attached spec documents: the Intent Layer and the Project Context Folder do not
-  exist in this fork; the brief works without them and says so.
+- NG1. Deriving the PR intent: the brief never derives one. It uses the intent the Intent Layer has
+  stored for the PR, when there is one (AC-31 to AC-33), and says so when there is none. Attached spec
+  documents: the Project Context Folder does not exist in this fork; the brief works without it and
+  says so.
 - NG2. A verdict banner with PR score inside the brief (P3-1); workflow-retro and cost report (P3-7);
   homework delivery criteria (P1-7, P1-8, P2-1 to P2-3), which are not system behaviour.
 - NG3. Using a linked issue as a fact, in any form.
@@ -66,8 +68,8 @@ Brief block
   Review focus list, with an explicit empty-state text in place of a list that is empty.
 - AC-4 (P1-2). The system shall display the existing Blast radius block, computed live, on the Overview
   tab together with the PR Brief block.
-- AC-5 (P1-2). WHILE a brief is displayed, the system shall state that no intent is available and that
-  no specs are attached.
+- AC-5 (P1-2). WHILE a brief is displayed, the system shall state that no specs are attached, and —
+  unless an intent is shown per AC-31 — that no intent is available.
 - AC-6 (P1-3). The system shall display each risk with its title, its severity (high, medium, low) and at
   least one file path, ordered by severity high to low and by model order within a severity.
 - AC-7 (P1-3). The system shall display each Review focus item as `file:line` with its reason, in the
@@ -96,6 +98,15 @@ Model call
 - AC-15. The system shall give the model these facts: the PR title; the PR description when present; per
   changed file its path, added and removed line counts, Smart Diff role and hunk line ranges as numbers
   only; and, when a blast radius is available, its summary and the file and line of each caller.
+- AC-31. WHERE an intent is stored for the pull request, WHEN a brief is generated, the system shall give
+  the model that intent — its summary, in-scope and out-of-scope lists and confidence — as one of the
+  facts of AC-15, and shall display the intent in the Intent block of the PR Brief; where no intent is
+  stored, the system shall generate the brief without one and state "No intent available".
+- AC-32. The system shall never derive an intent in order to generate a brief: a generation remains
+  exactly one request to the model provider (AC-13), whether or not an intent is stored.
+- AC-33. WHERE the stored intent was derived for an earlier head commit than the pull request's current
+  one, the system shall still give it to the model, marked as stale, and shall display it marked as
+  stale.
 - AC-16 (P2-6). The system shall store a brief only from a reply that validates against the brief
   contract (summary, risks, Review focus items of file + line + reason), which the API and the studio
   shall define with identical shape.
@@ -154,13 +165,16 @@ Feedback and access
   facts nor in the allowed path set. No work required.
 - EC-11. Title, description or a path reads like instructions to the model → treated as data; the reply
   must still pass AC-16, AC-10 and AC-11.
+- EC-12. An intent is stored after the brief was generated → the stored brief is not rewritten; the
+  Intent block shows the stored intent, and the brief takes it in on the next generation (AC-21).
 
 ## Non-functional requirements
 
 - NFR-1. Cost: one generation = one provider request; a page load = zero model calls.
 - NFR-2. Input budget 8 000 tokens for the whole input, by the system's own tokenizer count.
 - NFR-3. Kept out of the model input: hunk bodies, file contents, findings, repository map, commit
-  messages, issues, intent, specs, PR history, symbol and caller names.
+  messages, issues, specs, PR history, symbol and caller names. The stored intent is the one exception
+  added by AC-31; it counts toward the 8 000 tokens of NFR-2, which does not change.
 - NFR-4. Model-produced text is displayed as plain text, never interpreted as markup.
 - NFR-5. API keys and tokens never appear in a stored brief or in logs of the generation.
 - NFR-6. A stored brief is readable when GitHub is unreachable; a generation always ends, in a stored
@@ -181,13 +195,16 @@ Model input budget: **8 000 tokens** per call, whole input, counted by the serve
 | Allowed path set, known lines | `[deterministic: unions of the rows above]` | — |
 | Provider and model | `[reused: Settings → Risk Brief]` | `server/src/vendor/shared/contracts/platform.ts:58-64`, `settings/feature-models.ts:51-57` |
 | Head commit SHA | `[reused: head SHA returned with PR detail]` | `server/src/adapters/github/octokit.ts:98` |
+| Stored PR intent: summary, in scope, out of scope, confidence, stale flag | `[reused: Intent Layer, read through its service — no model call]` | `server/src/modules/reviews/intent/intent-service.ts`, [`server/specs/intent-layer.md`](../../server/specs/intent-layer.md) |
 | Summary, risks, Review focus | `[new: 1 LLM call]` | input ≤ 8 000 tokens, no hunk bodies |
 | Stored brief | `[reused: existing one-per-PR brief store]` | `server/src/db/schema/reviews.ts:57-62` |
 
 ## Untrusted inputs
 
 PR title, PR description, changed file paths and blast radius caller file paths come from outside the
-system's control. Each is **data, not instructions**: in the model input each is wrapped in delimiters
+system's control. So does the stored intent: a model derived it from the PR author's own words, so it
+is a fact about what the author says the PR is for, never an instruction and never a reason to drop
+or soften a risk. Each is **data, not instructions**: in the model input each is wrapped in delimiters
 under an injection guard — the same treatment the diff and PR description get in review runs
 (`reviewer-core/src/prompt.ts:16-33`). The model's reply is not trusted either: it is accepted only
 through AC-16, AC-10 and AC-11 and shown as plain text (NFR-4).
@@ -196,3 +213,12 @@ through AC-16, AC-10 and AC-11 and shown as plain text (NFR-4).
 
 None. All 19 clarifications (OQ-1 to OQ-19) were answered by the user and are folded into the criteria
 above; details that are implementation rather than behaviour moved to the plan notes.
+
+## Changelog
+
+- 2026-10-12 — Status `implemented` → `approved`: AC-31 to AC-33 added (the brief uses the intent stored
+  by the Intent Layer, never derives one, passes a stale intent marked as stale); AC-5, NG1, NFR-3,
+  the inputs table, the untrusted-inputs note and EC-12 follow. Reason: the Intent Layer
+  ([`server/specs/intent-layer.md`](../../server/specs/intent-layer.md)) reached this branch, so "no
+  intent exists in this fork" no longer holds. The status returns to `implemented` when the
+  plan-verifier matrix for the touched criteria has no MISSING row.
