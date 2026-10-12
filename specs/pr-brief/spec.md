@@ -167,6 +167,10 @@ Feedback and access
   must still pass AC-16, AC-10 and AC-11.
 - EC-12. An intent is stored after the brief was generated → the stored brief is not rewritten; the
   Intent block shows the stored intent, and the brief takes it in on the next generation (AC-21).
+- EC-13. A PR with thousands of changed files or callers, or a hunk header with a huge line count (for
+  example `+1,10000000`) → the brief is still generated within NFR-7: a hunk range is kept as its two
+  numbers and never expanded line by line, and a line outside every range of its file is still dropped
+  (AC-11). The model input of a PR that fits the budget without cuts is unchanged.
 
 ## Non-functional requirements
 
@@ -179,6 +183,10 @@ Feedback and access
 - NFR-5. API keys and tokens never appear in a stored brief or in logs of the generation.
 - NFR-6. A stored brief is readable when GitHub is unreachable; a generation always ends, in a stored
   brief or a visible failure.
+- NFR-7. Building the model input grows linearly with the number of changed files and callers and does
+  not depend on the line counts in hunk headers: reducing the input to the budget (AC-14) costs a
+  number of tokenizer calls that grows at most with the logarithm of the number of files and callers,
+  never one call per removed row. A large PR does not block the API.
 
 ## Inputs and provenance
 
@@ -226,3 +234,7 @@ above; details that are implementation rather than behaviour moved to the plan n
   (AC-5, AC-13 to AC-15, AC-31 to AC-33) has no MISSING row; AC-13 stays PARTIAL by the earlier decision
   recorded under Deviations in the plan. See
   [`docs/hw5/plan-verification.md`](../../docs/hw5/plan-verification.md), section 7.
+- 2026-10-12 — NFR-7 and EC-13 added: building the model input is bounded for a PR with thousands of
+  files or callers and for a hunk header with a huge count. Reason: the push security review flagged
+  the budget step (one full render and tokenizer call per removed row) and the line-by-line expansion
+  of hunk ranges as work an oversized PR could use to stall the API. No acceptance criterion changes.
