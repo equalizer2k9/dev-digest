@@ -29,8 +29,8 @@ serves one, and the reviewer prompt has no slot for it. Comments in `run-executo
   `POST /pulls/:id/intent/recalculate` re-derives it with exactly one call.
 - A review derives the intent once if none is stored, and the logs show the classifier call and
   the review call as two separate calls.
-- The reviewer receives the intent as a separate, untrusted section. Scope narrows what it
-  comments on; it can never mute a CRITICAL.
+- The reviewer receives the intent as a separate, untrusted section. Scope is a focus hint: it
+  trims nits outside scope and can never hide a defect or mute a CRITICAL.
 - Every prompt assembly is logged per section — name, source, token size — with model and a
   correlation id, and without secrets, diff or spec text.
 - While the prompt assembly is open anyway: `wrapUntrusted` neutralises forged `<untrusted` /
@@ -90,8 +90,10 @@ cut. Every cut is recorded on the matching `sources` entry as `reason: 'truncate
   bare `#N` is not a linked issue. A number that turns out to be a pull request is recorded as
   `skipped` and not used.
 - **Files** come from relative Markdown links, backticked paths and same-repo
-  `/blob/<ref>/<path>` URLs, which are reduced to a path. Only `.md`, with a size cap. A path
-  is normalised and rejected before any read if it is absolute or has a `..` segment.
+  `/blob/<ref>/<path>` URLs, which are reduced to a path. Only `.md`, with a size cap checked
+  before the read. A path is normalised and rejected before any read if it is absolute, has a
+  `..` segment or contains a control character; in the prompt it appears only inside the
+  untrusted block, never in a heading.
 - **Where a file is read from**, in this order, all inside the PR's own repo: (1) the PR head
   commit — `git show <head_sha>:<path>` in the clone through a new `GitClient.readFileAtRef`,
   or, when the clone does not have that commit, the GitHub contents API for the same repo at
@@ -155,10 +157,17 @@ totals stay "review call(s) only", so the run cost badge keeps its meaning.
 
 - user message: a `## PR intent and scope` section right after `## PR description`, its content
   inside `wrapUntrusted('pr-intent', …)`;
-- system message: a trusted `SCOPE_RULE` after the injection guard — comment only on what is in
-  scope; a CRITICAL outside scope is still reported, with its title starting with the literal
-  marker `Out of scope: `, so the reader sees one clear signal in the findings list; nothing
-  below CRITICAL is reported outside scope; scope never waives a CRITICAL.
+- system message: a trusted `SCOPE_RULE` after the injection guard. Scope is a focus hint, never
+  a suppression of defects: severity is judged from the code alone, before scope is looked at;
+  outside scope only SUGGESTION-level, non-defect remarks (style, naming, nits) are withheld; a
+  real defect outside scope — WARNING or CRITICAL — is still reported at its true severity, with
+  its title starting with the literal marker `Out of scope: `, so the reader sees one clear
+  signal in the findings list; scope never waives a CRITICAL.
+
+Why not "nothing below CRITICAL outside scope", as first planned: the scope is derived from the
+PR author's own words, so that rule let a description ("out of scope: authentication") hide a
+WARNING-grade defect. The security review flagged it as CRITICAL (see
+[`docs/hw3/intent-security-review.md`](../../docs/hw3/intent-security-review.md)).
 
 The marker is a title prefix written by the model — no contract or DB change. Without an intent
 there is no intent section and no `SCOPE_RULE`. No code path drops, downgrades or merges a
@@ -262,9 +271,9 @@ level down — censored as `[redacted]`.
   `SCOPE_RULE`; without intent the prompt has neither.
 - [ ] **S-AC-15 (CRITICAL never muted)** — no code path drops, downgrades or merges a finding by
   intent or scope; a stubbed CRITICAL in a file outside `in_scope` survives `reviewPullRequest`
-  and is persisted, with or without the marker; `SCOPE_RULE` contains the rule: an out-of-scope
-  CRITICAL is reported with a title starting `Out of scope: `, and scope never waives a
-  CRITICAL.
+  and is persisted, with or without the marker; `SCOPE_RULE` contains the rule: outside scope
+  only SUGGESTION-level non-defect remarks are withheld, a WARNING or CRITICAL defect is
+  reported with a title starting `Out of scope: `, and scope never waives a CRITICAL.
 - [ ] **S-AC-16 (assembly log)** — each model call emits one `prompt_assembly` line with `call`,
   `correlationId`, `prId`, `provider`, `model`, `sections: [{ name, source, tokens }]`,
   `totalTokens`; no field holds prompt, diff, spec or issue text, or a key.
@@ -307,6 +316,8 @@ Settled with the owner on 2026-10-12:
 1. The summary stays in the existing `intent` field; the UI labels it "Summary". `Intent` is not
    changed.
 2. Out-of-scope CRITICAL: prompt rule + the `Out of scope: ` title marker. No structured field.
+   Narrowed after the security review: the marker applies to WARNING defects too, and only
+   SUGGESTION-level remarks are withheld outside scope.
 3. `review_intent` defaults to `deepseek/deepseek-v4-flash` via OpenRouter; the classifier takes
    its model only from `resolveFeatureModel(…, 'review_intent')`.
 4. Confidence is `low | medium | high`, capped by the server.

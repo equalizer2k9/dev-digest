@@ -59,8 +59,8 @@ showcase and tested without mocks.
 - An empty In scope or Out of scope list shows an explicit "nothing listed" text, not a blank.
 - The summary block is labelled "Summary"; it shows the contract's `intent` field.
 - **Confidence** is a badge: low / medium / high.
-- An out-of-scope CRITICAL needs no client work: the reviewer starts such a finding's title
-  with `Out of scope: `, and the findings list shows titles as they are.
+- An out-of-scope defect (WARNING or CRITICAL) needs no client work: the reviewer starts such a
+  finding's title with `Out of scope: `, and the findings list shows titles as they are.
 - **Sources** is a list: kind (title, description, linked issue, spec file, changed files), its
   reference, and whether it was used, missing or skipped — with the reason when it was not used.
   This is where the user sees "description is empty" or "linked spec not found".
