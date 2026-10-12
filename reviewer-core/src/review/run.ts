@@ -103,6 +103,19 @@ export interface ReviewInput {
    * were assembled for it (names, sources, token sizes — never text).
    */
   onPromptAssembled?: (e: { label: string; sections: PromptSection[] }) => void;
+  /** Opt-in: sections carry a short text `preview` (verbose local logging only). */
+  includePreviews?: boolean;
+  /**
+   * Called once per LLM call, right after it returns, with that call's own
+   * usage — one per chunk in map-reduce (never a sum over the run).
+   */
+  onLlmCall?: (e: {
+    label: string;
+    tokensIn: number;
+    tokensOut: number;
+    costUsd: number | null;
+    durationMs: number;
+  }) => void;
   /** Progress sink. */
   onEvent?: (e: ReviewEvent) => void;
   /**
@@ -161,6 +174,7 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
     prTitle: input.prTitle,
     intent: input.intent,
     task: input.task,
+    ...(input.includePreviews ? { includePreviews: true } : {}),
   };
 
   // Whole-diff assembly is the trace default; overwritten below for single-pass.
@@ -197,6 +211,7 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
     const a = assemblePrompt({ ...promptParts, diff: chunk.diffText });
     if (mode === 'single-pass') assembly = a.assembly;
     input.onPromptAssembled?.({ label: chunk.label, sections: a.sections });
+    const callStart = Date.now();
     const res = await input.llm.completeStructured<Review>({
       model: input.model,
       schema: ReviewSchema,
@@ -204,6 +219,13 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
       messages: a.messages,
       maxRetries,
       ...(input.sessionId ? { sessionId: input.sessionId } : {}),
+    });
+    input.onLlmCall?.({
+      label: chunk.label,
+      tokensIn: res.tokensIn,
+      tokensOut: res.tokensOut,
+      costUsd: res.costUsd,
+      durationMs: Date.now() - callStart,
     });
     tokensIn += res.tokensIn;
     tokensOut += res.tokensOut;

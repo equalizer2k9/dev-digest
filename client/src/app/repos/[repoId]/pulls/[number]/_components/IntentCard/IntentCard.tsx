@@ -70,7 +70,9 @@ export function IntentCard({
 
   const errorKey = recalcError ? (ERROR_KEY_BY_CODE[recalcError.code ?? ""] ?? "generic") : null;
   const reasonText = (reason: string) =>
-    Object.hasOwn(REASON_KEY_BY_REASON, reason) ? t(`sources.reason.${REASON_KEY_BY_REASON[reason]}` as never) : reason;
+    t(
+      `sources.reason.${Object.hasOwn(REASON_KEY_BY_REASON, reason) ? REASON_KEY_BY_REASON[reason] : "other"}` as never,
+    );
 
   return (
     <section>

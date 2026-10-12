@@ -179,6 +179,11 @@ export interface PromptParts {
   diff: string;
   /** Optional task framing line, e.g. "Review PR #482 '…'". */
   task?: string;
+  /**
+   * Opt-in: attach a short text `preview` to every section (for a verbose,
+   * local-only log). Off by default so sections carry names and numbers only.
+   */
+  includePreviews?: boolean;
 }
 
 /** One emitted prompt section: what it is, where it came from, how big. */
@@ -186,7 +191,12 @@ export interface PromptSection {
   name: string;
   source: string;
   tokens: number;
+  /** First chars of the section text — present only when `includePreviews` is set. */
+  preview?: string;
 }
+
+/** Length of a section `preview`. */
+export const SECTION_PREVIEW_CHARS = 200;
 
 export interface AssembledPrompt {
   messages: ChatMessage[];
@@ -264,11 +274,21 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
 
   const userSections: string[] = [];
   const sections: PromptSection[] = [
-    { name: 'system', source: 'agent_prompt', tokens: countSafely(countSection, system) },
+    {
+      name: 'system',
+      source: 'agent_prompt',
+      tokens: countSafely(countSection, system),
+      ...(parts.includePreviews ? { preview: system.slice(0, SECTION_PREVIEW_CHARS) } : {}),
+    },
   ];
   const addSection = (name: string, source: string, text: string) => {
     userSections.push(text);
-    sections.push({ name, source, tokens: countSafely(countSection, text) });
+    sections.push({
+      name,
+      source,
+      tokens: countSafely(countSection, text),
+      ...(parts.includePreviews ? { preview: text.slice(0, SECTION_PREVIEW_CHARS) } : {}),
+    });
   };
   if (parts.task) addSection('task', 'pull_request', parts.task);
   if (prTitleBlock) addSection('pr_title', 'pull_request', `## PR title\n${prTitleBlock}`);

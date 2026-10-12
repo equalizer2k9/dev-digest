@@ -12,7 +12,7 @@ export const ERROR_KEY_BY_CODE: Record<string, "paymentRequired" | "modelNotFoun
 
 /**
  * Source reason (as emitted by the server, plus the camelCase keys themselves)
- * -> `sources.reason.*` i18n key. Unknown reasons render as the raw string.
+ * -> `sources.reason.*` i18n key. Anything not listed renders as `other` — never the raw server string.
  */
 export const REASON_KEY_BY_REASON: Record<string, string> = {
   empty: "empty",
@@ -26,7 +26,11 @@ export const REASON_KEY_BY_REASON: Record<string, string> = {
   tooLarge: "tooLarge",
   truncated: "truncated",
   notMarkdown: "notMarkdown",
+  not_markdown: "notMarkdown",
+  absolute_path: "absolutePath",
+  path_traversal: "pathTraversal",
+  invalid_path: "invalidPath",
+  fetch_failed: "fetchFailed",
   is_pull_request: "pullRequest",
   pullRequest: "pullRequest",
-  unavailable: "unavailable",
 };

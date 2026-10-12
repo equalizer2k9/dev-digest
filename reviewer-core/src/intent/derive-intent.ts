@@ -3,6 +3,7 @@ import type { ChatMessage, Intent, IntentConfidence, LLMProvider } from '@devdig
 import {
   approxTokens,
   INJECTION_GUARD,
+  SECTION_PREVIEW_CHARS,
   wrapUntrusted,
   type PromptSection,
 } from '../prompt.js';
@@ -44,6 +45,8 @@ export interface IntentPromptParts {
   /** `path (+a/-d)` and raw `@@` hunk-header lines — never a hunk body line. */
   outline: string;
   countTokens?: (text: string) => number;
+  /** Opt-in: add a short text `preview` to every section (verbose local logging only). */
+  includePreviews?: boolean;
 }
 
 export interface IntentPrompt {
@@ -103,11 +106,21 @@ export function assembleIntentPrompt(parts: IntentPromptParts): IntentPrompt {
   const build = () => {
     const user: string[] = [];
     const sections: PromptSection[] = [
-      { name: 'system', source: 'intent_instructions', tokens: safeCount(count, system) },
+      {
+        name: 'system',
+        source: 'intent_instructions',
+        tokens: safeCount(count, system),
+        ...(parts.includePreviews ? { preview: system.slice(0, SECTION_PREVIEW_CHARS) } : {}),
+      },
     ];
     const add = (name: string, source: string, text: string) => {
       user.push(text);
-      sections.push({ name, source, tokens: safeCount(count, text) });
+      sections.push({
+        name,
+        source,
+        tokens: safeCount(count, text),
+        ...(parts.includePreviews ? { preview: text.slice(0, SECTION_PREVIEW_CHARS) } : {}),
+      });
     };
     add('pr_title', 'pull_request', `## PR title\n${wrapUntrusted('pr-title', title)}`);
     if (w.description) {

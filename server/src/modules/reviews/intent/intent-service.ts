@@ -16,7 +16,8 @@ export type StepRunner = <T>(label: string, fn: () => Promise<T>) => Promise<T>;
 
 export type EnsureOutcome =
   | { outcome: 'reused'; detail: PrIntentDetail }
-  | { outcome: 'derived'; detail: PrIntentDetail }
+  /** `joined`: another trigger was already deriving it; this one shared that call. */
+  | { outcome: 'derived'; detail: PrIntentDetail; joined?: true }
   | { outcome: 'failed'; error: string };
 
 /** Derivations in flight, keyed by PR — two concurrent triggers share one call. */
@@ -43,7 +44,10 @@ function statusOf(err: unknown): number | undefined {
   return e?.cause && e.cause !== err ? statusOf(e.cause) : undefined;
 }
 
-/** Provider failure → the API error the spec asks for (402 / 404 / other → 502). */
+/**
+ * Provider failure → the API error the spec asks for (402 / 404 / other → 502).
+ * The messages are fixed: the provider's own text never reaches a client or a log.
+ */
 export function mapProviderError(err: unknown, provider: string, model: string): Error {
   if (err instanceof AppError && err.code === 'config_error') return err;
   const status = statusOf(err);
@@ -54,7 +58,7 @@ export function mapProviderError(err: unknown, provider: string, model: string):
     return new AppError('llm_model_not_found', `${provider} has no model "${model}"`, 502);
   }
   if (err instanceof AppError) return err;
-  return new ExternalServiceError(`Intent classifier call failed: ${(err as Error).message}`);
+  return new ExternalServiceError('Intent classifier call failed');
 }
 
 /**
@@ -107,6 +111,7 @@ export class IntentService {
     try {
       const stored = await this.repo.getIntentRecord(pull.id);
       if (stored) return { outcome: 'reused', detail: toDetail(pull.id, stored, pull.headSha) };
+      const joined = inFlight.has(pull.id);
       const detail = await this.deriveShared(
         workspaceId,
         pull,
@@ -116,7 +121,7 @@ export class IntentService {
         correlationId,
         runStep,
       );
-      return { outcome: 'derived', detail };
+      return joined ? { outcome: 'derived', detail, joined: true } : { outcome: 'derived', detail };
     } catch (err) {
       return { outcome: 'failed', error: (err as Error).message };
     }
@@ -150,12 +155,20 @@ export class IntentService {
     runStep?: StepRunner,
   ): Promise<PrIntentDetail> {
     const { provider, model } = await resolveFeatureModel(this.container, workspaceId, INTENT_FEATURE);
-    const run = () => this.callClassifier(pull, repoRow, diff, provider, model, logger, correlationId);
-    try {
-      return runStep ? await runStep(`Deriving PR intent (${provider}/${model})`, run) : await run();
-    } catch (err) {
-      throw mapProviderError(err, provider, model);
-    }
+    // The error is mapped inside the step, so the Live Log and the persisted trace get the fixed
+    // message too — never the provider's own text.
+    const run = async () => {
+      try {
+        return await this.callClassifier(pull, repoRow, diff, provider, model, logger, correlationId);
+      } catch (err) {
+        logger?.warn(
+          { event: 'intent_classifier_failed', correlationId, prId: pull.id, provider, model, status: statusOf(err) ?? null },
+          'intent classifier call failed',
+        );
+        throw mapProviderError(err, provider, model);
+      }
+    };
+    return runStep ? runStep(`Deriving PR intent (${provider}/${model})`, run) : run();
   }
 
   private async callClassifier(
@@ -183,13 +196,21 @@ export class IntentService {
 
     // Assembly line first (the same pure assembly deriveIntent runs), so a failed
     // call is still visible in the log.
-    const assembled = assembleIntentPrompt(input);
+    // Previews only in verbose local logging; otherwise no text is computed at all.
+    const verbose = this.container.config?.promptLogVerbose === true;
+    const assembled = assembleIntentPrompt(verbose ? { ...input, includePreviews: true } : input);
     const ids = { correlationId, prId: pull.id, provider, model };
     logPromptAssembly(logger, {
       call: 'intent_classifier',
       ...ids,
       sections: assembled.sections,
       totalTokens: assembled.totalTokens,
+      ...(verbose
+        ? {
+            verbose: true,
+            previews: assembled.sections.map((s) => ({ name: s.name, text: s.preview ?? '' })),
+          }
+        : {}),
     });
 
     const t0 = Date.now();

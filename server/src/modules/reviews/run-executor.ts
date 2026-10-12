@@ -137,6 +137,11 @@ export class ReviewRunExecutor {
     } else {
       const d = intentResult.detail;
       intent = { summary: d.intent, inScope: d.in_scope, outOfScope: d.out_of_scope, confidence: d.confidence };
+      if (intentResult.outcome === 'derived' && intentResult.joined) {
+        runLog.info(
+          `PR intent derived by a concurrent request (${d.provider ?? 'unknown'}/${d.model ?? 'unknown'}, ${d.confidence} confidence)`,
+        );
+      }
       if (intentResult.outcome === 'reused') {
         runLog.info(
           `PR intent reused (${d.provider ?? 'unknown'}/${d.model ?? 'unknown'}, ${d.confidence} confidence)` +
@@ -247,7 +252,7 @@ export class ReviewRunExecutor {
         provider: agent.provider,
         model: agent.model,
       };
-      const reviewStart = Date.now();
+      const verbose = this.container.config?.promptLogVerbose === true;
       const outcome = await reviewPullRequest({
         systemPrompt: agent.systemPrompt,
         model: agent.model,
@@ -269,11 +274,30 @@ export class ReviewRunExecutor {
         // Derived PR intent/scope (untrusted section + trusted scope rule);
         // omitted when none is available.
         ...(shared.intent ? { intent: shared.intent } : {}),
+        // Section text previews exist only in verbose local logging.
+        ...(verbose ? { includePreviews: true } : {}),
         onPromptAssembled: ({ sections }) =>
           logPromptAssembly(shared.logger, {
             ...callIds,
             sections,
             totalTokens: sections.reduce((n, s) => n + s.tokens, 0),
+            ...(verbose
+              ? {
+                  verbose: true,
+                  previews: sections.map((s) => ({ name: s.name, text: s.preview ?? '' })),
+                }
+              : {}),
+          }),
+        // One llm_call line per model call (per chunk in map-reduce); agent_runs
+        // keep the summed totals below.
+        onLlmCall: (c) =>
+          logLlmCall(shared.logger, {
+            ...callIds,
+            tokensIn: c.tokensIn,
+            tokensOut: c.tokensOut,
+            costUsd: c.costUsd,
+            durationMs: c.durationMs,
+            label: c.label,
           }),
         // Skills Lab — omitted entirely when the agent has no enabled skill.
         ...(skills.length > 0 ? { skills } : {}),
@@ -289,13 +313,6 @@ export class ReviewRunExecutor {
         },
       });
       const { tokensIn, tokensOut, costUsd, grounding } = outcome;
-      logLlmCall(shared.logger, {
-        ...callIds,
-        tokensIn,
-        tokensOut,
-        costUsd,
-        durationMs: Date.now() - reviewStart,
-      });
 
       // One line per ASSEMBLED skill, read back off the assembly so the Live Log
       // shows exactly the set — and the token numbers — the persisted trace does.

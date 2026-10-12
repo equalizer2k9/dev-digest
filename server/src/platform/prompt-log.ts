@@ -42,6 +42,8 @@ export interface LlmCallEntry extends CallIds {
   tokensOut: number;
   costUsd: number | null;
   durationMs: number;
+  /** Which chunk / file the call was for (review map-reduce); a path, never text. */
+  label?: string;
 }
 
 const PREVIEW_CHARS = 200;
@@ -89,6 +91,7 @@ export function logLlmCall(logger: PromptLogger | undefined, entry: LlmCallEntry
       tokensOut: entry.tokensOut,
       costUsd: entry.costUsd,
       durationMs: entry.durationMs,
+      ...(entry.label !== undefined ? { label: entry.label } : {}),
     },
     `llm call (${entry.call})`,
   );

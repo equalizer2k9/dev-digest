@@ -1,6 +1,6 @@
 import type { IntentSource, RepoRef, UnifiedDiff } from '@devdigest/shared';
 import type { Container } from '../../../platform/container.js';
-import { MAX_DESCRIPTION_CHARS, MAX_SPEC_FILE_CHARS } from './constants.js';
+import { MAX_DESCRIPTION_CHARS, MAX_SPEC_FILE_BYTES, MAX_SPEC_FILE_CHARS } from './constants.js';
 import { isFileTooLarge } from '../../../adapters/file-too-large.js';
 import { buildFileOutline } from './file-outline.js';
 import { parseReferences } from './parse-references.js';
@@ -29,11 +29,7 @@ export interface CollectInput {
   diff: UnifiedDiff;
 }
 
-/** UTF-8 is at most 4 bytes per char, so this never rejects a file the char cap would accept. */
-const MAX_SPEC_FILE_BYTES = MAX_SPEC_FILE_CHARS * 4;
 const TOO_LARGE = Symbol('too_large');
-
-const errMsg = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
 export async function collectSources(input: CollectInput): Promise<CollectedSources> {
   const { container, repo, pull, diff } = input;
@@ -69,9 +65,14 @@ export async function collectSources(input: CollectInput): Promise<CollectedSour
         body: (issue.body ?? '').slice(0, MAX_DESCRIPTION_CHARS),
       });
       sources.push({ kind: 'linked_issue', ref, status: 'used' });
-    } catch (err) {
-      sources.push({ kind: 'linked_issue', ref, status: 'missing', reason: errMsg(err) });
+    } catch {
+      sources.push({ kind: 'linked_issue', ref, status: 'missing', reason: 'fetch_failed' });
     }
+  }
+
+  // Refused references are recorded, never read.
+  for (const r of refs.rejected) {
+    sources.push({ kind: 'spec_file', ref: r.ref, status: 'skipped', reason: r.reason });
   }
 
   const files: CollectedSources['files'] = [];
