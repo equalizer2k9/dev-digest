@@ -51,6 +51,9 @@ import skillMessages from "../../../messages/en/skills.json";
 import conventionMessages from "../../../messages/en/conventions.json";
 import prReviewMessages from "../../../messages/en/prReview.json";
 import shellMessages from "../../../messages/en/shell.json";
+import intentMessages from "../../../messages/en/intent.json";
+import { IntentCard } from "../../app/repos/[repoId]/pulls/[number]/_components/IntentCard";
+import { ApiError } from "../../lib/api";
 import { FileCard } from "../diff-viewer";
 import { FindingCard } from "../../app/repos/[repoId]/pulls/[number]/_components/FindingCard";
 import { DiffRoleGroup } from "../../app/repos/[repoId]/pulls/[number]/_components/DiffRoleGroup";
@@ -66,6 +69,7 @@ import {
   SHOWCASE_DIFF_FILE,
   SHOWCASE_FINDING,
   SHOWCASE_FINDING_OUTSIDE,
+  SHOWCASE_INTENT,
   SHOWCASE_SKILL,
   SHOWCASE_CONVENTION,
   SHOWCASE_CONVENTION_PENDING,
@@ -372,6 +376,27 @@ export function Gallery() {
               fileCount={0}
               filesWithFindings={0}
             />
+          </div>
+        </Group>
+      </NextIntlClientProvider>
+
+      {/* Intent layer card: presentational, shown in its four variants. */}
+      <NextIntlClientProvider locale="en" messages={{ intent: intentMessages }}>
+        <Group title="Intent (IntentCard: loaded / empty / generating / error)">
+          <div style={s.w460}>
+            <IntentCard intent={SHOWCASE_INTENT} isLoading={false} isError={false} onRetry={() => {}} onRecalculate={() => {}} isRecalculating={false} recalcError={null} />
+          </div>
+          <div style={s.w460}>
+            <IntentCard intent={null} isLoading={false} isError={false} onRetry={() => {}} onRecalculate={() => {}} isRecalculating={false} recalcError={null} />
+          </div>
+          <div style={s.w460}>
+            <IntentCard intent={SHOWCASE_INTENT} isLoading={false} isError={false} onRetry={() => {}} onRecalculate={() => {}} isRecalculating={true} recalcError={null} />
+          </div>
+          <div style={s.w460}>
+            <IntentCard intent={SHOWCASE_INTENT} isLoading={false} isError={false} onRetry={() => {}} onRecalculate={() => {}} isRecalculating={false} recalcError={new ApiError("out of credit", 402, "llm_payment_required")} />
+          </div>
+          <div style={s.w460}>
+            <IntentCard intent={undefined} isLoading={false} isError={true} onRetry={() => {}} onRecalculate={() => {}} isRecalculating={false} recalcError={null} />
           </div>
         </Group>
       </NextIntlClientProvider>

@@ -1,0 +1,54 @@
+{
+  "title": "Intent",
+  "summary": "Summary",
+  "inScope": "In scope",
+  "outOfScope": "Out of scope",
+  "emptyList": "Nothing listed",
+  "confidence": {
+    "label": "Confidence",
+    "low": "Low confidence",
+    "medium": "Medium confidence",
+    "high": "High confidence"
+  },
+  "sources": {
+    "title": "Sources",
+    "kind": {
+      "pr_title": "PR title",
+      "pr_description": "PR description",
+      "linked_issue": "Linked issue",
+      "spec_file": "Spec file",
+      "changed_files": "Changed files"
+    },
+    "status": {
+      "used": "Used",
+      "missing": "Missing",
+      "skipped": "Skipped"
+    },
+    "reason": {
+      "empty": "empty",
+      "notFound": "not found",
+      "tooLarge": "too large, truncated",
+      "truncated": "cut to fit the input budget",
+      "notMarkdown": "not a Markdown file",
+      "pullRequest": "this is a pull request, not an issue",
+      "unavailable": "could not be fetched"
+    }
+  },
+  "stale": "PR changed since this was generated",
+  "empty": {
+    "title": "No intent yet",
+    "body": "Generate a summary of what this PR is for, and what is in and out of scope. A review also derives it automatically."
+  },
+  "actions": {
+    "generate": "Generate",
+    "recalculate": "Recalculate"
+  },
+  "generating": "Generating intent...",
+  "error": {
+    "load": "Could not load the PR intent.",
+    "generic": "Could not generate the intent. Try again.",
+    "paymentRequired": "The model provider is out of credit. Top it up and try again.",
+    "modelNotFound": "The model chosen in Settings, Models does not exist. Pick another one.",
+    "config": "No API key is configured for the intent model."
+  }
+}
