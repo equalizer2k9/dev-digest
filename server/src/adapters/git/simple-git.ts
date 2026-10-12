@@ -1,6 +1,6 @@
 import { simpleGit, type SimpleGit } from 'simple-git';
 import { join } from 'node:path';
-import { mkdir, readFile, access, rm } from 'node:fs/promises';
+import { mkdir, readFile, access, rm, stat } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import type {
   GitClient,
@@ -12,6 +12,7 @@ import type {
 } from '@devdigest/shared';
 import { parseUnifiedDiff } from './diff-parser.js';
 import { confinePath } from './confine-path.js';
+import { FileTooLargeError } from '../file-too-large.js';
 
 /**
  * Depth fetched by `sync()`. Deeper than the shallow clone (CLONE_DEPTH=1) so the
@@ -127,16 +128,30 @@ export class SimpleGitClient implements GitClient {
     }));
   }
 
-  async readFile(repo: RepoRef, path: string): Promise<string> {
-    return readFile(await confinePath(this.clonePathFor(repo), path), 'utf8');
+  async readFile(repo: RepoRef, path: string, maxBytes?: number): Promise<string> {
+    const real = await confinePath(this.clonePathFor(repo), path);
+    if (maxBytes !== undefined) {
+      const { size } = await stat(real);
+      if (size > maxBytes) throw new FileTooLargeError(path, size, maxBytes);
+    }
+    return readFile(real, 'utf8');
   }
 
-  async readFileAtRef(repo: RepoRef, ref: string, path: string): Promise<string> {
+  async readFileAtRef(
+    repo: RepoRef,
+    ref: string,
+    path: string,
+    maxBytes?: number,
+  ): Promise<string> {
     // The ref and path become one git argument (no shell); refuse anything that
     // is not a plain hex SHA or that could climb out of the tree.
     if (!/^[0-9a-f]{7,40}$/i.test(ref)) throw new Error(`invalid ref: ${ref}`);
     if (path.startsWith('/') || path.split(/[\\/]/).includes('..') || path.includes('\0')) {
       throw new Error(`invalid path: ${path}`);
+    }
+    if (maxBytes !== undefined) {
+      const size = Number((await this.git(repo).raw(['cat-file', '-s', `${ref}:${path}`])).trim());
+      if (Number.isFinite(size) && size > maxBytes) throw new FileTooLargeError(path, size, maxBytes);
     }
     return this.git(repo).show([`${ref}:${path}`]);
   }

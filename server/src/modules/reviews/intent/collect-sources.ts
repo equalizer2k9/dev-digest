@@ -1,6 +1,7 @@
 import type { IntentSource, RepoRef, UnifiedDiff } from '@devdigest/shared';
 import type { Container } from '../../../platform/container.js';
 import { MAX_DESCRIPTION_CHARS, MAX_SPEC_FILE_CHARS } from './constants.js';
+import { isFileTooLarge } from '../../../adapters/file-too-large.js';
 import { buildFileOutline } from './file-outline.js';
 import { parseReferences } from './parse-references.js';
 
@@ -27,6 +28,10 @@ export interface CollectInput {
   pull: { title: string; body: string | null; headSha: string };
   diff: UnifiedDiff;
 }
+
+/** UTF-8 is at most 4 bytes per char, so this never rejects a file the char cap would accept. */
+const MAX_SPEC_FILE_BYTES = MAX_SPEC_FILE_CHARS * 4;
+const TOO_LARGE = Symbol('too_large');
 
 const errMsg = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
@@ -74,7 +79,7 @@ export async function collectSources(input: CollectInput): Promise<CollectedSour
     const text = await readSpec(container, repo, pull.headSha, path);
     if (text === null) {
       sources.push({ kind: 'spec_file', ref: path, status: 'missing', reason: 'not_found' });
-    } else if (text.length > MAX_SPEC_FILE_CHARS) {
+    } else if (text === TOO_LARGE || text.length > MAX_SPEC_FILE_CHARS) {
       sources.push({ kind: 'spec_file', ref: path, status: 'skipped', reason: 'too_large' });
     } else {
       files.push({ path, content: text });
@@ -102,25 +107,27 @@ async function readSpec(
   repo: RepoRef,
   headSha: string,
   path: string,
-): Promise<string | null> {
+): Promise<string | typeof TOO_LARGE | null> {
   const nonEmpty = (s: string | null | undefined) => (s && s.trim().length > 0 ? s : null);
 
   try {
-    const t = nonEmpty(await container.git.readFileAtRef(repo, headSha, path));
+    const t = nonEmpty(await container.git.readFileAtRef(repo, headSha, path, MAX_SPEC_FILE_BYTES));
     if (t !== null) return t;
-  } catch {
+  } catch (err) {
+    if (isFileTooLarge(err)) return TOO_LARGE;
     /* clone lacks the commit or the path → next source */
   }
   try {
     const gh = await container.github();
-    const t = nonEmpty(await gh.getFileContent(repo, path, headSha));
+    const t = nonEmpty(await gh.getFileContent(repo, path, headSha, MAX_SPEC_FILE_BYTES));
     if (t !== null) return t;
-  } catch {
+  } catch (err) {
+    if (isFileTooLarge(err)) return TOO_LARGE;
     /* no token / network / 404 → next source */
   }
   try {
-    return nonEmpty(await container.git.readFile(repo, path));
-  } catch {
-    return null;
+    return nonEmpty(await container.git.readFile(repo, path, MAX_SPEC_FILE_BYTES));
+  } catch (err) {
+    return isFileTooLarge(err) ? TOO_LARGE : null;
   }
 }

@@ -7,13 +7,9 @@ import { logLlmCall, logPromptAssembly } from '../../../platform/prompt-log.js';
 import type { PinoLike } from '../../../platform/run-logger.js';
 import { resolveFeatureModel } from '../../settings/feature-models.js';
 import { loadDiff } from '../diff-loader.js';
-import type { PullRow, ReviewRepository } from '../repository.js';
-import type { IntentRecord } from '../repository/pull.repo.js';
+import type { IntentRecord, PullRow, RepoRow, ReviewRepository } from '../repository.js';
 import { collectSources } from './collect-sources.js';
 import { INTENT_FEATURE } from './constants.js';
-import type * as schema from '../../../db/schema.js';
-
-type RepoRow = typeof schema.repos.$inferSelect;
 
 /** Wraps the model-calling part so the executor can show it as its own Live Log step. */
 export type StepRunner = <T>(label: string, fn: () => Promise<T>) => Promise<T>;

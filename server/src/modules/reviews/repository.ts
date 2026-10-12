@@ -13,8 +13,9 @@ import type { Finding, Intent, RunSummary, RunTrace } from '@devdigest/shared';
  * composes them so its public API stays identical.
  */
 
-import type { FindingRow, PullRow } from '../../db/rows.js';
-export type { FindingRow, PullRow };
+import type { FindingRow, PullRow, RepoRow } from '../../db/rows.js';
+import type { IntentRecord } from './repository/pull.repo.js';
+export type { FindingRow, PullRow, RepoRow, IntentRecord };
 
 export type ReviewRow = typeof t.reviews.$inferSelect;
 export type { ReviewUsage };

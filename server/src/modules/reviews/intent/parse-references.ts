@@ -24,7 +24,7 @@ const BACKTICKED = /`([^`\s]+)`/g;
 /** Normalised relative `.md` path, or null when it must not be read. */
 export function normalizeRelPath(raw: string): string | null {
   let p = raw.trim();
-  if (!p || p.includes('\0') || p.includes('\\')) return null;
+  if (!p || p.includes('\\') || /[\x00-\x1f\x7f]/.test(p)) return null;
   p = p.split('#')[0]!.split('?')[0]!;
   if (/^[a-z][a-z0-9+.-]*:/i.test(p) || p.startsWith('//')) return null; // any URL scheme
   if (p.startsWith('/')) return null; // absolute
@@ -59,7 +59,12 @@ export function parseReferences(
     if (sameRepo(m[1]!, m[2]!)) addIssue(Number(m[3]));
   }
   for (const m of text.matchAll(BLOB_URL)) {
-    if (sameRepo(m[1]!, m[2]!)) addFile(decodeURIComponent(m[3]!));
+    if (!sameRepo(m[1]!, m[2]!)) continue;
+    try {
+      addFile(decodeURIComponent(m[3]!));
+    } catch {
+      /* malformed % escape → not a reference */
+    }
   }
   for (const m of text.matchAll(MD_LINK)) addFile(m[1]!);
   for (const m of text.matchAll(BACKTICKED)) addFile(m[1]!);

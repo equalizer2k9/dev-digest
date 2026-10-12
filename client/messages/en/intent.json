@@ -26,6 +26,8 @@
     },
     "reason": {
       "empty": "empty",
+      "notSynced": "not synced yet",
+      "noChanges": "no changed files",
       "notFound": "not found",
       "tooLarge": "too large, truncated",
       "truncated": "cut to fit the input budget",

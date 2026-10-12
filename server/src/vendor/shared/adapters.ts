@@ -166,7 +166,13 @@ export interface GitHubClient {
    * Text of one file at `ref` in the SAME repo (contents API). null when the
    * path does not exist at that ref or is not a regular file.
    */
-  getFileContent(repo: RepoRef, path: string, ref: string): Promise<string | null>;
+  getFileContent(
+    repo: RepoRef,
+    path: string,
+    ref: string,
+    /** Reject (FileTooLargeError, `code: 'FILE_TOO_LARGE'`) a file bigger than this, before decoding it. */
+    maxBytes?: number,
+  ): Promise<string | null>;
   /** GET /user — for "posting as @user". */
   currentLogin(): Promise<string>;
 }
@@ -228,12 +234,13 @@ export interface GitClient {
   diffNameOnly(repo: RepoRef, base: string, head: string): Promise<string[]>;
   blame(repo: RepoRef, path: string): Promise<BlameLine[]>;
   log(repo: RepoRef, path?: string): Promise<GitCommit[]>;
-  readFile(repo: RepoRef, path: string): Promise<string>;
+  /** `maxBytes`: reject (`code: 'FILE_TOO_LARGE'`) a bigger file before reading it. */
+  readFile(repo: RepoRef, path: string, maxBytes?: number): Promise<string>;
   /**
    * Text of `path` as committed at `ref` (`git show <ref>:<path>`), read from the
    * local clone. Rejects when the clone lacks the commit or the path.
    */
-  readFileAtRef(repo: RepoRef, ref: string, path: string): Promise<string>;
+  readFileAtRef(repo: RepoRef, ref: string, path: string, maxBytes?: number): Promise<string>;
   clonePathFor(repo: RepoRef): string;
 }
 

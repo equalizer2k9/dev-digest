@@ -122,7 +122,7 @@ export function assembleIntentPrompt(parts: IntentPromptParts): IntentPrompt {
       add(
         `linked_issue:${i.number}`,
         'github_issue',
-        `## Linked issue\n${wrapUntrusted(`issue-${i.number}`, text)}`,
+        `## Linked issue\n${wrapUntrusted('linked-issue', text)}`,
       );
     }
     for (const f of w.files) {
@@ -131,7 +131,7 @@ export function assembleIntentPrompt(parts: IntentPromptParts): IntentPrompt {
       add(
         `spec_file:${f.path}`,
         'repo_file',
-        `## Referenced file ${f.path}\n${wrapUntrusted(`file-${f.path}`, f.content)}`,
+        `## Referenced file\n${wrapUntrusted('referenced-file', `Path: ${f.path}\n\n${f.content}`)}`,
       );
     }
     if (w.outline.trim().length > 0) {
@@ -141,7 +141,8 @@ export function assembleIntentPrompt(parts: IntentPromptParts): IntentPrompt {
         `## Changed files\n${wrapUntrusted('changed-files', w.outline)}`,
       );
     }
-    const total = sections.reduce((n, s) => n + s.tokens, 0);
+    // + 1 per user section: the join separators are not part of any section's own count.
+    const total = sections.reduce((n, s) => n + s.tokens, 0) + user.length;
     return { user, sections, total };
   };
 

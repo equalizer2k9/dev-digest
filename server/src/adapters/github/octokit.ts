@@ -13,6 +13,7 @@ import type {
   IssueMeta,
 } from '@devdigest/shared';
 import { withRetry, withTimeout } from '../../platform/resilience.js';
+import { FileTooLargeError } from '../file-too-large.js';
 
 const TIMEOUT = 30_000;
 
@@ -365,7 +366,12 @@ export class OctokitGitHubClient implements GitHubClient {
     };
   }
 
-  async getFileContent(repo: RepoRef, path: string, ref: string): Promise<string | null> {
+  async getFileContent(
+    repo: RepoRef,
+    path: string,
+    ref: string,
+    maxBytes?: number,
+  ): Promise<string | null> {
     try {
       const res = await withRetry(() =>
         withTimeout(
@@ -375,6 +381,9 @@ export class OctokitGitHubClient implements GitHubClient {
       );
       const data = res.data;
       if (Array.isArray(data) || data.type !== 'file' || !('content' in data)) return null;
+      if (maxBytes !== undefined && data.size > maxBytes) {
+        throw new FileTooLargeError(path, data.size, maxBytes);
+      }
       return Buffer.from(data.content, 'base64').toString('utf8');
     } catch (err) {
       if ((err as { status?: number }).status === 404) return null;

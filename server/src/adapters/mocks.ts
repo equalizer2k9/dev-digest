@@ -33,6 +33,7 @@ import type {
   SecretKey,
 } from '@devdigest/shared';
 import { parseUnifiedDiff } from './git/diff-parser.js';
+import { FileTooLargeError } from './file-too-large.js';
 
 /**
  * Deterministic MOCK adapters for tests/dev — NO real network. Each mirrors the
@@ -241,8 +242,17 @@ export class MockGitHubClient implements GitHubClient {
     return { number: n, title: `Issue #${n}`, body: 'mock issue', state: 'open' };
   }
 
-  async getFileContent(_repo: RepoRef, path: string, _ref: string): Promise<string | null> {
-    return this.opts.fileContents?.[path] ?? null;
+  async getFileContent(
+    _repo: RepoRef,
+    path: string,
+    _ref: string,
+    maxBytes?: number,
+  ): Promise<string | null> {
+    const text = this.opts.fileContents?.[path] ?? null;
+    if (text !== null && maxBytes !== undefined && Buffer.byteLength(text) > maxBytes) {
+      throw new FileTooLargeError(path, Buffer.byteLength(text), maxBytes);
+    }
+    return text;
   }
 
   async currentLogin(): Promise<string> {
@@ -301,12 +311,24 @@ export class MockGitClient implements GitClient {
   async log(): Promise<GitCommit[]> {
     return [{ sha: 'a1b2c3d4', message: 'init', author: 'marisa.koch', date: '2026-06-01' }];
   }
-  async readFile(_repo: RepoRef, path: string): Promise<string> {
-    return this.opts.files?.[path] ?? '';
+  async readFile(_repo: RepoRef, path: string, maxBytes?: number): Promise<string> {
+    const text = this.opts.files?.[path] ?? '';
+    if (maxBytes !== undefined && Buffer.byteLength(text) > maxBytes) {
+      throw new FileTooLargeError(path, Buffer.byteLength(text), maxBytes);
+    }
+    return text;
   }
-  async readFileAtRef(_repo: RepoRef, _ref: string, path: string): Promise<string> {
+  async readFileAtRef(
+    _repo: RepoRef,
+    _ref: string,
+    path: string,
+    maxBytes?: number,
+  ): Promise<string> {
     const text = this.opts.files?.[path];
     if (text === undefined) throw new Error(`path ${path} not found at ref`);
+    if (maxBytes !== undefined && Buffer.byteLength(text) > maxBytes) {
+      throw new FileTooLargeError(path, Buffer.byteLength(text), maxBytes);
+    }
     return text;
   }
 }

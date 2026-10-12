@@ -3,7 +3,7 @@
 import React from "react";
 import { SectionLabel } from "@devdigest/ui";
 import { ApiError } from "@/lib/api";
-import { useIntent, useRecalculateIntent } from "@/lib/hooks/intent";
+import { useIntent, useRecalculateIntent } from "@/lib/hooks";
 import { IntentCard } from "../IntentCard";
 import { s } from "./styles";
 

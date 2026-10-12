@@ -6,6 +6,7 @@ import { Badge, Button, ErrorState, SectionLabel, Skeleton } from "@devdigest/ui
 import type { PrIntentDetail } from "@devdigest/shared";
 import { ApiError } from "@/lib/api";
 import { s } from "./styles";
+import { CONFIDENCE_COLOR, ERROR_KEY_BY_CODE, REASON_KEY_BY_REASON } from "./constants";
 
 interface IntentCardProps {
   intent: PrIntentDetail | null | undefined;
@@ -16,28 +17,6 @@ interface IntentCardProps {
   isRecalculating: boolean;
   recalcError: ApiError | null;
 }
-
-const CONFIDENCE_COLOR = {
-  low: "var(--warning, var(--text-secondary))",
-  medium: "var(--text-secondary)",
-  high: "var(--success, var(--text-secondary))",
-} as const;
-
-const ERROR_KEY_BY_CODE: Record<string, "paymentRequired" | "modelNotFound" | "config"> = {
-  llm_payment_required: "paymentRequired",
-  llm_model_not_found: "modelNotFound",
-  config_error: "config",
-};
-
-const REASON_KEYS = [
-  "empty",
-  "notFound",
-  "tooLarge",
-  "truncated",
-  "notMarkdown",
-  "pullRequest",
-  "unavailable",
-] as const;
 
 function ScopeList({ label, items, emptyText }: { label: string; items: string[]; emptyText: string }) {
   return (
@@ -91,7 +70,7 @@ export function IntentCard({
 
   const errorKey = recalcError ? (ERROR_KEY_BY_CODE[recalcError.code ?? ""] ?? "generic") : null;
   const reasonText = (reason: string) =>
-    (REASON_KEYS as readonly string[]).includes(reason) ? t(`sources.reason.${reason}` as never) : reason;
+    Object.hasOwn(REASON_KEY_BY_REASON, reason) ? t(`sources.reason.${REASON_KEY_BY_REASON[reason]}` as never) : reason;
 
   return (
     <section>
