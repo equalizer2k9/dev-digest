@@ -15,15 +15,26 @@ researcher → implementation-planner → implementer → ( architecture-reviewe
 then [`/run-plan`](../commands/run-plan.md) drives the rest:
 
 ```
-spec-creator → implementation-planner → /run-plan ( implementer → architecture-reviewer → ≤2 fix rounds → plan-verifier )
-   spec.md            plan.md                                                    docs/<hw>/plan-verification.md
+spec-creator → implementation-planner → /run-plan ( implementer per package → architecture-reviewer → security-reviewer → ≤2 fix rounds → plan-verifier )
+   spec.md            plan.md                                                                       docs/<hw>/plan-verification.md
 ```
 
-The two share the planner, the implementer, the architecture reviewer and the verifier. In the
-SDD pipeline the implementer writes the tests the plan's tasks name; `researcher`, `test-writer`,
-`security-reviewer` and `doc-writer` are not part of `/run-plan` and are added by hand when the
-feature calls for them — tests derived from the acceptance criteria rather than from the code, a
-change that touches untrusted input, a page under `docs/`.
+The two share the planner, the implementer, both reviewers and the verifier. In the SDD pipeline
+the implementer writes the tests the plan's tasks name; `researcher`, `test-writer` and
+`doc-writer` are not part of `/run-plan` and are added by hand when the feature calls for them —
+tests derived from the acceptance criteria rather than from the code, a page under `docs/`.
+
+How `/run-plan` runs them, after the retro of its first run
+([`docs/retros/ledger.md`](../../docs/retros/ledger.md)):
+
+- **Two implementers, by package** — `server/` + `reviewer-core/` and `client/` — in parallel when
+  the plan's tasks do not depend on each other across the groups. One agent for the whole plan hit
+  its turn limit at a 192k context.
+- **`security-reviewer` after `architecture-reviewer`**; CRITICAL and WARNING of both go into the
+  same fix rounds (at most 2).
+- **A re-review reads the fix**: the reviewer's own findings plus the files and line ranges of the
+  fix commit, not the feature again.
+- **The main session never reads the plan whole** — only the section the current step needs.
 
 | Agent | Role | Tools | Model | Input | Output |
 |---|---|---|---|---|---|
@@ -57,7 +68,8 @@ change that touches untrusted input, a page under `docs/`.
   doc-writer 25.
 - The reviewers and the verifier have no shell, so they cannot run `git diff`: hand them the
   changed-file list.
-- `/run-plan` severity mapping: `CRITICAL` → CRITICAL, `WARNING` → major, `SUGGESTION` → minor/nit.
+- `/run-plan` severity mapping, both reviewers: `CRITICAL` → CRITICAL, `WARNING` → major,
+  `SUGGESTION` / `INFO` → minor/nit.
   Only CRITICAL and major are fixed (at most 2 rounds); minor/nit are shown to the user.
 - `researcher` is the only agent with network access (WebSearch, WebFetch); it does not use
   `/deep-research`.
