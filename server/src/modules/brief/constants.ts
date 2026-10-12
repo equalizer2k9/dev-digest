@@ -11,6 +11,21 @@ export const BRIEF_SYSTEM_PROMPT = 'brief.system.md';
 /** Token budget for the WHOLE model input (system text + user message), server tokenizer. */
 export const BRIEF_INPUT_TOKEN_BUDGET = 8_000;
 
+/**
+ * Text longer than `budget × this` characters is treated as over budget without
+ * being tokenized: ordinary text runs at 3 to 5 characters per token, so anything
+ * past 12 could only fit if it were mostly filler. Keeps the tokenizer away from
+ * oversized input (NFR-7).
+ */
+export const MAX_CHARS_PER_TOKEN = 12;
+
+/**
+ * Longest PR description considered for the model input (about half the budget
+ * in ordinary prose); the rest is cut before the budget step. GitHub allows
+ * 65 536 characters, and the budget step tokenizes the description repeatedly.
+ */
+export const MAX_DESCRIPTION_CHARS = 16_000;
+
 /** Caps applied after grounding and sorting (AC-8). */
 export const MAX_RISKS = 7;
 export const MAX_FOCUS = 5;

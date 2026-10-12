@@ -7,6 +7,8 @@ import {
   LABEL_FILES,
   LABEL_INTENT,
   LABEL_TITLE,
+  MAX_CHARS_PER_TOKEN,
+  MAX_DESCRIPTION_CHARS,
   MAX_FOCUS,
   MAX_RISKS,
   TITLE_ELLIPSIS,
@@ -247,8 +249,15 @@ export interface BriefInput {
 const formatRanges = (ranges: LineRange[]) =>
   ranges.map((r) => (r.start === r.end ? `${r.start}` : `${r.start}-${r.end}`)).join(',');
 
+/**
+ * A path as one row cell: git allows control characters (a newline) in a file
+ * name, and one would forge an extra row inside the block. Input only — grounding
+ * still compares against the real path, so a reply naming the cleaned path is dropped.
+ */
+const rowPath = (path: string) => path.replace(/[\u0000-\u001f\u007f\u2028\u2029]/g, ' ');
+
 const formatRow = (f: BriefFileRow) =>
-  `${f.path} | +${f.additions} -${f.deletions} | ${f.role} | ${formatRanges(f.ranges)}`;
+  `${rowPath(f.path)} | +${f.additions} -${f.deletions} | ${f.role} | ${formatRanges(f.ranges)}`;
 
 /** Mutable reduction state; `render` turns it into the user message. */
 interface InputState {
@@ -290,7 +299,7 @@ function render(st: InputState): string {
   if (st.callers.length > 0) {
     parts.push(
       'Callers of changed code (file:line):\n' +
-        wrapUntrusted(LABEL_CALLERS, st.callers.map((c) => `${c.file}:${c.line}`).join('\n')),
+        wrapUntrusted(LABEL_CALLERS, st.callers.map((c) => `${rowPath(c.file)}:${c.line}`).join('\n')),
     );
   }
   return parts.join('\n\n');
@@ -357,15 +366,19 @@ export function buildBriefInput(
 ): BriefInput {
   const st: InputState = {
     title: facts.title,
-    description: facts.description,
+    description: facts.description === null ? null : facts.description.slice(0, MAX_DESCRIPTION_CHARS),
     intent: facts.intent,
     intentLists: true,
     rows: [...facts.files],
     callers: [...facts.callers],
     blastSummary: facts.blastSummary,
   };
-  const measure = () => count(`${system}\n\n${render(st)}`);
-  const fits = () => measure() <= budget;
+  const maxChars = budget * MAX_CHARS_PER_TOKEN;
+  // Oversized text is over budget by its length alone; only the rest is tokenized.
+  const fits = () => {
+    const text = `${system}\n\n${render(st)}`;
+    return text.length <= maxChars && count(text) <= budget;
+  };
   const done = (): BriefInput => {
     const user = render(st);
     return { system, user, tokens: count(`${system}\n\n${user}`), intentIncluded: st.intent !== null };
