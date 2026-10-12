@@ -152,4 +152,103 @@ describe("IntentCard", () => {
     renderCard();
     expect(screen.queryByText(m.stale)).toBeNull();
   });
+
+  it("AC-4: the button is in the Button `loading` state (spinner icon) while generating, not while idle", () => {
+    const spinning = (b: HTMLElement) => b.querySelector("svg")?.getAttribute("style") ?? "";
+    const { unmount } = renderCard({ isRecalculating: true });
+    const busy = screen.getByRole("button", { name: new RegExp(m.actions.recalculate) });
+    expect(busy).toBeDisabled();
+    expect(spinning(busy)).toContain("ddspin");
+    unmount();
+    renderCard({ isRecalculating: true, intent: null });
+    expect(spinning(screen.getByRole("button", { name: new RegExp(m.actions.generate) }))).toContain("ddspin");
+    cleanup();
+    renderCard();
+    expect(spinning(screen.getByRole("button", { name: new RegExp(m.actions.recalculate) }))).not.toContain("ddspin");
+  });
+
+  it("AC-6: an unknown source reason is never rendered raw; the generic `other` text is shown", () => {
+    const raw = "ECONNRESET: upstream exploded at 10.0.0.1";
+    renderCard({
+      intent: { ...INTENT, sources: [{ kind: "linked_issue", ref: "#7", status: "missing", reason: raw }] } as PrIntentDetail,
+    });
+    expect(screen.queryByText(raw)).toBeNull();
+    expect(screen.queryByText(new RegExp("ECONNRESET"))).toBeNull();
+    expect(screen.getByText(m.sources.reason.other)).toBeInTheDocument();
+  });
+
+  it("AC-6: an Object.prototype-like reason does not leak or crash", () => {
+    renderCard({
+      intent: { ...INTENT, sources: [{ kind: "linked_issue", ref: "#7", status: "missing", reason: "constructor" }] } as PrIntentDetail,
+    });
+    expect(screen.getByText(m.sources.reason.other)).toBeInTheDocument();
+  });
+
+  it.each([
+    ["empty", m.sources.reason.empty],
+    ["not_synced", m.sources.reason.notSynced],
+    ["no_changes", m.sources.reason.noChanges],
+    ["not_found", m.sources.reason.notFound],
+    ["too_large", m.sources.reason.tooLarge],
+    ["truncated", m.sources.reason.truncated],
+    ["not_markdown", m.sources.reason.notMarkdown],
+    ["is_pull_request", m.sources.reason.pullRequest],
+    ["absolute_path", m.sources.reason.absolutePath],
+    ["path_traversal", m.sources.reason.pathTraversal],
+    ["invalid_path", m.sources.reason.invalidPath],
+    ["fetch_failed", m.sources.reason.fetchFailed],
+  ])("AC-6: server reason code %s renders its message from intent.json", (code, text) => {
+    renderCard({
+      intent: { ...INTENT, sources: [{ kind: "spec_file", ref: "docs/x.md", status: "skipped", reason: code }] } as PrIntentDetail,
+    });
+    expect(screen.getByText(text)).toBeInTheDocument();
+    if (code !== text) expect(screen.queryByText(code)).toBeNull();
+  });
+
+  it("AC-6: across every state, each rendered text node is an intent.json value or prop data", () => {
+    const leaves = (o: unknown): string[] =>
+      typeof o === "string" ? [o] : o && typeof o === "object" ? Object.values(o).flatMap(leaves) : [];
+    const allowed = new Set<string>(leaves(intentMessages));
+    const kinds = ["pr_title", "pr_description", "linked_issue", "spec_file", "changed_files"] as const;
+    const statuses = ["used", "missing", "skipped"] as const;
+    const codes = [
+      "empty", "not_synced", "no_changes", "not_found", "too_large", "truncated", "not_markdown",
+      "is_pull_request", "absolute_path", "path_traversal", "invalid_path", "fetch_failed", "RAW server sentence",
+    ];
+    const sources = codes.map((reason, i) => ({
+      kind: kinds[i % kinds.length],
+      ref: `ref-${i}`,
+      status: statuses[i % statuses.length],
+      reason,
+    }));
+    // "Retry" is the @devdigest/ui ErrorState default label (IntentCard passes no retry label).
+    const propData = ["Retry", "ref-", INTENT.intent, ...INTENT.in_scope, ...INTENT.out_of_scope];
+    const full = { ...INTENT, sources, stale: true } as PrIntentDetail;
+    const states: Partial<React.ComponentProps<typeof IntentCard>>[] = [
+      { isLoading: true },
+      { intent: null },
+      { intent: null, isRecalculating: true },
+      { intent: full },
+      { intent: { ...full, in_scope: [], out_of_scope: [] } as PrIntentDetail },
+      { intent: full, isRecalculating: true },
+      { intent: undefined, isError: true },
+      { intent: full, recalcError: new ApiError("raw boom", 500, "llm_payment_required") },
+      { intent: full, recalcError: new ApiError("raw boom", 500, "llm_model_not_found") },
+      { intent: full, recalcError: new ApiError("raw boom", 500, "config_error") },
+      { intent: full, recalcError: new ApiError("raw boom", 500, "whatever") },
+      ...(["low", "medium", "high"] as const).map((c) => ({ intent: { ...full, confidence: c } as PrIntentDetail })),
+    ];
+    for (const st of states) {
+      const { container, unmount } = renderCard(st);
+      const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+      let n: Node | null;
+      while ((n = walker.nextNode())) {
+        const text = (n.textContent ?? "").trim();
+        if (!text) continue;
+        const ok = allowed.has(text) || propData.some((d) => text === d || (d === "ref-" && text.startsWith(d)));
+        expect(ok, `literal text "${text}" in state ${JSON.stringify(Object.keys(st))}`).toBe(true);
+      }
+      unmount();
+    }
+  });
 });

@@ -60,6 +60,22 @@ describe('S-AC-15: CRITICAL never muted', () => {
     expect(SCOPE_RULE).toMatch(/never waives a CRITICAL/i);
   });
 
+  it('S-AC-15: SCOPE_RULE withholds only SUGGESTION-level non-defect remarks outside scope', () => {
+    expect(SCOPE_RULE).toMatch(/withhold ONLY\s+SUGGESTION-level,?\s+non-defect/i);
+  });
+
+  it('S-AC-15: SCOPE_RULE says a WARNING or CRITICAL defect outside scope is still reported, titled "Out of scope: "', () => {
+    expect(SCOPE_RULE).toMatch(/defect outside the scope\s+[—-]\s+WARNING or CRITICAL\s+[—-]\s+is still reported/i);
+    expect(SCOPE_RULE).toMatch(/title must start with the literal text "Out of scope: "/);
+  });
+
+  it('S-AC-15: SCOPE_RULE never lets scope change a severity or waive a CRITICAL', () => {
+    expect(SCOPE_RULE).toMatch(/can never change\s+a finding.s severity/i);
+    expect(SCOPE_RULE).toMatch(/never waives a CRITICAL/i);
+    // the old wide-open wording must be gone: scope may not withhold WARNING-level remarks
+    expect(SCOPE_RULE).not.toMatch(/withhold[^.]*WARNING/i);
+  });
+
   for (const [label, title] of [
     ['with the marker', 'Out of scope: Hardcoded Stripe secret key'],
     ['without the marker', 'Hardcoded Stripe secret key'],

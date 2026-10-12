@@ -169,3 +169,47 @@ describe('collectSources: issues (S-AC-10) and description (S-AC-7)', () => {
     expect(out.outline).toContain('@@ -1 +1 @@');
   });
 });
+
+describe('collectSources: refused references and fetch errors (S-AC-9, security carry-over)', () => {
+  it('S-AC-9: refused references are recorded as skipped spec_file sources with their reason, and never read', async () => {
+    const git = new FakeGit({ 'etc/passwd.md': 'LEAK' }, { 'etc/passwd.md': 'LEAK' });
+    const gh = new FakeGitHub({}, { 'etc/passwd.md': 'LEAK' });
+    const out = await run('[a](/etc/passwd.md) [b](../../secret.md) [c](notes.txt) [d](https://evil.example/x.md)', git, gh);
+    expect(out.sources).toContainEqual({ kind: 'spec_file', ref: '/etc/passwd.md', status: 'skipped', reason: 'absolute_path' });
+    expect(out.sources).toContainEqual({ kind: 'spec_file', ref: '../../secret.md', status: 'skipped', reason: 'path_traversal' });
+    expect(out.sources).toContainEqual({ kind: 'spec_file', ref: 'notes.txt', status: 'skipped', reason: 'not_markdown' });
+    // URLs of other hosts are ignored, not recorded
+    expect(out.sources.some((s) => s.ref.includes('evil.example'))).toBe(false);
+    expect([...git.readAtRefCalls, ...git.readCalls, ...gh.contentCalls]).toEqual([]);
+    expect(out.files).toEqual([]);
+  });
+
+  it('S-AC-9: the byte cap is passed to every reader so the size check happens before the read', async () => {
+    const seen: (number | undefined)[] = [];
+    class SpyGit extends FakeGit {
+      override async readFileAtRef(r: RepoRef, ref: string, path: string, maxBytes?: number): Promise<string> {
+        seen.push(maxBytes);
+        return super.readFileAtRef(r, ref, path);
+      }
+      override async readFile(r: RepoRef, path: string, maxBytes?: number): Promise<string> {
+        seen.push(maxBytes);
+        return super.readFile(r, path);
+      }
+    }
+    await run('`docs/x.md`', new SpyGit({}, {}), new FakeGitHub());
+    expect(seen.length).toBeGreaterThan(0);
+    for (const m of seen) expect(typeof m === 'number' && m > 0).toBe(true);
+  });
+
+  it('security: a failed issue fetch is recorded with reason fetch_failed, not the error text', async () => {
+    class Boom extends FakeGitHub {
+      override async getIssue(): Promise<IssueMeta> {
+        throw new Error('SENTINEL-secret-token-ghp_123 upstream said no');
+      }
+    }
+    const out = await run('closes #50', new FakeGit({}, {}), new Boom());
+    const src = out.sources.find((s) => s.ref === '#50')!;
+    expect(src.reason).toBe('fetch_failed');
+    expect(JSON.stringify(out.sources)).not.toContain('SENTINEL');
+  });
+});

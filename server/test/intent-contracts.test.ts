@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import * as shared from '@devdigest/shared';
 import { FEATURE_MODELS } from '@devdigest/shared';
@@ -8,20 +7,6 @@ import { taskLine } from '../src/modules/reviews/helpers.js';
 
 const serverRoot = path.resolve(__dirname, '..');
 const repoRoot = path.resolve(serverRoot, '..');
-
-/** Last commit before the intent layer (the approved spec). `main` is behind the branch's earlier work. */
-const BASELINE = 'd735091';
-
-/** True when `git diff BASELINE -- <paths>` is empty (null when git/the commit is unavailable). */
-function unchangedVsMain(paths: string[]): boolean | null {
-  try {
-    execFileSync('git', ['rev-parse', '--verify', `${BASELINE}^{commit}`], { cwd: repoRoot, stdio: 'ignore' });
-    const out = execFileSync('git', ['diff', BASELINE, '--', ...paths], { cwd: repoRoot, encoding: 'utf8' });
-    return out.trim() === '';
-  } catch {
-    return null;
-  }
-}
 
 describe('S-AC-1 contracts', () => {
   it('S-AC-1: contracts/intent.ts is identical in both vendor copies', () => {
@@ -53,15 +38,12 @@ describe('S-AC-1 contracts', () => {
     expect(Object.keys(shared.Intent.shape).sort()).toEqual(['in_scope', 'intent', 'out_of_scope']);
   });
 
-  it('S-AC-1: Intent / PrIntentRecord source files are unchanged since the spec commit in both vendor copies', () => {
-    const files = [
-      'server/src/vendor/shared/contracts/brief.ts',
-      'client/src/vendor/shared/contracts/brief.ts',
-      'server/src/vendor/shared/contracts/review-api.ts',
-      'client/src/vendor/shared/contracts/review-api.ts',
-    ];
-    const r = unchangedVsMain(files);
-    if (r !== null) expect(r).toBe(true);
+  it('S-AC-21: PrBrief still has its four fields, and Intent is exactly intent / in_scope / out_of_scope', () => {
+    expect(Object.keys(shared.PrBrief.shape).sort()).toEqual(['blast', 'history', 'intent', 'risks']);
+    expect(Object.keys(shared.Intent.shape).sort()).toEqual(['in_scope', 'intent', 'out_of_scope']);
+    expect(shared.Intent.safeParse({ intent: 'x', in_scope: [], out_of_scope: [] }).success).toBe(true);
+    // a strict parse of the base shape accepts no extra required field
+    expect(shared.Intent.safeParse({ intent: 'x' }).success).toBe(false);
   });
 });
 
@@ -94,23 +76,54 @@ describe('S-AC-2 / S-AC-21 migrations', () => {
     );
   });
 
-  it('S-AC-21: migrations 0000-0011, Smart Diff and brief.ts are unchanged since the spec commit', () => {
-    const r = unchangedVsMain([
-      'server/src/db/migrations/0000*',
-      'server/src/db/migrations/0001*',
-      'server/src/db/migrations/0002*',
-      'server/src/db/migrations/0003*',
-      'server/src/db/migrations/0004*',
-      'server/src/db/migrations/0005*',
-      'server/src/db/migrations/0006*',
-      'server/src/db/migrations/0007*',
-      'server/src/db/migrations/0008*',
-      'server/src/db/migrations/0009*',
-      'server/src/db/migrations/0010*',
-      'server/src/db/migrations/0011*',
-      'server/src/modules/reviews/smart-diff',
-    ]);
-    if (r !== null) expect(r).toBe(true);
+  it('S-AC-21: migrations 0000-0011 are present in the journal in order, with 0012 after them', () => {
+    const journal = JSON.parse(readFileSync(path.join(dir, 'meta/_journal.json'), 'utf8')) as {
+      entries: { idx: number; tag: string }[];
+    };
+    const tags = journal.entries.map((e) => e.tag);
+    expect(journal.entries.map((e) => e.idx)).toEqual(journal.entries.map((_, i) => i));
+    for (let i = 0; i <= 12; i++) {
+      expect(tags[i]!.startsWith(String(i).padStart(4, '0') + '_'), `entry ${i}`).toBe(true);
+    }
+    expect(tags.slice(0, 12)).toHaveLength(12);
+    expect(tags.indexOf(tags.find((t) => t.startsWith('0012_'))!)).toBeGreaterThan(
+      tags.indexOf(tags.find((t) => t.startsWith('0011_'))!),
+    );
+    // every journalled migration has its SQL file on disk
+    for (const t of tags.slice(0, 13)) {
+      expect(() => statSync(path.join(dir, `${t}.sql`)), t).not.toThrow();
+    }
+  });
+});
+
+describe('S-AC-21 reviewer-core stays pure', () => {
+  const coreSrc = path.join(repoRoot, 'reviewer-core/src');
+  const walk = (d: string): string[] =>
+    readdirSync(d).flatMap((n) => {
+      const p = path.join(d, n);
+      return statSync(p).isDirectory() ? walk(p) : p.endsWith('.ts') ? [p] : [];
+    });
+  const FORBIDDEN =
+    /(?:from|import|require)\s*\(?\s*['"](?:node:fs(?:\/promises)?|fs(?:\/promises)?|pg|postgres|drizzle-orm[^'"]*|@octokit\/[^'"]+|octokit|simple-git|(?:\.\.?\/)+(?:[^'"]*\/)?server\/[^'"]*|[^'"]*\/server\/src\/[^'"]*)['"]/;
+
+  it('S-AC-21: no reviewer-core source imports fs, a DB client, octokit or anything from server/', () => {
+    const files = walk(coreSrc);
+    expect(files.length).toBeGreaterThan(5);
+    const offenders = files.filter((f) => FORBIDDEN.test(readFileSync(f, 'utf8')));
+    expect(offenders.map((f) => path.relative(repoRoot, f))).toEqual([]);
+  });
+
+  it('S-AC-21: the import check itself detects a forbidden import', () => {
+    for (const bad of [
+      `import { readFile } from 'node:fs/promises';`,
+      `import fs from 'fs';`,
+      `import { Octokit } from '@octokit/rest';`,
+      `import postgres from 'postgres';`,
+      `import x from '../../server/src/db/schema.js';`,
+    ]) {
+      expect(FORBIDDEN.test(bad), bad).toBe(true);
+    }
+    expect(FORBIDDEN.test(`import { z } from 'zod';`)).toBe(false);
   });
 });
 

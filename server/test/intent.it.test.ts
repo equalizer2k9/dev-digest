@@ -17,7 +17,7 @@ import * as t from '../src/db/schema.js';
 import { ReviewService } from '../src/modules/reviews/service.js';
 import { ReviewRepository } from '../src/modules/reviews/repository.js';
 import { resolveFeatureModel } from '../src/modules/settings/feature-models.js';
-import { PrIntentResponse, type PrIntentDetail } from '@devdigest/shared';
+import { PrIntentResponse, type PrIntentDetail, type StructuredRequest, type StructuredResult } from '@devdigest/shared';
 
 const hasDocker = await dockerAvailable();
 const d = hasDocker ? describe : describe.skip;
@@ -46,6 +46,31 @@ const structuredCalls = (l: MockLLMProvider) => l.calls.filter((c) => c.method =
 const promptText = (l: MockLLMProvider, i = 0) =>
   JSON.stringify((structuredCalls(l)[i]!.req as { messages: unknown }).messages);
 
+/** An LLM that answers after a delay, so a second trigger arrives while the first is in flight. */
+class SlowLlm extends MockLLMProvider {
+  override async completeStructured<T>(req: StructuredRequest<T>): Promise<StructuredResult<T>> {
+    await new Promise((r) => setTimeout(r, 250));
+    return super.completeStructured(req);
+  }
+}
+
+const TWO_FILE_DIFF =
+  'diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ b/a.ts\n@@ -1,1 +1,2 @@\n x\n+y\n' +
+  'diff --git a/b.ts b/b.ts\n--- a/b.ts\n+++ b/b.ts\n@@ -1,1 +1,2 @@\n x\n+z\n';
+
+const critical = (title: string) => ({
+  verdict: 'request_changes',
+  summary: 's',
+  score: 10,
+  findings: [
+    {
+      id: 'f1', severity: 'CRITICAL', category: 'security', title,
+      file: 'src/config.ts', start_line: 11, end_line: 11,
+      rationale: 'r', confidence: 0.9, kind: 'finding',
+    },
+  ],
+});
+
 function capture() {
   const lines: { level: string; obj: Record<string, unknown>; msg?: string }[] = [];
   const mk = (level: string) => (obj: unknown, msg?: string) =>
@@ -68,7 +93,7 @@ d('Intent layer (Testcontainers pg)', () => {
     await pg?.stop();
   });
 
-  async function setupPr(opts: { body?: string | null; headSha?: string } = {}) {
+  async function setupPr(opts: { body?: string | null; headSha?: string; patch?: string } = {}) {
     const name = `intent-${seq++}`;
     const [repo] = await pg.handle.db
       .insert(t.repos)
@@ -97,7 +122,7 @@ d('Intent layer (Testcontainers pg)', () => {
       path: 'src/config.ts',
       additions: 1,
       deletions: 0,
-      patch: '@@ -10,3 +10,4 @@\n   port: 3000,\n+  stripeKey: "sk_live_xxx",\n   redisUrl: x,',
+      patch: opts.patch ?? '@@ -10,3 +10,4 @@\n   port: 3000,\n+  stripeKey: "sk_live_xxx",\n   redisUrl: x,',
     });
     return pr!;
   }
@@ -108,6 +133,7 @@ d('Intent layer (Testcontainers pg)', () => {
       reviewLlm?: MockLLMProvider;
       git?: MockGitClient;
       github?: MockGitHubClient;
+      cfg?: ReturnType<typeof config>;
     } = {},
   ) {
     const intentLlm =
@@ -117,7 +143,7 @@ d('Intent layer (Testcontainers pg)', () => {
     const reviewLlm =
       o.reviewLlm ?? new MockLLMProvider('openai', { structuredBySchema: { Review: REVIEW_FIXTURE }, costUsd: 0.001 });
     return buildApp({
-      config: config(),
+      config: o.cfg ?? config(),
       db: pg.handle.db,
       overrides: {
         embedder: new MockEmbedder(),
@@ -133,11 +159,11 @@ d('Intent layer (Testcontainers pg)', () => {
   const recalc = (app: Awaited<ReturnType<typeof appWith>>['app'], id: string) =>
     app.inject({ method: 'POST', url: `/pulls/${id}/intent/recalculate` });
 
-  async function newAgent(app: Awaited<ReturnType<typeof appWith>>['app'], name: string) {
+  async function newAgent(app: Awaited<ReturnType<typeof appWith>>['app'], name: string, strategy?: string) {
     const res = await app.inject({
       method: 'POST',
       url: '/agents',
-      payload: { name, provider: 'openai', model: 'gpt-4.1', system_prompt: 'review' },
+      payload: { name, provider: 'openai', model: 'gpt-4.1', system_prompt: 'review', ...(strategy ? { strategy } : {}) },
     });
     return res.json() as { id: string };
   }
@@ -522,6 +548,304 @@ d('Intent layer (Testcontainers pg)', () => {
       expect(runs[0]!.status).toBe('done');
       expect(lines.some((l) => l.level === 'error')).toBe(true);
       expect(promptText(reviewLlm)).not.toContain('PR intent and scope');
+      await app.close();
+    });
+  });
+
+  // ================================================================ added: missing-test coverage
+  const logsJson = (ls: { obj: unknown; msg?: string }[]) => JSON.stringify(ls);
+
+  // ---------------------------------------------------------------- S-AC-9 (route)
+  it('S-AC-9: a refused file reference is recorded skipped with its reason in the stored sources and never read', async () => {
+    const git = new MockGitClient({ files: { 'etc/passwd.md': 'LEAK', 'notes.txt': 'LEAK' } });
+    const { app, intentLlm } = await appWith({ git });
+    const pr = await setupPr({ body: 'See [a](/etc/passwd.md) [b](../../etc/passwd.md) [c](notes.txt) [d](https://evil.example/x.md).' });
+    const detail = PrIntentResponse.parse((await recalc(app, pr.id)).json()).intent!;
+    expect(detail.sources).toContainEqual({ kind: 'spec_file', ref: '/etc/passwd.md', status: 'skipped', reason: 'absolute_path' });
+    expect(detail.sources).toContainEqual({ kind: 'spec_file', ref: '../../etc/passwd.md', status: 'skipped', reason: 'path_traversal' });
+    expect(detail.sources).toContainEqual({ kind: 'spec_file', ref: 'notes.txt', status: 'skipped', reason: 'not_markdown' });
+    expect(detail.sources.some((s) => s.ref.includes('evil.example'))).toBe(false);
+    expect(promptText(intentLlm!)).not.toContain('LEAK');
+    await app.close();
+  });
+
+  // ---------------------------------------------------------------- S-AC-12
+  it('S-AC-12: in a map-reduce review of N files there are N review llm_call lines and one intent_classifier line, one correlationId', async () => {
+    const git = new MockGitClient({ diff: TWO_FILE_DIFF });
+    const { app, reviewLlm } = await appWith({ git });
+    const pr = await setupPr();
+    const agent = await newAgent(app, `MR-${seq++}`, 'map-reduce');
+    const svc = new ReviewService(app.container);
+    const { lines, logger } = capture();
+    const targets = await svc.resolveTargets(workspaceId, { agentId: agent.id });
+    const { runs } = await svc.runReview(workspaceId, pr.id, targets, logger);
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+
+    const calls = lines.filter((l) => l.obj.event === 'llm_call').map((l) => l.obj);
+    expect(calls.filter((c) => c.call === 'intent_classifier')).toHaveLength(1);
+    expect(calls.filter((c) => c.call === 'review')).toHaveLength(2);
+    expect(structuredCalls(reviewLlm)).toHaveLength(2);
+    expect(new Set(calls.map((c) => c.correlationId)).size).toBe(1);
+
+    // the intent step is its own log entry, distinct from the review entries
+    const trace = await svc.getRunTrace(runs[0]!.run_id);
+    const intentEntries = trace!.log.filter((l) => /^Deriving PR intent \(/.test(l.msg));
+    const reviewEntries = trace!.log.filter((l) => /Starting review with agent|map: reviewing/.test(l.msg));
+    expect(intentEntries.length).toBeGreaterThan(0);
+    expect(reviewEntries.length).toBeGreaterThan(0);
+    for (const e of intentEntries) expect(reviewEntries).not.toContain(e);
+    await app.close();
+  });
+
+  it('S-AC-12: a trigger that joins a derivation already in flight logs "PR intent derived by a concurrent request"', async () => {
+    const slow = new SlowLlm('openai', { structuredBySchema: { PrIntent: INTENT_FIXTURE } });
+    const { app, intentLlm } = await appWith({ intentLlm: slow });
+    const pr = await setupPr();
+    const a1 = await newAgent(app, `J1-${seq++}`);
+    const a2 = await newAgent(app, `J2-${seq++}`);
+    const [r1, r2] = await Promise.all([
+      app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: a1.id } }),
+      app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: a2.id } }),
+    ]);
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 2 });
+    const svc = new ReviewService(app.container);
+    const ids = [r1, r2].map((r) => (r.json() as { runs: { run_id: string }[] }).runs[0]!.run_id);
+    const logs = (await Promise.all(ids.map((id) => svc.getRunTrace(id)))).map((t) => t!.log.map((l) => l.msg));
+    const joined = logs.filter((l) => l.some((m) => m.startsWith('PR intent derived by a concurrent request')));
+    expect(joined).toHaveLength(1); // exactly the trigger that joined, not the one that derived
+    expect(structuredCalls(intentLlm!)).toHaveLength(1);
+    await app.close();
+  });
+
+  // ---------------------------------------------------------------- S-AC-15 (server)
+  it.each([
+    ['with the marker', 'Out of scope: Hardcoded Stripe secret key'],
+    ['without the marker', 'Hardcoded Stripe secret key'],
+  ])('S-AC-15: a CRITICAL in a file outside in_scope is persisted unchanged (%s)', async (_l, title) => {
+    const reviewLlm = new MockLLMProvider('openai', { structuredBySchema: { Review: critical(title) } });
+    const { app } = await appWith({ reviewLlm });
+    const pr = await setupPr();
+    await new ReviewRepository(pg.handle.db).saveIntentRecord(pr.id, {
+      intent: { intent: 'docs only', in_scope: ['README.md'], out_of_scope: ['src/config.ts'] },
+      confidence: 'high', sources: [], provider: 'openrouter', model: 'm', headSha: pr.headSha,
+      tokensIn: 1, tokensOut: 1, costUsd: 0, generatedAt: new Date(),
+    });
+    const agent = await newAgent(app, `S15-${seq++}`);
+    const svc = new ReviewService(app.container);
+    const targets = await svc.resolveTargets(workspaceId, { agentId: agent.id });
+    await svc.runReview(workspaceId, pr.id, targets);
+    const [run] = await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+    expect(run!.status).toBe('done');
+    const rows = await pg.handle.db
+      .select({ severity: t.findings.severity, title: t.findings.title, file: t.findings.file })
+      .from(t.findings)
+      .innerJoin(t.reviews, eq(t.findings.reviewId, t.reviews.id))
+      .where(eq(t.reviews.prId, pr.id));
+    expect(rows).toEqual([{ severity: 'CRITICAL', title, file: 'src/config.ts' }]);
+    expect(promptText(reviewLlm)).toContain('PR intent and scope'); // the intent was in play
+    await app.close();
+  });
+
+  // ---------------------------------------------------------------- S-AC-16
+  const DESC = 'DESC-MARKER-77 adds a limiter. Closes #12. Plan: `docs/plan.md`.';
+  const PATCH = '@@ -10,3 +10,4 @@\n   port: 3000,\n+  const DIFF-MARKER-55 = 1;\n   redisUrl: x,';
+  const markerGit = () => new MockGitClient({ files: { 'docs/plan.md': 'SPEC-MARKER-88' } });
+  const markerGithub = () => {
+    const gh = new MockGitHubClient();
+    gh.getIssue = async (_r, n) => ({ number: n, title: 'ISSUE-MARKER-99', body: 'ISSUE-MARKER-99 body', state: 'open' });
+    return gh;
+  };
+  const MARKERS = ['DESC-MARKER-77', 'DIFF-MARKER-55', 'SPEC-MARKER-88', 'ISSUE-MARKER-99'];
+  const SECTION_KEYS = ['name', 'source', 'tokens'];
+
+  function expectAssemblyLines(
+    lines: { obj: Record<string, unknown> }[],
+    call: 'intent_classifier' | 'review',
+    prId: string,
+    expectedCount: number,
+  ) {
+    const asm = lines.filter((l) => l.obj.event === 'prompt_assembly' && l.obj.call === call).map((l) => l.obj);
+    expect(asm).toHaveLength(expectedCount);
+    for (const a of asm) {
+      expect(Object.keys(a).sort()).toEqual(
+        ['call', 'correlationId', 'event', 'model', 'prId', 'provider', 'sections', 'totalTokens'],
+      );
+      expect(a.prId).toBe(prId);
+      expect(typeof a.correlationId).toBe('string');
+      expect(typeof a.provider).toBe('string');
+      expect(typeof a.model).toBe('string');
+      expect(typeof a.totalTokens).toBe('number');
+      const sections = a.sections as Record<string, unknown>[];
+      expect(sections.length).toBeGreaterThan(0);
+      for (const sec of sections) {
+        expect(Object.keys(sec).sort()).toEqual(SECTION_KEYS);
+        expect(typeof sec.name).toBe('string');
+        expect(typeof sec.source).toBe('string');
+        expect(typeof sec.tokens).toBe('number');
+      }
+      for (const m of MARKERS) expect(JSON.stringify(a)).not.toContain(m);
+    }
+    return asm;
+  }
+
+  it('S-AC-16: a recalculate logs one prompt_assembly line with ids, sections {name, source, tokens} and totalTokens; no prompt text', async () => {
+    const { app, intentLlm } = await appWith({ git: markerGit(), github: markerGithub() });
+    const pr = await setupPr({ body: DESC, patch: PATCH });
+    const svc = new ReviewService(app.container);
+    const { lines, logger } = capture();
+    await svc.recalculateIntent(workspaceId, pr.id, logger);
+    // the markers really were in the model input (so their absence from the log means something)
+    for (const m of ['DESC-MARKER-77', 'SPEC-MARKER-88', 'ISSUE-MARKER-99']) expect(promptText(intentLlm!)).toContain(m);
+    const [a] = expectAssemblyLines(lines, 'intent_classifier', pr.id, 1);
+    expect(a!.provider).toBe('openrouter');
+    expect(a!.model).toBe('deepseek/deepseek-v4-flash');
+    expect(logsJson(lines)).not.toContain('SPEC-MARKER-88');
+    await app.close();
+  });
+
+  it('S-AC-16: a review logs one prompt_assembly line per model call (map-reduce: per file), one correlationId; no prompt text', async () => {
+    const git = new MockGitClient({ diff: TWO_FILE_DIFF.replace('+y', '+DIFF-MARKER-55'), files: { 'docs/plan.md': 'SPEC-MARKER-88' } });
+    const { app, reviewLlm } = await appWith({ git, github: markerGithub() });
+    const pr = await setupPr({ body: DESC, patch: PATCH });
+    const agent = await newAgent(app, `S16-${seq++}`, 'map-reduce');
+    const svc = new ReviewService(app.container);
+    const { lines, logger } = capture();
+    const targets = await svc.resolveTargets(workspaceId, { agentId: agent.id });
+    await svc.runReview(workspaceId, pr.id, targets, logger);
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+    const calls = structuredCalls(reviewLlm).length;
+    expect(calls).toBe(2);
+    const rev = expectAssemblyLines(lines, 'review', pr.id, calls);
+    const cls = expectAssemblyLines(lines, 'intent_classifier', pr.id, 1);
+    expect(new Set([...rev, ...cls].map((a) => a.correlationId)).size).toBe(1);
+    expect(rev[0]!.provider).toBe('openai');
+    for (const m of MARKERS) {
+      expect(JSON.stringify(lines.filter((l) => l.obj.event === 'prompt_assembly'))).not.toContain(m);
+    }
+    await app.close();
+  });
+
+  // ---------------------------------------------------------------- S-AC-17
+  describe('S-AC-17 verbose previews through the real call sites', () => {
+    const devCfg = () =>
+      loadConfig({ ...process.env, NODE_ENV: 'development', PROMPT_LOG_VERBOSE: 'true' } as NodeJS.ProcessEnv);
+    const testCfgVerboseEnv = () =>
+      loadConfig({ ...process.env, NODE_ENV: 'test', PROMPT_LOG_VERBOSE: 'true' } as NodeJS.ProcessEnv);
+
+    async function runBoth(cfg: ReturnType<typeof config>) {
+      const { app } = await appWith({ cfg, git: markerGit(), github: markerGithub() });
+      const svc = new ReviewService(app.container);
+      const out = capture();
+      const pr1 = await setupPr({ body: DESC, patch: PATCH });
+      await svc.recalculateIntent(workspaceId, pr1.id, out.logger);
+      const pr2 = await setupPr({ body: DESC, patch: PATCH });
+      const agent = await newAgent(app, `S17-${seq++}`);
+      const targets = await svc.resolveTargets(workspaceId, { agentId: agent.id });
+      await svc.runReview(workspaceId, pr2.id, targets, out.logger);
+      await waitForPrRuns(pg.handle.db, pr2.id, { expected: 1 });
+      await app.close();
+      return out.lines;
+    }
+
+    it('S-AC-17: promptLogVerbose false → no prompt_preview line and no preview text, even with PROMPT_LOG_VERBOSE=true in NODE_ENV=test', async () => {
+      const cfg = testCfgVerboseEnv();
+      expect(cfg.promptLogVerbose).toBe(false);
+      const lines = await runBoth(cfg);
+      expect(lines.filter((l) => l.obj.event === 'prompt_assembly').length).toBeGreaterThan(0);
+      expect(lines.some((l) => l.obj.event === 'prompt_preview')).toBe(false);
+      expect(lines.some((l) => l.level === 'debug' && l.obj.event === 'prompt_preview')).toBe(false);
+      for (const m of ['DESC-MARKER-77', 'SPEC-MARKER-88', 'ISSUE-MARKER-99']) expect(logsJson(lines)).not.toContain(m);
+    });
+
+    it('S-AC-17: promptLogVerbose true (development + PROMPT_LOG_VERBOSE=true) → a debug prompt_preview line per call site', async () => {
+      const cfg = devCfg();
+      expect(cfg.promptLogVerbose).toBe(true);
+      const lines = await runBoth(cfg);
+      const previews = lines.filter((l) => l.obj.event === 'prompt_preview');
+      expect(previews.length).toBeGreaterThanOrEqual(2);
+      for (const p of previews) expect(p.level).toBe('debug');
+      expect(new Set(previews.map((p) => p.obj.call))).toEqual(new Set(['intent_classifier', 'review']));
+      // the opt-in preview is where prompt text may appear; the info-level lines stay clean
+      for (const l of lines.filter((x) => x.level === 'info' && x.obj.event === 'prompt_assembly')) {
+        for (const m of MARKERS) expect(JSON.stringify(l.obj)).not.toContain(m);
+      }
+    });
+  });
+
+  // ---------------------------------------------------------------- S-AC-25 (budget)
+  it('S-AC-25: after a recalculate with oversized description, issues and specs the classifier input is ≤ 6000 tokens (app tokenizer)', async () => {
+    const big = (m: string) => `${m} ` + 'lorem ipsum dolor sit amet, consectetur adipiscing elit. '.repeat(400);
+    const git = new MockGitClient({ files: { 'a.md': big('A'), 'b.md': big('B'), 'c.md': big('C') } });
+    const github = new MockGitHubClient();
+    github.getIssue = async (_r, n) => ({ number: n, title: `Issue ${n}`, body: big(`ISSUE${n}`), state: 'open' });
+    const { app, intentLlm } = await appWith({ git, github });
+    const body =
+      'Closes #1, closes #2, closes #3. Specs: `a.md` `b.md` `c.md`. ' + 'Long description text goes on and on. '.repeat(400);
+    const pr = await setupPr({ body });
+    expect((await recalc(app, pr.id)).statusCode).toBe(200);
+    const req = structuredCalls(intentLlm!)[0]!.req as { messages: { content: string }[] };
+    const total = req.messages.reduce((n, m) => n + app.container.tokenizer.count(m.content), 0);
+    expect(total).toBeGreaterThan(0);
+    expect(total).toBeLessThanOrEqual(6000);
+    await app.close();
+  });
+
+  // ---------------------------------------------------------------- security carry-over
+  describe('provider error text never leaks', () => {
+    const SENTINEL = 'SENTINEL-raw-provider-error-ghp_Zx81';
+    it.each([
+      ['500 with a message', { status: 500 }],
+      ['402', { status: 402 }],
+      ['404', { status: 404 }],
+      ['no status', {}],
+    ])('security: recalculate (%s) → neither the response body nor the log carries the provider message', async (_n, extra) => {
+      const failing = new FailingLlm(Object.assign(new Error(SENTINEL), extra));
+      const { app } = await appWith({ intentLlm: failing });
+      const pr = await setupPr();
+      const res = await recalc(app, pr.id);
+      expect(res.statusCode).toBeGreaterThanOrEqual(400);
+      expect(res.body).not.toContain(SENTINEL);
+
+      const svc = new ReviewService(app.container);
+      const { lines, logger } = capture();
+      await svc.recalculateIntent(workspaceId, pr.id, logger).catch((e: Error) => {
+        expect(e.message).not.toContain(SENTINEL);
+      });
+      expect(logsJson(lines)).not.toContain(SENTINEL);
+      await app.close();
+    });
+
+    it('security: a review whose classifier fails with a sentinel message logs and traces no raw provider text', async () => {
+      const failing = new FailingLlm(Object.assign(new Error(SENTINEL), { status: 500 }));
+      const { app } = await appWith({ intentLlm: failing });
+      const pr = await setupPr();
+      const agent = await newAgent(app, `SEC-${seq++}`);
+      const svc = new ReviewService(app.container);
+      const { lines, logger } = capture();
+      const targets = await svc.resolveTargets(workspaceId, { agentId: agent.id });
+      const { runs } = await svc.runReview(workspaceId, pr.id, targets, logger);
+      const [run] = await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+      expect(run!.status).toBe('done');
+      expect(logsJson(lines)).not.toContain(SENTINEL);
+      const trace = await svc.getRunTrace(runs[0]!.run_id);
+      expect(JSON.stringify(trace!.log)).not.toContain(SENTINEL);
+      await app.close();
+    });
+
+    it('security: a failed issue fetch is recorded with reason fetch_failed, not the error text', async () => {
+      const github = new MockGitHubClient();
+      github.getIssue = async () => {
+        throw new Error(SENTINEL);
+      };
+      const { app } = await appWith({ github });
+      const pr = await setupPr({ body: 'Closes #5' });
+      const res = await recalc(app, pr.id);
+      expect(res.statusCode).toBe(200);
+      const detail = PrIntentResponse.parse(res.json()).intent!;
+      expect(detail.sources).toContainEqual({ kind: 'linked_issue', ref: '#5', status: 'missing', reason: 'fetch_failed' });
+      expect(res.body).not.toContain(SENTINEL);
+      const rec = await new ReviewRepository(pg.handle.db).getIntentRecord(pr.id);
+      expect(JSON.stringify(rec?.sources)).not.toContain(SENTINEL);
       await app.close();
     });
   });
