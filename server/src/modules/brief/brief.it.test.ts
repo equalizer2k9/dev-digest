@@ -9,6 +9,7 @@ import * as t from '../../db/schema.js';
 import { MockEmbedder, MockGitHubClient, MockLLMProvider } from '../../adapters/mocks.js';
 import type { BlastResult, RepoIntel } from '../repo-intel/types.js';
 import { BRIEF_FEATURE } from './constants.js';
+import { ReviewRepository } from '../reviews/repository.js';
 
 const hasDocker = await dockerAvailable();
 const d = hasDocker ? describe : describe.skip;
@@ -194,5 +195,98 @@ d('/pulls/:id/brief against Postgres', () => {
     expect((await post(pr.id, {})).statusCode).toBe(422);
     expect((await post(pr.id, { head_sha: '' })).statusCode).toBe(422);
     expect(modelCalls()).toHaveLength(0);
+  });
+
+  describe('stored PR intent (AC-31, AC-32, AC-33)', () => {
+    const mocks = {
+      openai: new MockLLMProvider('openai', { structured: REPLY }),
+      anthropic: new MockLLMProvider('anthropic', { structured: REPLY }),
+      openrouter: new MockLLMProvider('openrouter' as never, { structured: REPLY }),
+    };
+    let app2: Awaited<ReturnType<typeof buildApp>>;
+    const allCalls = () => Object.values(mocks).flatMap((m) => m.calls);
+    const intentRows = (id: string) =>
+      pg.handle.db.select().from(t.prIntent).where(eq(t.prIntent.prId, id));
+    const post2 = (id: string) =>
+      app2.inject({ method: 'POST', url: `/pulls/${id}/brief`, payload: { head_sha: 'page-sha' } });
+    const userText = () =>
+      allCalls()
+        .map((c) => (c.req as { messages: { content: string }[] }).messages.map((m) => m.content).join('\n'))
+        .join('\n');
+
+    beforeAll(async () => {
+      app2 = await buildApp({
+        config: config(),
+        db: pg.handle.db,
+        overrides: {
+          llm: mocks,
+          embedder: new MockEmbedder(),
+          github: new MockGitHubClient(),
+          repoIntel: { getBlastRadius: async () => FACADE } as unknown as RepoIntel,
+        },
+      });
+    });
+    afterAll(async () => {
+      await app2?.close();
+    });
+    beforeEach(() => {
+      for (const m of Object.values(mocks)) m.calls.length = 0;
+    });
+
+    async function store(prId: string, headSha: string | null) {
+      await new ReviewRepository(pg.handle.db).saveIntentRecord(prId, {
+        intent: { intent: 'Add doIt safely', in_scope: ['doIt helper'], out_of_scope: ['rewrite of routes'] },
+        confidence: 'medium',
+        sources: [],
+        provider: null,
+        model: null,
+        headSha,
+        tokensIn: null,
+        tokensOut: null,
+        costUsd: null,
+        generatedAt: new Date(),
+      });
+    }
+
+    it('AC-31: a stored intent reaches the model in a pr-intent block and the stored brief; one call in total', async () => {
+      const pr = await setupPr();
+      await store(pr.id, 'row-sha');
+      const res = await post2(pr.id);
+      expect(res.statusCode).toBe(200);
+      expect(allCalls()).toHaveLength(1);
+      const text = userText();
+      const block = /<untrusted source="pr-intent">([\s\S]*?)<\/untrusted>/.exec(text)?.[1];
+      for (const n of ['Add doIt safely', 'doIt helper', 'rewrite of routes', 'medium']) expect(block).toContain(n);
+      expect(text).not.toMatch(/STALE/);
+      const expected = { intent: 'Add doIt safely', in_scope: ['doIt helper'], out_of_scope: ['rewrite of routes'] };
+      expect(res.json().brief.intent).toEqual(expected);
+      expect((await get(pr.id)).json().brief.intent).toEqual(expected);
+      expect(await intentRows(pr.id)).toHaveLength(1);
+    });
+
+    it('AC-31/AC-32: no stored intent -> no pr-intent block, intent null, one call, no pr_intent row', async () => {
+      const pr = await setupPr();
+      const res = await post2(pr.id);
+      expect(res.statusCode).toBe(200);
+      expect(allCalls()).toHaveLength(1);
+      expect(userText()).not.toContain('pr-intent');
+      expect(res.json().brief.intent).toBeNull();
+      expect(await intentRows(pr.id)).toHaveLength(0);
+    });
+
+    it('AC-33: an intent derived for another head SHA is still sent, marked stale; one call', async () => {
+      const pr = await setupPr();
+      await store(pr.id, 'an-older-sha');
+      const res = await post2(pr.id);
+      expect(allCalls()).toHaveLength(1);
+      const text = userText();
+      expect(text).toContain('Add doIt safely');
+      const outside = text.replace(/<untrusted source="[^"]*">[\s\S]*?<\/untrusted>/g, '');
+      expect(outside).toMatch(/stale/i);
+      expect(res.json().brief.intent).toEqual({
+        intent: 'Add doIt safely', in_scope: ['doIt helper'], out_of_scope: ['rewrite of routes'],
+      });
+      expect(await intentRows(pr.id)).toHaveLength(1);
+    });
   });
 });

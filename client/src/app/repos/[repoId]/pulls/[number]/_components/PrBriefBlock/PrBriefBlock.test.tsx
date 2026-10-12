@@ -168,4 +168,39 @@ describe("PrBriefBlock", () => {
     expect(screen.getByText("<img src=x onerror=alert(1)>")).toBeInTheDocument();
     expect(screen.queryByRole("img")).toBeNull();
   });
+
+  it("AC-5: no intent stated only when noIntent; specs statement shown either way", () => {
+    setup({ noIntent: true });
+    expect(screen.getByText(messages.inputs.noIntent)).toBeInTheDocument();
+    expect(screen.getByText(messages.inputs.noSpecs)).toBeInTheDocument();
+    cleanup();
+    setup({ noIntent: false, intent: <div>INTENT-CARD</div> });
+    expect(screen.queryByText(messages.inputs.noIntent)).toBeNull();
+    expect(screen.getByText(messages.inputs.noSpecs)).toBeInTheDocument();
+    cleanup();
+    setup({ noIntent: false });
+    expect(screen.queryByText(messages.inputs.noIntent)).toBeNull();
+  });
+
+  it("AC-31: the intent passed in is displayed inside the block, with a brief", () => {
+    setup({ intent: <div>INTENT-CARD</div>, noIntent: false });
+    expect(screen.getByText("INTENT-CARD")).toBeInTheDocument();
+    expect(screen.queryByText(messages.inputs.noIntent)).toBeNull();
+  });
+
+  it("AC-31: the Intent block is present in every status of the block", () => {
+    const cases: Partial<React.ComponentProps<typeof PrBriefBlock>>[] = [
+      { status: "loading", brief: null },
+      { status: "loadError", brief: null },
+      { status: "ready", brief: null },
+      { status: "ready" },
+      { status: "ready", generating: true },
+      { status: "ready", brief: null, generating: true },
+    ];
+    for (const c of cases) {
+      setup({ ...c, intent: <div>INTENT-CARD</div> });
+      expect(screen.getAllByText("INTENT-CARD")).toHaveLength(1);
+      cleanup();
+    }
+  });
 });

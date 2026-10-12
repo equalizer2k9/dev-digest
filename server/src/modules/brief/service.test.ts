@@ -17,12 +17,14 @@ const repo = vi.hoisted(() => ({ get: vi.fn(), upsert: vi.fn() }));
 const blastSvc = vi.hoisted(() => ({ forPull: vi.fn() }));
 const BlastCtor = vi.hoisted(() => vi.fn());
 const featureModels = vi.hoisted(() => ({ resolveFeatureModel: vi.fn() }));
+const intentSvc = vi.hoisted(() => ({ get: vi.fn(), recalculate: vi.fn(), ensureForReview: vi.fn() }));
 
 vi.mock('./repository.js', () => ({ BriefRepository: vi.fn(() => repo) }));
 vi.mock('../blast/service.js', () => ({
   BlastService: BlastCtor.mockImplementation(() => blastSvc),
 }));
 vi.mock('../settings/feature-models.js', () => featureModels);
+vi.mock('../reviews/intent/intent-service.js', () => ({ IntentService: vi.fn(() => intentSvc) }));
 
 const WS = 'ws-1';
 const PR = 'pr-1';
@@ -80,6 +82,7 @@ beforeEach(() => {
   reviewRepo.getPrFiles.mockResolvedValue(FILES);
   blastSvc.forPull.mockResolvedValue(BLAST);
   featureModels.resolveFeatureModel.mockResolvedValue({ provider: 'openai', model: MODEL });
+  intentSvc.get.mockResolvedValue(null);
   repo.get.mockResolvedValue(undefined);
   repo.upsert.mockResolvedValue(undefined);
 });
@@ -238,6 +241,107 @@ describe('BriefService.generate', () => {
     expect(text).not.toContain(TITLE);
     expect(text).not.toContain('src/a.ts');
     expect(text).not.toContain('It does X.');
+  });
+});
+
+const INTENT_DETAIL = {
+  intent: 'Add retry to the uploader',
+  in_scope: ['retry loop', 'backoff config'],
+  out_of_scope: ['UI changes'],
+  confidence: 'medium',
+  stale: false,
+};
+const modelText = () =>
+  (llm.calls[0]!.req as { messages: { content: string }[] }).messages.map((m) => m.content).join('\n');
+const modelCalls = () => llm.calls.filter((c) => c.method === 'completeStructured');
+const intentBlock = (text: string) =>
+  /<untrusted source="pr-intent">([\s\S]*?)<\/untrusted>/.exec(text)?.[1];
+
+describe('BriefService.generate: stored intent (AC-31, AC-32, AC-33)', () => {
+  it('AC-31: gives the stored intent to the model inside a pr-intent untrusted block, stores it, one call', async () => {
+    intentSvc.get.mockResolvedValue(INTENT_DETAIL);
+    const res = await make().generate(WS, PR, 'sha');
+    expect(modelCalls()).toHaveLength(1);
+    const block = intentBlock(modelText());
+    expect(block).toBeDefined();
+    for (const needle of ['Add retry to the uploader', 'retry loop', 'backoff config', 'UI changes', 'medium']) {
+      expect(block).toContain(needle);
+    }
+    const expected = { intent: INTENT_DETAIL.intent, in_scope: INTENT_DETAIL.in_scope, out_of_scope: INTENT_DETAIL.out_of_scope };
+    expect(res.brief!.intent).toEqual(expected);
+    expect((repo.upsert.mock.calls[0]![1] as PrBrief).intent).toEqual(expected);
+    expect(intentSvc.get).toHaveBeenCalledWith(WS, PR);
+  });
+
+  it('AC-31: with no stored intent the input has no pr-intent block and brief.intent is null, one call', async () => {
+    const res = await make().generate(WS, PR, 'sha');
+    expect(modelCalls()).toHaveLength(1);
+    expect(modelText()).not.toContain('pr-intent');
+    expect(res.brief!.intent).toBeNull();
+  });
+
+  it('AC-33: a stale intent is still given, marked stale as trusted text outside the block; one call', async () => {
+    intentSvc.get.mockResolvedValue({ ...INTENT_DETAIL, stale: true });
+    const res = await make().generate(WS, PR, 'sha');
+    expect(modelCalls()).toHaveLength(1);
+    const text = modelText();
+    expect(intentBlock(text)).toContain('Add retry to the uploader');
+    const outside = text.replace(/<untrusted source="[^"]*">[\s\S]*?<\/untrusted>/g, '');
+    expect(outside).toMatch(/stale/i);
+    expect(res.brief!.intent).toEqual({
+      intent: INTENT_DETAIL.intent,
+      in_scope: INTENT_DETAIL.in_scope,
+      out_of_scope: INTENT_DETAIL.out_of_scope,
+    });
+  });
+
+  it('AC-33: a fresh intent is not marked stale', async () => {
+    intentSvc.get.mockResolvedValue(INTENT_DETAIL);
+    await make().generate(WS, PR, 'sha');
+    const user = (llm.calls[0]!.req as { messages: { content: string }[] }).messages[1]!.content;
+    expect(user).not.toMatch(/stale/i);
+  });
+
+  it.each([
+    ['no intent', null],
+    ['fresh intent', INTENT_DETAIL],
+    ['stale intent', { ...INTENT_DETAIL, stale: true }],
+  ])('AC-32: %s -> never derives (recalculate/ensureForReview untouched), exactly one model call', async (_n, detail) => {
+    intentSvc.get.mockResolvedValue(detail);
+    await make().generate(WS, PR, 'sha');
+    expect(intentSvc.recalculate).not.toHaveBeenCalled();
+    expect(intentSvc.ensureForReview).not.toHaveBeenCalled();
+    expect(modelCalls()).toHaveLength(1);
+    const features = featureModels.resolveFeatureModel.mock.calls.map((c) => c[2]);
+    expect(features).toEqual(['risk_brief']);
+    expect(llmFactory).toHaveBeenCalledTimes(1);
+  });
+
+  it('AC-31/AC-32: when reading the intent fails the brief is generated without it; error text not in the input', async () => {
+    intentSvc.get.mockRejectedValue(new Error('LEAKED-INTENT-FAILURE-TEXT'));
+    const res = await make().generate(WS, PR, 'sha');
+    expect(modelCalls()).toHaveLength(1);
+    expect(res.brief!.intent).toBeNull();
+    const text = modelText();
+    expect(text).not.toContain('LEAKED-INTENT-FAILURE-TEXT');
+    expect(text).not.toContain('pr-intent');
+    expect(intentSvc.recalculate).not.toHaveBeenCalled();
+  });
+
+  it('NFR-2/NFR-3: a huge intent plus many files keeps the model input <= 8000 tokens and keeps every file row the intent displaced', async () => {
+    count = (t) => t.length;
+    intentSvc.get.mockResolvedValue({
+      ...INTENT_DETAIL,
+      in_scope: Array.from({ length: 300 }, (_, i) => `in-scope item number ${i} `.padEnd(60, 'x')),
+      out_of_scope: Array.from({ length: 300 }, (_, i) => `out-of-scope item ${i} `.padEnd(60, 'y')),
+    });
+    const many = Array.from({ length: 40 }, (_, i) => ({ ...FILES[0]!, path: `src/many-${i}.ts` }));
+    reviewRepo.getPrFiles.mockResolvedValue(many);
+    await make().generate(WS, PR, 'sha');
+    const text = modelText();
+    expect(text.length).toBeLessThanOrEqual(8000);
+    for (const f of many) expect(text).toContain(`${f.path} |`);
+    expect(text).not.toContain('in-scope item number 299');
   });
 });
 

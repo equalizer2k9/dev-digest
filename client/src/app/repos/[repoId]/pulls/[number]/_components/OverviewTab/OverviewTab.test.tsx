@@ -237,3 +237,112 @@ describe("OverviewTab — intent", () => {
     expect(screen.getByText(m.generating)).toBeInTheDocument();
   });
 });
+
+describe("OverviewTab — stored intent in the brief (AC-5, AC-31, AC-33)", () => {
+  const STORED = {
+    intent: "Adds rate limiting to the login route.",
+    in_scope: ["Login throttling"],
+    out_of_scope: ["Password policy"],
+    pr_id: "11111111-1111-4111-8111-111111111111",
+    confidence: "high",
+    sources: [],
+    provider: "openrouter",
+    model: "m",
+    head_sha: "abc",
+    generated_at: "2026-10-12T10:00:00Z",
+    stale: false,
+  };
+  const loaded = (intent: unknown) => ({ data: { intent }, isLoading: false, isError: false, isSuccess: true });
+  const withBrief = () =>
+    usePrBrief.mockReturnValue({ isPending: false, isError: false, data: { brief: BRIEF }, refetch: vi.fn() });
+  const cardControls = () =>
+    [m.actions.generate, m.actions.recalculate].flatMap((name) => screen.queryAllByRole("button", { name }));
+
+  beforeEach(() => useBlastRadius.mockReturnValue({ isPending: false, isError: false, data: blast }));
+
+  it("AC-31: stored intent is displayed, no 'No intent available', before a brief and with one", () => {
+    state.intent = loaded(STORED);
+    const { unmount } = renderTab();
+    expect(screen.getByText(STORED.intent)).toBeInTheDocument();
+    expect(screen.queryByText(briefMessages.inputs.noIntent)).toBeNull();
+    unmount();
+    withBrief();
+    renderTab();
+    expect(screen.getByText(STORED.intent)).toBeInTheDocument();
+    expect(screen.queryByText(briefMessages.inputs.noIntent)).toBeNull();
+    expect(screen.getByText(briefMessages.inputs.noSpecs)).toBeInTheDocument();
+  });
+
+  it("AC-31/AC-5: brief shown and no intent stored: both statements shown", () => {
+    state.intent = loaded(null);
+    withBrief();
+    renderTab();
+    expect(screen.getByText(briefMessages.inputs.noIntent)).toBeInTheDocument();
+    expect(screen.getByText(briefMessages.inputs.noSpecs)).toBeInTheDocument();
+  });
+
+  it("AC-33: a stale stored intent is displayed marked as stale", () => {
+    state.intent = loaded({ ...STORED, stale: true });
+    withBrief();
+    renderTab();
+    expect(screen.getByText(STORED.intent)).toBeInTheDocument();
+    expect(screen.getByText(m.stale)).toBeInTheDocument();
+  });
+
+  it("AC-33: a fresh stored intent is not marked stale", () => {
+    state.intent = loaded(STORED);
+    withBrief();
+    renderTab();
+    expect(screen.queryByText(m.stale)).toBeNull();
+  });
+
+  it("AC-31: exactly one intent card in every state", () => {
+    const intents = [loaded(STORED), loaded(null), loaded({ ...STORED, stale: true })];
+    const briefs = {
+      none: () => undefined,
+      shown: withBrief,
+      loading: () =>
+        usePrBrief.mockReturnValue({ isPending: true, isError: false, data: undefined, refetch: vi.fn() }),
+      generating: () => useGenerateBrief.mockReturnValue({ ...idleMutation, isPending: true }),
+      generatingWithBrief: () => {
+        withBrief();
+        useGenerateBrief.mockReturnValue({ ...idleMutation, isPending: true });
+      },
+    };
+    for (const intent of intents) {
+      for (const [name, arrange] of Object.entries(briefs)) {
+        usePrBrief.mockReturnValue({ isPending: false, isError: false, data: { brief: null }, refetch: vi.fn() });
+        useGenerateBrief.mockReturnValue(idleMutation);
+        state.intent = intent;
+        arrange();
+        const { unmount } = renderTab();
+        const label = `${name} / ${JSON.stringify(intent.data.intent === null)}`;
+        expect(cardControls().length, label).toBe(1);
+        const titles = screen.queryAllByText(m.title).length;
+        expect(titles, label).toBe(1);
+        unmount();
+      }
+    }
+  });
+
+  it("AC-31: while the intent query loads, 'No intent available' is not shown", () => {
+    state.intent = { data: undefined, isLoading: true, isError: false, isSuccess: false } as typeof state.intent;
+    withBrief();
+    renderTab();
+    expect(screen.queryByText(briefMessages.inputs.noIntent)).toBeNull();
+    cleanup();
+    usePrBrief.mockReturnValue({ isPending: false, isError: false, data: { brief: BRIEF }, refetch: vi.fn() });
+    state.intent = { data: undefined, isLoading: true } as typeof state.intent;
+    renderTab();
+    expect(screen.queryByText(briefMessages.inputs.noIntent)).toBeNull();
+  });
+
+  it("layout: Intent block before the PR description; blast radius still rendered", () => {
+    state.intent = loaded(STORED);
+    renderTab({ prBody: "Body text of the PR" });
+    const card = screen.getByText(STORED.intent);
+    const body = screen.getByText("Body text of the PR");
+    expect(card.compareDocumentPosition(body) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText(messages.title)).toBeInTheDocument();
+  });
+});
