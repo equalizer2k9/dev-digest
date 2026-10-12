@@ -31,6 +31,33 @@ export interface BriefFileRow {
   ranges: LineRange[];
 }
 
+/**
+ * The known lines of one file: hunk ranges kept as intervals plus single caller
+ * lines. A range is never expanded line by line, so a hunk header with a huge
+ * count costs the same as any other (NFR-7).
+ */
+export class LineSet {
+  private ranges: LineRange[] = [];
+  private points = new Set<number>();
+
+  addRange(range: LineRange): void {
+    this.ranges.push(range);
+  }
+
+  add(line: number): void {
+    this.points.add(line);
+  }
+
+  has(line: number): boolean {
+    return this.points.has(line) || this.ranges.some((r) => line >= r.start && line <= r.end);
+  }
+
+  /** Zero only when the file has no known line; overlapping ranges are counted twice. */
+  get size(): number {
+    return this.points.size + this.ranges.reduce((n, r) => n + (r.end - r.start + 1), 0);
+  }
+}
+
 export interface BriefCaller {
   file: string;
   line: number;
@@ -58,7 +85,7 @@ export interface BriefFacts {
   /** Callers in blast order. */
   callers: BriefCaller[];
   allowedPaths: Set<string>;
-  knownLines: Map<string, Set<number>>;
+  knownLines: Map<string, LineSet>;
 }
 
 export interface PullFacts {
@@ -90,7 +117,8 @@ export function hunkRanges(patch: string | null): LineRange[] {
     if (!m) continue;
     const start = Number(m[1]);
     const count = m[2] === undefined ? 1 : Number(m[2]);
-    if (count > 0) ranges.push({ start, end: start + count - 1 });
+    // Digits past the safe-integer range are not line numbers: skip the hunk.
+    if (count > 0 && Number.isSafeInteger(start + count - 1)) ranges.push({ start, end: start + count - 1 });
   }
   return ranges;
 }
@@ -119,11 +147,11 @@ export function buildFacts(
     );
 
   const allowedPaths = new Set<string>();
-  const knownLines = new Map<string, Set<number>>();
-  const linesOf = (path: string): Set<number> => {
+  const knownLines = new Map<string, LineSet>();
+  const linesOf = (path: string): LineSet => {
     let set = knownLines.get(path);
     if (!set) {
-      set = new Set<number>();
+      set = new LineSet();
       knownLines.set(path, set);
     }
     return set;
@@ -132,7 +160,7 @@ export function buildFacts(
   for (const f of files) {
     allowedPaths.add(f.path);
     const set = linesOf(f.path);
-    for (const r of f.ranges) for (let n = r.start; n <= r.end; n++) set.add(n);
+    for (const r of f.ranges) set.addRange(r);
   }
 
   const callers: BriefCaller[] = [];
@@ -284,6 +312,28 @@ function largestFitting(max: number, fits: (n: number) => boolean): number {
   return lo;
 }
 
+/**
+ * Smallest `k` in [1, n] for which the state after `apply(k)` fits, found with
+ * O(log n) probes instead of one per step; assumes fitting is monotone in `k`
+ * (cutting more never costs more). Leaves `apply(k)` applied; when nothing fits
+ * it leaves `apply(n)` applied and returns false.
+ */
+function cutUntilFits(n: number, apply: (k: number) => void, fits: () => boolean): boolean {
+  if (n === 0) return false;
+  apply(n);
+  if (!fits()) return false;
+  let lo = 1;
+  let hi = n;
+  while (lo < hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    apply(mid);
+    if (fits()) hi = mid;
+    else lo = mid + 1;
+  }
+  apply(lo);
+  return true;
+}
+
 const collapse = (r: LineRange[]): LineRange[] =>
   r.length > 1 ? [{ start: r[0]!.start, end: r[r.length - 1]!.end }] : r;
 
@@ -296,6 +346,8 @@ const collapse = (r: LineRange[]): LineRange[] =>
  *   (lowest churn first) · 3 description tail · 4 ranges collapsed to one per
  *   file · 5 rows role by role tests → wiring → core (lowest churn first) ·
  *   6 title tail. Never throws, never fails for size; no diff body is ever seen.
+ * Each cut step is a binary search, so the tokenizer is called O(log n) times per
+ * step, never once per removed row (NFR-7).
  */
 export function buildBriefInput(
   facts: BriefFacts,
@@ -330,24 +382,25 @@ export function buildBriefInput(
   }
 
   // 1. caller files, last in blast order first
-  const callerFiles: string[] = [];
-  for (const c of st.callers) if (!callerFiles.includes(c.file)) callerFiles.push(c.file);
-  while (callerFiles.length > 0) {
-    const file = callerFiles.pop()!;
-    st.callers = st.callers.filter((c) => c.file !== file);
-    if (fits()) return done();
-  }
+  const allCallers = st.callers;
+  const callerFiles = [...new Set(allCallers.map((c) => c.file))];
+  const dropCallerFiles = (k: number) => {
+    const dropped = new Set(callerFiles.slice(callerFiles.length - k));
+    st.callers = allCallers.filter((c) => !dropped.has(c.file));
+  };
+  if (cutUntilFits(callerFiles.length, dropCallerFiles, fits)) return done();
 
   // 5-style row removal helper: lowest churn first, ties by path
   const removeRows = (roles: SmartDiffRole[]): boolean => {
     const victims = st.rows
       .filter((r) => roles.includes(r.role))
       .sort((a, b) => churn(a) - churn(b) || a.path.localeCompare(b.path));
-    for (const v of victims) {
-      st.rows = st.rows.filter((r) => r !== v);
-      if (fits()) return true;
-    }
-    return false;
+    const before = st.rows;
+    const dropRows = (k: number) => {
+      const dropped = new Set(victims.slice(0, k));
+      st.rows = before.filter((r) => !dropped.has(r));
+    };
+    return cutUntilFits(victims.length, dropRows, fits);
   };
 
   // 2. boilerplate / docs rows
