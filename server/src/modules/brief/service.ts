@@ -10,6 +10,7 @@ import {
 import { renderPrompt } from '../../platform/prompts.js';
 import { TimeoutError, withTimeout } from '../../platform/resilience.js';
 import { BlastService } from '../blast/service.js';
+import { IntentService } from '../reviews/intent/intent-service.js';
 import { resolveFeatureModel } from '../settings/feature-models.js';
 import {
   BRIEF_FAILURE_MESSAGE,
@@ -24,7 +25,7 @@ import {
   MODEL_TEMPERATURE,
   type BriefFailureReason,
 } from './constants.js';
-import { buildBriefInput, buildFacts, composeSystem, groundDraft } from './helpers.js';
+import { type BriefIntentFacts, buildBriefInput, buildFacts, composeSystem, groundDraft } from './helpers.js';
 import { BriefRepository } from './repository.js';
 
 /**
@@ -82,7 +83,24 @@ export class BriefService {
       this.log.warn({ err, prId }, 'brief: blast radius unavailable, using PR files only');
     }
 
-    const facts = buildFacts(pull, files, blast);
+    // The stored intent is read, never derived (AC-32): no model call here.
+    let intent: BriefIntentFacts | null = null;
+    try {
+      const detail = await new IntentService(this.container, reviewRepo).get(workspaceId, prId);
+      if (detail) {
+        intent = {
+          intent: detail.intent,
+          in_scope: detail.in_scope,
+          out_of_scope: detail.out_of_scope,
+          confidence: detail.confidence,
+          stale: detail.stale,
+        };
+      }
+    } catch (err) {
+      this.log.warn({ prId, err }, 'brief: stored intent unavailable, generating without one');
+    }
+
+    const facts = buildFacts(pull, files, blast, intent);
     const system = composeSystem(await renderPrompt(BRIEF_SYSTEM_PROMPT, {}));
     const input = buildBriefInput(
       facts,
@@ -100,7 +118,9 @@ export class BriefService {
       const brief: PrBrief = {
         ...groundDraft(draft, facts),
         head_sha: headSha,
-        intent: null,
+        intent: intent
+          ? { intent: intent.intent, in_scope: intent.in_scope, out_of_scope: intent.out_of_scope }
+          : null,
         history: null,
       };
       await this.repo.upsert(prId, brief);

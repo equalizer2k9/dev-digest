@@ -21,15 +21,20 @@ interface PrBriefBlockProps {
   onGenerate(): void;
   onRetryLoad(): void;
   onOpenFile(path: string, line: number | null): void;
+  /** The Intent block: rendered first in every status. Supplied by the page (it owns the intent hooks). */
+  intent?: React.ReactNode;
+  /** true when the intent query has loaded and no intent is stored for the PR. */
+  noIntent?: boolean;
 }
 
 export function PrBriefBlock(props: PrBriefBlockProps) {
-  const { status, brief, headSha, prFilePaths, generating, generateError } = props;
+  const { status, brief, headSha, prFilePaths, generating, generateError, intent, noIntent } = props;
   const t = useTranslations("brief");
 
   if (status === "loading") {
     return (
       <section style={s.root}>
+        {intent}
         <SectionLabel icon="Zap">{t("title")}</SectionLabel>
         <div data-testid="brief-loading" style={s.note}>{t("loading")}</div>
       </section>
@@ -38,6 +43,7 @@ export function PrBriefBlock(props: PrBriefBlockProps) {
   if (status === "loadError") {
     return (
       <section style={s.root}>
+        {intent}
         <SectionLabel icon="Zap">{t("title")}</SectionLabel>
         <div style={s.error}>
           <span>{t("error.load")}</span>
@@ -49,6 +55,7 @@ export function PrBriefBlock(props: PrBriefBlockProps) {
 
   return (
     <section style={s.root}>
+      {intent}
       <SectionLabel icon="Zap">{t("title")}</SectionLabel>
 
       <div style={s.header}>
@@ -91,7 +98,7 @@ export function PrBriefBlock(props: PrBriefBlockProps) {
         <div style={s.card}>
           <div style={s.subhead}>{t("block.summary")}</div>
           <div style={s.summary}>{brief.summary}</div>
-          <div style={s.note}>{t("inputs.noIntent")}</div>
+          {noIntent && <div style={s.note}>{t("inputs.noIntent")}</div>}
           <div style={s.note}>{t("inputs.noSpecs")}</div>
 
           <div style={s.subhead}>{t("block.riskAreas")}</div>

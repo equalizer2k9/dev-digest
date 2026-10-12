@@ -48,26 +48,47 @@ export function OverviewTab({ prBody, prId, repoFullName, headSha, files, onOpen
     <BlastRadius blast={data} repoFullName={repoFullName} headSha={headSha} />
   );
 
+  const intentCard = prId ? (
+    <IntentCard
+      intent={intent.data?.intent}
+      isLoading={intent.isLoading}
+      isError={intent.isError}
+      onRetry={() => intent.refetch()}
+      onRecalculate={() => recalc.mutate()}
+      isRecalculating={recalc.isPending}
+      recalcError={recalc.error instanceof ApiError ? recalc.error : recalc.error ? new ApiError("", 0) : null}
+    />
+  ) : null;
+
+  const briefBlock = (
+    <PrBriefBlock
+      status={briefQuery.isPending ? "loading" : briefQuery.isError ? "loadError" : "ready"}
+      brief={briefQuery.data?.brief ?? null}
+      headSha={headSha}
+      prFilePaths={prFilePaths}
+      generating={generate.isPending}
+      generateError={generateError}
+      onGenerate={() => generate.mutate(headSha)}
+      onRetryLoad={() => briefQuery.refetch()}
+      onOpenFile={onOpenFile}
+      intent={intentCard}
+      noIntent={!!prId && intent.isSuccess && intent.data?.intent == null}
+    />
+  );
+
   return (
     <>
-      {/* Intent on the left, blast radius on the right — the prototype's two-column Overview. */}
+      {/* PR brief (Intent block on top) on the left, blast radius on the right. */}
       {prId ? (
         <div style={s.columns}>
-          <div style={s.column}>
-            <IntentCard
-              intent={intent.data?.intent}
-              isLoading={intent.isLoading}
-              isError={intent.isError}
-              onRetry={() => intent.refetch()}
-              onRecalculate={() => recalc.mutate()}
-              isRecalculating={recalc.isPending}
-              recalcError={recalc.error instanceof ApiError ? recalc.error : recalc.error ? new ApiError("", 0) : null}
-            />
-          </div>
+          <div style={s.column}>{briefBlock}</div>
           <div style={s.column}>{blast}</div>
         </div>
       ) : (
-        blast
+        <>
+          {blast}
+          {briefBlock}
+        </>
       )}
 
       {prBody && (
@@ -76,18 +97,6 @@ export function OverviewTab({ prBody, prId, repoFullName, headSha, files, onOpen
           <div style={s.descriptionBox}>{prBody}</div>
         </section>
       )}
-
-      <PrBriefBlock
-        status={briefQuery.isPending ? "loading" : briefQuery.isError ? "loadError" : "ready"}
-        brief={briefQuery.data?.brief ?? null}
-        headSha={headSha}
-        prFilePaths={prFilePaths}
-        generating={generate.isPending}
-        generateError={generateError}
-        onGenerate={() => generate.mutate(headSha)}
-        onRetryLoad={() => briefQuery.refetch()}
-        onOpenFile={onOpenFile}
-      />
     </>
   );
 }

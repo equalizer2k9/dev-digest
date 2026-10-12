@@ -403,7 +403,7 @@ export function Gallery() {
       </NextIntlClientProvider>
 
       {/* PR Brief: presentational, fed a fixture — needs only the intl provider. */}
-      <NextIntlClientProvider locale="en" messages={{ brief: briefMessages }}>
+      <NextIntlClientProvider locale="en" messages={{ brief: briefMessages, intent: intentMessages }}>
         <Group title="PR Brief (stored / generating)">
           <div style={s.w460}>
             <PrBriefBlock
@@ -416,6 +416,8 @@ export function Gallery() {
               onGenerate={() => {}}
               onRetryLoad={() => {}}
               onOpenFile={() => {}}
+              intent={<IntentCard intent={SHOWCASE_INTENT} isLoading={false} isError={false} onRetry={() => {}} onRecalculate={() => {}} isRecalculating={false} recalcError={null} />}
+              noIntent={false}
             />
           </div>
           <div style={s.w460}>
@@ -429,6 +431,7 @@ export function Gallery() {
               onGenerate={() => {}}
               onRetryLoad={() => {}}
               onOpenFile={() => {}}
+              noIntent
             />
           </div>
         </Group>

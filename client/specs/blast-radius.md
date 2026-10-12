@@ -30,7 +30,7 @@ reach. The pieces are there and unused: `messages/en/blast.json`, `githubBlobUrl
   button. The existing `view.*` and `graph.*` keys stay unused.
 - Any model-written text. The block renders what the route returns.
 - The two-column Overview with Intent and "Review focus" from the prototype — Intent does not exist
-  in this fork. The block goes under the description, full width.
+  in this fork. The block goes under the description, full width. (Superseded: Overview is now two columns, the PR brief block with the Intent block on the left and Blast radius on the right, Description below.)
 - Re-sorting, capping or filtering on the client. Order and limits are the server's.
 
 ## Behaviour

@@ -33,6 +33,7 @@ export const BRIEF_FAILURE_MESSAGE = 'The brief could not be generated';
 /** Labels of the `<untrusted>` blocks. */
 export const LABEL_TITLE = 'pr-title';
 export const LABEL_DESCRIPTION = 'pr-description';
+export const LABEL_INTENT = 'pr-intent';
 export const LABEL_FILES = 'changed-files';
 export const LABEL_CALLERS = 'blast-callers';
 

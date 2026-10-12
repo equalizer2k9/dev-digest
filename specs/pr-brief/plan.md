@@ -423,6 +423,14 @@ Depends on: T-7, T-8, T-9
 | A stored row of an unexpected shape | `server/src/db/schema/reviews.ts:57-62` | `get` uses `safeParse`; an invalid row is served as `{brief: null}` with a warn log |
 | More than 100 changed files | `server/src/adapters/github/octokit.ts:79-84` | known limitation (EC-10); no work |
 
+### AC-31 to AC-33 — stored intent in the brief
+
+| Task | AC | Test |
+|---|---|---|
+| Service reads `IntentService.get` (never `recalculate` / `ensureForReview`); a read failure is warned and the brief is generated without intent; `PrBrief.intent` stores the given `{ intent, in_scope, out_of_scope }` or `null` | AC-31, AC-32 | `server/src/modules/brief/service.test.ts`, `brief.it.test.ts` |
+| Intent section (`pr-intent` untrusted block, stale note), instruction sentence, reduction step 0 (lists, then section, before any file row or caller) | AC-31, AC-33, NFR-2, NFR-3 | `server/src/modules/brief/helpers.test.ts` |
+| One intent card in the Intent block of `PrBriefBlock`; `noIntent` only when none is stored | AC-5, AC-31, AC-33, EC-12 | `client/.../PrBriefBlock/PrBriefBlock.test.tsx`, `OverviewTab/OverviewTab.test.tsx` |
+
 ## Out of scope
 
 - Linked issue as a fact, in any form.
@@ -446,7 +454,7 @@ Changed after the review, by owner decision: T-2 was reduced to the `INJECTION_G
 
 ## Deviations
 
-- **Local delimiter escape.** `wrap()` in `server/src/modules/brief/helpers.ts` neutralises a forged opening `<untrusted` tag before calling `wrapUntrusted`, which escapes only the closing tag (`reviewer-core/src/prompt.ts:30-34`). It is kept local on purpose: changing `wrapUntrusted` would alter every review prompt, which is outside this feature. Next step: move the escape into `wrapUntrusted` in a separate PR with reviewer-core tests, then reduce `wrap()` to a plain call.
+- **Local delimiter escape — closed.** The escape moved into `wrapUntrusted` (`reviewer-core/src/prompt.ts`) with reviewer-core tests in the Intent Layer work; `wrap()` is gone from `server/src/modules/brief/helpers.ts` and the helpers call `wrapUntrusted` directly.
 - **AC-13 stays PARTIAL by decision.** Re-sending a request on 429/5xx or a dropped connection is not turned off, because the brief should survive a transient provider failure the same way a review does; only the re-ask on an invalid reply is disabled (`maxRetries: 0`).
 - **`classifyFile` moved.** The classifier, its test and its rules now live in `server/src/modules/_shared/` (`classify-file.ts`, `smart-diff-rules.ts`), so `brief` no longer imports from the internals of `reviews` (architecture review, round 2).
 - **AC-22 stays PARTIAL by decision.** Expanding a collapsed `docs` group was seen in a browser through a risk file reference (PR #16); scrolling to a line inside a collapsed group was not, because the model produced no Review focus item on a `.md` file in two generations. No further generations are spent on it; the chain is covered by `page.test.tsx`, `DiffTab.test.tsx` and `FileCard.test.tsx`.

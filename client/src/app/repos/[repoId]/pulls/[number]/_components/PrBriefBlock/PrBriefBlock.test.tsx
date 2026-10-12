@@ -64,7 +64,7 @@ describe("PrBriefBlock", () => {
   });
 
   it("shows both inputs statements with a brief, none without (AC-5)", () => {
-    setup();
+    setup({ noIntent: true });
     expect(screen.getByText(messages.inputs.noIntent)).toBeInTheDocument();
     expect(screen.getByText(messages.inputs.noSpecs)).toBeInTheDocument();
     cleanup();
