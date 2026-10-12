@@ -289,3 +289,44 @@ describe('one-line cells of the model input (commit security review)', () => {
     expect(user).toContain('- Bound the input (NFR-7)');
   });
 });
+
+describe('a cleaned path still grounds to its real file (commit security review 2)', () => {
+  const count = (t: string) => Math.ceil(t.length / 4);
+  const patch = '@@ -10,1 +10,3 @@\n+x';
+  const draft = (file: string): PrBriefDraft => ({
+    summary: 's',
+    risks: [{ kind: 'k', title: 'risky', explanation: 'e', severity: 'high', file_refs: [file] }],
+    review_focus: [{ file, line: 11, reason: 'r' }],
+  });
+
+  it.each([
+    ['a `|`', 'src/pay|ments.ts'],
+    ['a zero-width space', 'src/pay​ments.ts'],
+    ['a newline', 'src/pay\nments.ts'],
+  ])('a file with %s in its name can be named by a risk and a focus item', (_name, real) => {
+    const facts = buildFacts({ title: 't', body: null }, [{ path: real, additions: 3, deletions: 0, patch }], null);
+    const { user } = buildBriefInput(facts, 'sys', count, 1_000_000);
+    const shown = user.split('\n').find((l) => l.includes(' | +3 -0 | '))!.split(' | ')[0]!;
+    expect(shown).not.toBe(real);
+
+    const out = groundDraft(draft(shown), facts);
+    expect(out.risks.map((r) => r.file_refs)).toEqual([[real]]);
+    expect(out.review_focus).toEqual([{ file: real, line: 11, reason: 'r' }]);
+    // The line check still applies to the real file.
+    expect(groundDraft({ ...draft(shown), review_focus: [{ file: shown, line: 99, reason: 'r' }] }, facts).review_focus).toEqual([]);
+  });
+
+  it('an alias never shadows a real path and never admits an unknown one', () => {
+    const facts = buildFacts(
+      { title: 't', body: null },
+      [
+        { path: 'src/a b.ts', additions: 1, deletions: 0, patch },
+        { path: 'src/a|b.ts', additions: 1, deletions: 0, patch: null },
+      ],
+      null,
+    );
+    // 'src/a b.ts' is a real path: it stays itself although 'src/a|b.ts' cleans up to it.
+    expect(groundDraft(draft('src/a b.ts'), facts).review_focus).toEqual([{ file: 'src/a b.ts', line: 11, reason: 'r' }]);
+    expect(groundDraft(draft('src/nope.ts'), facts).risks).toEqual([]);
+  });
+});

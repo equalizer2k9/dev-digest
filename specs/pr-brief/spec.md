@@ -173,8 +173,9 @@ Feedback and access
   (AC-11). The model input of a PR that fits the budget without cuts is unchanged.
 - EC-14. A PR description longer than 16 000 characters → only its first 16 000 characters are
   considered for the model input; a text longer than 12 characters per budget token is treated as over
-  budget without being tokenized. A path with a control character (a newline) is given to the model
-  with that character replaced by a space; grounding still uses the real path.
+  budget without being tokenized. A path with a control or invisible character or a `|` is given to
+  the model with that character replaced by a space; a reply naming the path as shown is resolved to
+  the real path, which is what AC-10 and AC-11 check and what is stored.
 
 ## Non-functional requirements
 

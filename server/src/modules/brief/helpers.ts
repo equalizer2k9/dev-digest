@@ -88,6 +88,12 @@ export interface BriefFacts {
   callers: BriefCaller[];
   allowedPaths: Set<string>;
   knownLines: Map<string, LineSet>;
+  /**
+   * Path as the model was shown it (`rowPath`) → the real path, for the paths the
+   * clean-up changes. Without it a file with `|` or an invisible character in its
+   * name could never be named by a risk or a focus item.
+   */
+  pathAliases: Map<string, string>;
 }
 
 export interface PullFacts {
@@ -181,6 +187,13 @@ export function buildFacts(
     }
   }
 
+  // First real path wins when two clean up to the same text; a real path is never shadowed.
+  const pathAliases = new Map<string, string>();
+  for (const real of allowedPaths) {
+    const shown = rowPath(real);
+    if (shown !== real && !allowedPaths.has(shown) && !pathAliases.has(shown)) pathAliases.set(shown, real);
+  }
+
   return {
     title: pull.title,
     description: pull.body && pull.body.trim() ? pull.body : null,
@@ -190,6 +203,7 @@ export function buildFacts(
     callers,
     allowedPaths,
     knownLines,
+    pathAliases,
   };
 }
 
@@ -209,15 +223,21 @@ export function groundDraft(
   draft: PrBriefDraft,
   facts: BriefFacts,
 ): Pick<PrBrief, 'summary' | 'risks' | 'review_focus'> {
+  // The model names a path as it was shown it; store and check the real one.
+  const realPath = (path: string) => {
+    const p = normalizePath(path);
+    return facts.allowedPaths.has(p) ? p : (facts.pathAliases.get(p) ?? p);
+  };
+
   const risks = draft.risks
     .map((r) => ({
       ...r,
-      file_refs: r.file_refs.map(normalizePath).filter((p) => facts.allowedPaths.has(p)),
+      file_refs: r.file_refs.map(realPath).filter((p) => facts.allowedPaths.has(p)),
     }))
     .filter((r) => r.file_refs.length > 0);
 
   const review_focus = draft.review_focus
-    .map((x) => ({ ...x, file: normalizePath(x.file) }))
+    .map((x) => ({ ...x, file: realPath(x.file) }))
     .filter((x) => facts.allowedPaths.has(x.file) && !!facts.knownLines.get(x.file)?.has(x.line));
 
   // Array.prototype.sort is stable: model order is kept within a severity.
@@ -258,8 +278,8 @@ const oneLine = (text: string) => text.replace(/[\p{Cc}\p{Cf}\u2028\u2029]/gu, '
 
 /**
  * A path as one row cell: git allows a newline or a `|` in a file name, and either
- * would forge a row or a cell (role, line ranges). Input only — grounding still
- * compares against the real path, so a reply naming the cleaned path is dropped.
+ * would forge a row or a cell (role, line ranges). Input only — grounding maps the
+ * cleaned path back to the real one (`BriefFacts.pathAliases`).
  */
 const rowPath = (path: string) => oneLine(path).replace(/\|/g, ' ');
 

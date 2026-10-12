@@ -98,13 +98,20 @@ clean-up handled ASCII control characters only.
 | File path, caller path | ASCII control characters replaced | every control and format character (NEL, line and paragraph separators, bidi overrides) replaced; `|` replaced too, so a path cannot forge the role or line-range cell of its own row |
 | Intent in-scope / out-of-scope item | passed as it was — a newline started a list item of its own | made one line the same way |
 
+The check then flagged the fix itself (validator and consumer disagree — review evasion), and it was
+right: the model was shown the cleaned path while grounding compared with the real one, so a file
+with `|` or an invisible character in its name could never be named by a risk or a focus item. An
+author could hide a risky file from the brief by naming it that way. Now the facts keep a map from
+the shown path to the real one; grounding resolves a reply through it and stores the real path. A
+real path is never shadowed by an alias, and the line check runs against the real file.
+
 ## 7. Tests added
 
 | File | Covers |
 | --- | --- |
-| `server/src/modules/brief/helpers.bounds.test.ts` (21) | tokenizer calls for 3 000 files / callers; hunk count 10 000 000; grounding at range edges; ordinary PR unchanged; cut order; forged row (F3); description cap and length pre-check (F2); one-line cells (§6) |
+| `server/src/modules/brief/helpers.bounds.test.ts` (25) | tokenizer calls for 3 000 files / callers; hunk count 10 000 000; grounding at range edges; ordinary PR unchanged; cut order; forged row (F3); description cap and length pre-check (F2); one-line cells and path aliases (§6) |
 | `server/src/modules/brief/routes.test.ts` (2) | per-route rate limit on the POST, none on the GET (F1) |
 | `server/src/adapters/tokenizer/index.test.ts` (5) | exact count without a long run; 65 000-character runs of letters, whitespace, punctuation; text around a run (F2) |
 
-Gate after the fixes: server 565 / 565, client 356 / 356, reviewer-core 74 / 74, typecheck clean in
+Gate after the fixes: server 569 / 569, client 356 / 356, reviewer-core 74 / 74, typecheck clean in
 all three.
