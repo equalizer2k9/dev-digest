@@ -11,6 +11,7 @@ import type {
   GitCommit,
 } from '@devdigest/shared';
 import { parseUnifiedDiff } from './diff-parser.js';
+import { confinePath } from './confine-path.js';
 
 /**
  * Depth fetched by `sync()`. Deeper than the shallow clone (CLONE_DEPTH=1) so the
@@ -127,7 +128,7 @@ export class SimpleGitClient implements GitClient {
   }
 
   async readFile(repo: RepoRef, path: string): Promise<string> {
-    return readFile(join(this.clonePathFor(repo), path), 'utf8');
+    return readFile(await confinePath(this.clonePathFor(repo), path), 'utf8');
   }
 
   async readFileAtRef(repo: RepoRef, ref: string, path: string): Promise<string> {

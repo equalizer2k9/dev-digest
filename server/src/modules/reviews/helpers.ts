@@ -85,11 +85,13 @@ export function reviewToDto(
  * Build the per-run task instruction line for a PR.
  *
  * The TRUSTED part (ours) states the task and the non-negotiable rule: review
- * the whole diff and never withhold a security/correctness finding.
+ * the whole diff and never withhold a security/correctness finding. The PR
+ * title is author text and is NOT interpolated here — it is passed as its own
+ * untrusted part (`prTitle`).
  */
 export function taskLine(pull: PullRow): string {
   return (
-    `Review pull request #${pull.number} "${pull.title}" by ${pull.author}. ` +
+    `Review pull request #${pull.number} by ${pull.author}. ` +
     `Report only the distinct, high-value findings you can defend, each citing an exact ` +
     `file and line range that appears in the diff. There is no target or maximum count, ` +
     `and zero findings is a valid result — do not pad or repeat to reach a number. ` +

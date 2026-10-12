@@ -360,6 +360,8 @@ export class OctokitGitHubClient implements GitHubClient {
       title: res.data.title,
       body: res.data.body,
       state: res.data.state,
+      // GitHub serves pull requests through the issues API too.
+      is_pull_request: Boolean((res.data as { pull_request?: unknown }).pull_request),
     };
   }
 
