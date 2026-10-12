@@ -24,3 +24,5 @@ delegated to the `ms` package, which is added as a dependency. The helper is exp
 - retry policy: which errors are retried and how many times.
 
 See the linked issue for the acceptance examples.
+
+See the linked issue for the acceptance examples.
