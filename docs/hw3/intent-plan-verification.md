@@ -227,3 +227,39 @@ steps B2 and B3.
 (`server/test/octokit-file-content.test.ts`). The size check there runs after the response
 arrives, which is bounded anyway: the GitHub contents API returns at most 1 MB of file content
 inline. The client copy of `vendor/shared/adapters.ts` was synced with the server copy.
+
+## Pass 3 — after the live check
+
+Only the four criteria still PARTIAL after pass 2, now with
+[`intent-live-check.md`](intent-live-check.md) as evidence for the runtime clauses.
+
+| AC | Code evidence (file:line) | Test / live evidence | Status |
+|---|---|---|---|
+| S-AC-9 SSRF / traversal | `server/src/modules/reviews/intent/collect-sources.ts`:73-76 (refused refs recorded before any read), 83-84 (`too_large`), 114-133 (own repo only, byte cap to all three readers); `server/src/adapters/git/simple-git.ts`:131-137, 148-155 (size checked before read; hex-ref and path guard); `server/src/adapters/git/confine-path.ts`:9-19; `server/src/adapters/github/octokit.ts`:369-392. ABSENT: (1) `server/src/modules/reviews/intent/parse-references.ts`:92 drops a backticked non-`.md` path without recording it; (2) octokit.ts:376-386 compares `data.size` only after the response with the content has arrived; (3) collect-sources.ts:83 reads then discards a file between 20 000 chars and 80 000 bytes | `collect-sources.test.ts`:99-120 (no fetch, own-repo issues only, no reads), 122-129 (oversized now asserts `skipped` / `too_large`), 174-185 (refused refs recorded with reason); `parse-references.test.ts`:56-103; `server/src/adapters/git/simple-git-read.test.ts`:40-63; `confine-path.test.ts`:34-62; `server/test/octokit-file-content.test.ts`:43-83 (new: over-cap rejected and not returned, boundary, 404 / directory / symlink → null, request limited to owner / repo / path / ref); `server/test/intent.it.test.ts`:559-570. Live: only "spec read from the PR head commit" (live-check row 4); no row exercises a refusal. No test covers the backtick change in either direction | PARTIAL |
+| S-AC-12 two calls visible | `server/src/modules/reviews/intent/intent-service.ts`:171 (step label), 223-230 (classifier `llm_call`); `server/src/modules/reviews/run-executor.ts`:75-80 and 132 (step sent to every queued run), 120 (one `correlationId`), 204, 293-301 (review `llm_call` per model call); `server/src/platform/run-logger.ts`:49-53, 75-91 (publishes to every run id) | `intent.it.test.ts`:490-517, 573-598 (step in the trace, distinct from review entries, 1 classifier + N review lines, one `correlationId`), 600-618. Live (`docs/hw3/intent-live-check.md`): stdout shows 1 `intent_classifier` + 1 `review` `llm_call` with one `correlationId`, and the trace shows the Deriving step before "Starting review with agent" | PASS |
+| S-AC-21 untouched | `server/src/vendor/shared/contracts/platform.ts`:210, 218 (`linked_issue: IssueMeta.nullish()`; `IssueMeta` gained optional `is_pull_request`); octokit.ts:128-136 (`resolveLinkedIssue` returns `getIssue` output) with 359-366 (`getIssue` now adds `is_pull_request`), so the runtime value of `linked_issue` gains a field. ABSENT: nothing shows `PrDetail.linked_issue` / `resolveLinkedIssue` unchanged | `server/test/intent-contracts.test.ts`:41-47 (`PrBrief`, `Intent`), 79-96 (migrations 0000–0012 present, not content), 99-128 (reviewer-core import scan). Main-session `git diff d735091`: migrations 0000–0011, `smart-diff/`, `brief.ts` (both copies), `review-api.ts` byte-unchanged — `platform.ts` and `octokit.ts` not included. Live: Smart Diff on PR #11 gives five groups. No test and no live row for `linked_issue` | PARTIAL |
+| C-AC-6 i18n | `client/src/app/repos/[repoId]/pulls/[number]/_components/IntentCard/IntentCard.tsx`:47, 52-131 (every label via `t(...)`, no literal in the component), 72-75 (unknown reason → `sources.reason.other`). ABSENT: line 66 renders `ErrorState`, whose button text is the literal "Retry" at `client/src/vendor/ui/primitives/ErrorState.tsx`:54 (no label prop, lines 6-16); `client/messages/en/intent.json` has no retry key | `IntentCard.test.tsx`:170-206 (raw reasons never rendered, 12 reason codes), 208-253 (every text node in 14 states) — still allowlists "Retry" at line 225. Live check has no row on this | PARTIAL |
+
+**Total: 32 PASS, 3 PARTIAL, 0 MISSING of 35.** Nothing was run by the agent; S-AC-12 turns PASS on
+the live-check report.
+
+### Remaining gaps
+
+- **S-AC-9** — three clauses:
+  1. Backticked non-`.md` paths are not recorded (a live-check fix). To pass: the spec excludes
+     backticked code paths and a test asserts `rejected` is empty for them. *Done after this pass:
+     the spec says so (§3) and a test pins it.*
+  2. The contents-API size check runs after the response arrives. GitHub bounds inline content at
+     1 MB; nothing in the code enforces that. To pass: a size check before the content request, or
+     the owner accepts the bounded download.
+  3. Files between 20 000 chars and 80 000 bytes are read by the git readers and then discarded;
+     no test drives a reader's `FileTooLargeError` through `collectSources`.
+- **S-AC-21** — `PrDetail.linked_issue` "unchanged" has no test or diff, and the spec contradicts
+  itself: it requires `IssueMeta` to gain `is_pull_request`, which widens `linked_issue`. The owner
+  has to accept that widening.
+- **C-AC-6** — the "Retry" label in the load-error state is a literal in the design-system
+  `ErrorState`, which takes no label prop. To pass: a label prop fed from `intent.json`, or the
+  owner rules the design-system label outside the criterion.
+
+Notes on S-AC-12 (PASS): the live excerpt groups lines by kind, so it is not in emission order;
+"in each run's log" is asserted for one-agent triggers, and rests on code for several agents.

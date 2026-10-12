@@ -101,4 +101,27 @@ describe('parseReferences: rejected references (S-AC-9a)', () => {
     expect(r.rejected[0]!.reason).toBe('absolute_path');
     expect(r.rejected[0]!.ref.length).toBeLessThanOrEqual(MAX_REJECTED_REF_CHARS);
   });
+
+  it('S-AC-9 (§3): backticked non-.md code paths are not references and are not recorded', () => {
+    const r = parseReferences('Changed `server/src/platform/retry-delay.ts` and `package.json`.', repo);
+    expect(r.files).toEqual([]);
+    expect(r.rejected).toEqual([]);
+  });
+
+  it('S-AC-9 (§3): a link or same-repo blob URL to a non-.md file is recorded as not_markdown', () => {
+    const r = parseReferences(
+      '[x](notes.txt) https://github.com/acme/api/blob/main/src/a.ts',
+      repo,
+    );
+    expect(r.files).toEqual([]);
+    expect(r.rejected).toHaveLength(2);
+    expect(r.rejected.every((x) => x.reason === 'not_markdown')).toBe(true);
+    expect(r.rejected.map((x) => x.ref)).toEqual(expect.arrayContaining(['notes.txt', 'src/a.ts']));
+  });
+
+  it('S-AC-9 (§3): a backticked .md path is still a file reference', () => {
+    const r = parseReferences('see `docs/plan.md` and `src/a.ts`', repo);
+    expect(r.files).toEqual(['docs/plan.md']);
+    expect(r.rejected).toEqual([]);
+  });
 });

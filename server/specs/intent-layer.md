@@ -89,8 +89,10 @@ cut. Every cut is recorded on the matching `sources` entry as `reason: 'truncate
   `https://github.com/<owner>/<name>/issues/N` URL whose owner and name equal the PR's repo. A
   bare `#N` is not a linked issue. A number that turns out to be a pull request is recorded as
   `skipped` and not used.
-- **Files** come from relative Markdown links, backticked paths and same-repo
-  `/blob/<ref>/<path>` URLs, which are reduced to a path. Only `.md`, with a size cap checked
+- **Files** come from relative Markdown links, backticked `.md` paths and same-repo
+  `/blob/<ref>/<path>` URLs, which are reduced to a path. A backticked path that is not `.md`
+  (`src/a.ts`) is how a description names code: it is not a reference and is not recorded. A
+  Markdown link or blob URL to a non-`.md` file is a refused reference and is recorded. Only `.md`, with a size cap checked
   before the read. A path is normalised and rejected before any read if it is absolute, has a
   `..` segment or contains a control character; in the prompt it appears only inside the
   untrusted block, never in a heading.

@@ -3,6 +3,7 @@ import type { Container } from '../../../platform/container.js';
 import { MockGitClient, MockGitHubClient } from '../../../adapters/mocks.js';
 import type { IssueMeta, RepoRef } from '@devdigest/shared';
 import { parseUnifiedDiff } from '../../../adapters/git/diff-parser.js';
+import { FileTooLargeError } from '../../../adapters/file-too-large.js';
 import { collectSources } from './collect-sources.js';
 import { MAX_SPEC_FILE_CHARS } from './constants.js';
 
@@ -126,6 +127,41 @@ describe('collectSources: SSRF / traversal (S-AC-9)', () => {
     const s = out.sources.find((x) => x.ref === 'docs/big.md')!;
     expect(s.status).toBe('skipped');
     expect(s.reason).toBe('too_large');
+  });
+});
+
+describe('collectSources: reader rejects with file-too-large (S-AC-9)', () => {
+  const tooLarge = () => new FileTooLargeError('docs/big.md', 10_000_000, 1000);
+  const expectSkipped = (out: Awaited<ReturnType<typeof run>>) => {
+    expect(out.sources).toContainEqual({ kind: 'spec_file', ref: 'docs/big.md', status: 'skipped', reason: 'too_large' });
+    expect(out.files).toEqual([]);
+  };
+
+  it('S-AC-9: git readFileAtRef too large → skipped/too_large, no content', async () => {
+    class G extends FakeGit {
+      override async readFileAtRef(): Promise<string> {
+        throw tooLarge();
+      }
+    }
+    expectSkipped(await run('`docs/big.md`', new G({}, { 'docs/big.md': 'LEAK' }), new FakeGitHub({}, { 'docs/big.md': 'LEAK' })));
+  });
+
+  it('S-AC-9: git readFile too large → skipped/too_large, no content', async () => {
+    class G extends FakeGit {
+      override async readFile(): Promise<string> {
+        throw tooLarge();
+      }
+    }
+    expectSkipped(await run('`docs/big.md`', new G({}, {}), new FakeGitHub()));
+  });
+
+  it('S-AC-9: GitHub getFileContent too large → skipped/too_large, no content', async () => {
+    class H extends FakeGitHub {
+      override async getFileContent(): Promise<string | null> {
+        throw tooLarge();
+      }
+    }
+    expectSkipped(await run('`docs/big.md`', new FakeGit({}, {}), new H()));
   });
 });
 
