@@ -204,3 +204,13 @@ describe("PrBriefBlock", () => {
     }
   });
 });
+
+describe("visiblePath — control and bidi characters in a displayed path", () => {
+  it("writes them as visible escapes and leaves an ordinary path alone", async () => {
+    const { focusLabel, visiblePath } = await import("./helpers");
+    expect(visiblePath("src/modules/brief/helpers.ts")).toBe("src/modules/brief/helpers.ts");
+    expect(visiblePath("src/a‮gnp.ts")).toBe("src/a\\u{202e}gnp.ts");
+    expect(visiblePath("src/a​b\nc.ts")).toBe("src/a\\u{200b}b\\u{a}c.ts");
+    expect(focusLabel("src/a‮b.ts", 7)).toBe("src/a\\u{202e}b.ts:7");
+  });
+});

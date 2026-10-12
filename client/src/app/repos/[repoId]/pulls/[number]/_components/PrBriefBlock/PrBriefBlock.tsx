@@ -8,7 +8,7 @@ import { useTranslations } from "next-intl";
 import { Badge, Button, SectionLabel, Skeleton } from "@devdigest/ui";
 import type { PrBrief, Risk } from "@devdigest/shared";
 import { SEVERITY_COLORS, SEVERITY_KEYS } from "./constants";
-import { focusLabel, isStale } from "./helpers";
+import { focusLabel, isStale, visiblePath } from "./helpers";
 import { s } from "./styles";
 
 interface PrBriefBlockProps {
@@ -185,11 +185,11 @@ function RiskRow({
                 onOpenFile(p, null);
               }}
             >
-              {p}
+              {visiblePath(p)}
             </button>
           ) : (
             <span key={`${p}:${i}`} style={s.row}>
-              <span style={s.path}>{p}</span>
+              <span style={s.path}>{visiblePath(p)}</span>
               <span style={s.note}>{t("notInDiff")}</span>
             </span>
           ),

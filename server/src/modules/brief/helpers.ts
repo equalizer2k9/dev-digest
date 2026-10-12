@@ -90,7 +90,7 @@ export interface BriefFacts {
   knownLines: Map<string, LineSet>;
   /**
    * Path as the model was shown it (`rowPath`) → the real path, for the paths the
-   * clean-up changes. Without it a file with `|` or an invisible character in its
+   * escaping changes. Without it a file with `|` or an invisible character in its
    * name could never be named by a risk or a focus item.
    */
   pathAliases: Map<string, string>;
@@ -187,11 +187,11 @@ export function buildFacts(
     }
   }
 
-  // First real path wins when two clean up to the same text; a real path is never shadowed.
+  // `rowPath` is one-to-one, so a shown form names exactly one real path.
   const pathAliases = new Map<string, string>();
   for (const real of allowedPaths) {
     const shown = rowPath(real);
-    if (shown !== real && !allowedPaths.has(shown) && !pathAliases.has(shown)) pathAliases.set(shown, real);
+    if (shown !== real) pathAliases.set(shown, real);
   }
 
   return {
@@ -226,7 +226,9 @@ export function groundDraft(
   // The model names a path as it was shown it; store and check the real one.
   const realPath = (path: string) => {
     const p = normalizePath(path);
-    return facts.allowedPaths.has(p) ? p : (facts.pathAliases.get(p) ?? p);
+    // Alias first: a shown form may equal another file's literal name (one with a
+    // backslash), and that file has its own, different shown form.
+    return facts.pathAliases.get(p) ?? p;
   };
 
   const risks = draft.risks
@@ -278,10 +280,13 @@ const oneLine = (text: string) => text.replace(/[\p{Cc}\p{Cf}\u2028\u2029]/gu, '
 
 /**
  * A path as one row cell: git allows a newline or a `|` in a file name, and either
- * would forge a row or a cell (role, line ranges). Input only — grounding maps the
- * cleaned path back to the real one (`BriefFacts.pathAliases`).
+ * would forge a row or a cell (role, line ranges). Each control or format character,
+ * `|` and `\\` is written as a visible `\\u{hex}` escape. Escaping the backslash too
+ * makes this one-to-one: two different paths never share a shown form. Input only — grounding maps it back to
+ * the real path (`BriefFacts.pathAliases`).
  */
-const rowPath = (path: string) => oneLine(path).replace(/\|/g, ' ');
+const rowPath = (path: string) =>
+  path.replace(/[\p{Cc}\p{Cf}\u2028\u2029|\\]/gu, (ch) => `\\u{${ch.codePointAt(0)!.toString(16)}}`);
 
 const formatRow = (f: BriefFileRow) =>
   `${rowPath(f.path)} | +${f.additions} -${f.deletions} | ${f.role} | ${formatRanges(f.ranges)}`;

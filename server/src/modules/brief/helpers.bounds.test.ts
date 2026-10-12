@@ -316,17 +316,20 @@ describe('a cleaned path still grounds to its real file (commit security review 
     expect(groundDraft({ ...draft(shown), review_focus: [{ file: shown, line: 99, reason: 'r' }] }, facts).review_focus).toEqual([]);
   });
 
-  it('an alias never shadows a real path and never admits an unknown one', () => {
+  it('two paths that differ only by an escaped character never share a shown form', () => {
+    const paths = ['src/a b.ts', 'src/a|b.ts', 'src/a\nb.ts', 'src/a\u200bb.ts', 'src/a\\u{7c}b.ts', 'src/a\\b.ts'];
     const facts = buildFacts(
       { title: 't', body: null },
-      [
-        { path: 'src/a b.ts', additions: 1, deletions: 0, patch },
-        { path: 'src/a|b.ts', additions: 1, deletions: 0, patch: null },
-      ],
+      paths.map((path, i) => ({ path, additions: 100 + i, deletions: 0, patch })),
       null,
     );
-    // 'src/a b.ts' is a real path: it stays itself although 'src/a|b.ts' cleans up to it.
-    expect(groundDraft(draft('src/a b.ts'), facts).review_focus).toEqual([{ file: 'src/a b.ts', line: 11, reason: 'r' }]);
+    const { user } = buildBriefInput(facts, 'sys', count, 1_000_000);
+    const shown = paths.map((_, i) => user.split('\n').find((l) => l.includes(` | +${100 + i} -0 | `))!.split(' | ')[0]!);
+    expect(new Set(shown).size).toBe(paths.length);
+    // Each shown form grounds to its own file, never to a neighbour.
+    shown.forEach((sh, i) => {
+      expect(groundDraft(draft(sh), facts).risks.map((r) => r.file_refs)).toEqual([[paths[i]]]);
+    });
     expect(groundDraft(draft('src/nope.ts'), facts).risks).toEqual([]);
   });
 });

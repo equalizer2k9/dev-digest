@@ -174,8 +174,9 @@ Feedback and access
 - EC-14. A PR description longer than 16 000 characters → only its first 16 000 characters are
   considered for the model input; a text longer than 12 characters per budget token is treated as over
   budget without being tokenized. A path with a control or invisible character or a `|` is given to
-  the model with that character replaced by a space; a reply naming the path as shown is resolved to
-  the real path, which is what AC-10 and AC-11 check and what is stored.
+  the model with that character written as a visible `\u{hex}` escape (one shown form per path); a
+  reply naming the path as shown is resolved to the real path, which is what AC-10 and AC-11 check and
+  what is stored. The block displays a path with control and invisible characters as the same escapes.
 
 ## Non-functional requirements
 
