@@ -1,0 +1,35 @@
+{
+  "skill_name": "zod",
+  "evals": [
+    {
+      "id": 1,
+      "name": "shared-contract-with-default",
+      "prompt": "Для eval-кейсів потрібен новий спільний контракт EvalExpectation: тип очікування must_find або must_not_flag, шлях файла, рядки start_line і end_line та заголовок знахідки. Поле enabled має бути true за замовчуванням, якщо клієнт його не передав. Додай контракт у shared так, як у нас заведено, разом із TS-типом.",
+      "expected_output": "EvalExpectation schema + same-named z.infer type in BOTH vendor/shared copies, exported from both barrels; enum for the type, integer lines with end >= start, enabled defaulted to true, input-vs-output type of the defaulted field handled.",
+      "files": [],
+      "expectations": [
+        "The contract is added to both copies — server/src/vendor/shared/contracts/ and client/src/vendor/shared/contracts/ — with identical schema text",
+        "The schema is a PascalCase const EvalExpectation with a same-named exported type `z.infer<typeof EvalExpectation>`",
+        "The expectation type is a z.enum of 'must_find' and 'must_not_flag', not a free z.string()",
+        "`enabled` is declared with `.default(true)`",
+        "start_line/end_line are integers ≥ 1 and a refine/superRefine rejects end_line < start_line with an error path",
+        "The new contract is re-exported from the shared barrel (index.ts) in both copies",
+        "The input type of the defaulted field is handled — a `z.input<typeof EvalExpectation>` type is exported or the input/output difference of `enabled` is explained"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "route-body-validation-400",
+      "prompt": "Додаю роут POST /findings/:id/eval-case — з картки знахідки створює eval-кейс. Тіло: { expectation: 'must_find' | 'must_not_flag', note?: рядок до 500 символів }. Зроби валідацію тіла через Zod так, щоб невалідне тіло отримувало 400 з поясненням, і додай тест на це.",
+      "expected_output": "Route-level `schema: { body }` with the Zod type provider (no parse in the handler), enum + max(500) body schema, an app.inject test for an invalid body, and awareness that this app maps validation errors to 422 in server/src/app.ts.",
+      "files": [],
+      "expectations": [
+        "The body is validated at the route level (`schema: { body: ... }` with the Zod type provider), not with .parse()/.safeParse() inside the handler",
+        "The body schema uses z.enum(['must_find', 'must_not_flag']) for expectation and an optional z.string().max(500) for note",
+        "The output notices that this app's global error handler answers request-validation failures with 422 (server/src/app.ts) and handles the 400 requirement explicitly instead of silently assuming 400",
+        "A test sends an invalid body via app.inject and asserts the response status code",
+        "The status code asserted in the test is the one the code would actually return given server/src/app.ts"
+      ]
+    }
+  ]
+}
