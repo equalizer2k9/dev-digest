@@ -1,7 +1,13 @@
-import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
+import { describe, it, expect, afterEach, vi, beforeEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
+import type { BlastRadiusResponse } from "@devdigest/shared";
+import messages from "../../../../../../../../messages/en/blast.json";
+import prReviewMessages from "../../../../../../../../messages/en/prReview.json";
 import intentMessages from "../../../../../../../../messages/en/intent.json";
+
+const useBlastRadius = vi.fn();
+vi.mock("@/lib/hooks/blast", () => ({ useBlastRadius: (...a: unknown[]) => useBlastRadius(...a) }));
 
 const mutate = vi.fn();
 const refetch = vi.fn();
@@ -28,6 +34,8 @@ import { OverviewTab } from "./OverviewTab";
 const m = intentMessages;
 afterEach(cleanup);
 beforeEach(() => {
+  useBlastRadius.mockReset();
+  useBlastRadius.mockReturnValue({ isPending: true, isError: false, data: undefined });
   mutate.mockReset();
   refetch.mockReset();
   useIntent.mockReset();
@@ -36,15 +44,64 @@ beforeEach(() => {
   state.recalc = {};
 });
 
-function renderTab(props: { prId: string | null; prBody: string | null }) {
+const blast: BlastRadiusResponse = {
+  changed_symbols: [{ name: "getItems", file: "src/items.ts", kind: "function" }],
+  downstream: [
+    {
+      symbol: "getItems",
+      callers: [{ name: "listHandler", file: "src/routes/items.ts", line: 42 }],
+      endpoints_affected: [],
+      crons_affected: [],
+    },
+  ],
+  summary: "",
+  degraded: false,
+  reason: null,
+};
+
+function renderTab(props: { prId?: string | null; prBody?: string | null } = {}) {
+  const { prId = "pr-1", prBody = "PR description text" } = props;
   return render(
-    <NextIntlClientProvider locale="en" messages={{ intent: intentMessages }}>
-      <OverviewTab {...props} />
+    <NextIntlClientProvider
+      locale="en"
+      messages={{ blast: messages, prReview: prReviewMessages, intent: intentMessages }}
+    >
+      <OverviewTab prBody={prBody} prId={prId} repoFullName="acme/shop" headSha="abc" />
     </NextIntlClientProvider>,
   );
 }
 
-describe("OverviewTab", () => {
+describe("OverviewTab — blast radius", () => {
+  it("requests the blast radius for the PR", () => {
+    renderTab();
+    expect(useBlastRadius).toHaveBeenCalledWith("pr-1");
+  });
+
+  it("loading: skeleton in place of the block, description still shown", () => {
+    renderTab();
+    expect(screen.getByText(prReviewMessages.overview.description)).toBeInTheDocument();
+    expect(screen.getByText("PR description text")).toBeInTheDocument();
+    expect(screen.getByTestId("blast-loading")).toBeInTheDocument();
+    expect(screen.queryByText(messages.title)).toBeNull();
+  });
+
+  it("error: error text, description still shown", () => {
+    useBlastRadius.mockReturnValue({ isPending: false, isError: true, data: undefined });
+    renderTab();
+    expect(screen.getByText("PR description text")).toBeInTheDocument();
+    expect(screen.getByText(messages.error)).toBeInTheDocument();
+  });
+
+  it("success: block rendered, description still shown", () => {
+    useBlastRadius.mockReturnValue({ isPending: false, isError: false, data: blast });
+    renderTab();
+    expect(screen.getByText("PR description text")).toBeInTheDocument();
+    expect(screen.getByText(messages.title)).toBeInTheDocument();
+    expect(screen.getByText("src/routes/items.ts:42")).toBeInTheDocument();
+  });
+});
+
+describe("OverviewTab — intent", () => {
   it("AC-1: renders the IntentCard above the Description when prId is resolved", () => {
     renderTab({ prId: "pr1", prBody: "Body text of the PR" });
     const card = screen.getByText(m.empty.title);
@@ -85,5 +142,13 @@ describe("OverviewTab", () => {
     renderTab({ prId: "pr1", prBody: null });
     expect(screen.getByRole("button", { name: new RegExp(m.actions.generate) })).toBeDisabled();
     expect(screen.getByText(m.generating)).toBeInTheDocument();
+  });
+
+  it("the IntentCard sits before the blast radius block (left column, then right)", () => {
+    useBlastRadius.mockReturnValue({ isPending: false, isError: false, data: blast });
+    renderTab();
+    const card = screen.getByText(m.empty.title);
+    const block = screen.getByText(messages.title);
+    expect(card.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

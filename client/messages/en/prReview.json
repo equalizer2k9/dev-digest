@@ -75,6 +75,9 @@
     "groupedByRole": "Smart Diff · grouped by role",
     "filesChanged": "Files changed · {count, plural, one {# file} other {# files}}"
   },
+  "overview": {
+    "description": "Description"
+  },
   "list": {
     "breadcrumb": "Pull Requests",
     "title": "Pull Requests",

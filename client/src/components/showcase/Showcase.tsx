@@ -49,6 +49,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NextIntlClientProvider } from "next-intl";
 import skillMessages from "../../../messages/en/skills.json";
 import conventionMessages from "../../../messages/en/conventions.json";
+import blastMessages from "../../../messages/en/blast.json";
 import prReviewMessages from "../../../messages/en/prReview.json";
 import shellMessages from "../../../messages/en/shell.json";
 import intentMessages from "../../../messages/en/intent.json";
@@ -57,6 +58,7 @@ import { ApiError } from "../../lib/api";
 import { FileCard } from "../diff-viewer";
 import { FindingCard } from "../../app/repos/[repoId]/pulls/[number]/_components/FindingCard";
 import { DiffRoleGroup } from "../../app/repos/[repoId]/pulls/[number]/_components/DiffRoleGroup";
+import { BlastRadius } from "../../app/repos/[repoId]/pulls/[number]/_components/BlastRadius";
 import { ConfirmDialog } from "../confirm-dialog";
 import { SkillCard } from "../../app/skills/_components/SkillCard";
 import { SkillPreviewDrawer } from "../../app/skills/_components/SkillPreviewDrawer";
@@ -69,6 +71,7 @@ import {
   SHOWCASE_DIFF_FILE,
   SHOWCASE_FINDING,
   SHOWCASE_FINDING_OUTSIDE,
+  SHOWCASE_BLAST,
   SHOWCASE_INTENT,
   SHOWCASE_SKILL,
   SHOWCASE_CONVENTION,
@@ -375,6 +378,22 @@ export function Gallery() {
               hint={prReviewMessages.smartDiff.wiringHint}
               fileCount={0}
               filesWithFindings={0}
+            />
+          </div>
+        </Group>
+      </NextIntlClientProvider>
+
+      {/* Blast radius: presentational, fed fixtures — no QueryClient needed. */}
+      <NextIntlClientProvider locale="en" messages={{ blast: blastMessages }}>
+        <Group title="Blast radius (map / incomplete index)">
+          <div style={s.w460}>
+            <BlastRadius blast={SHOWCASE_BLAST} repoFullName="acme/shop" headSha="abc1234" />
+          </div>
+          <div style={s.w460}>
+            <BlastRadius
+              blast={{ ...SHOWCASE_BLAST, degraded: true, reason: "index_partial" }}
+              repoFullName={null}
+              headSha="abc1234"
             />
           </div>
         </Group>

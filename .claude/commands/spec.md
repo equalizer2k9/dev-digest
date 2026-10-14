@@ -1,11 +1,11 @@
 ---
 description: Scaffold a feature spec in <package>/specs/ before implementing
-argument-hint: <server|client|reviewer-core> <feature-name>
+argument-hint: <server|client|reviewer-core|devdigest-mcp> <feature-name>
 ---
 
 Create a spec: $ARGUMENTS
 
-1. Package must be `server`, `client` or `reviewer-core`. For `e2e`, the flow JSON is the spec —
+1. Package must be `server`, `client`, `reviewer-core` or `devdigest-mcp`. For `e2e`, the flow JSON is the spec —
    write `e2e/specs/NN-name.flow.json` instead (see `e2e/CLAUDE.md`). Ask if the package is unclear.
 2. Read `<package>/CLAUDE.md` and `<package>/specs/README.md`; make sure no spec for this feature exists.
 3. Write `<package>/specs/<feature-name>.md` (kebab-case) from the template below. Fill in only what

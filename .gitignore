@@ -35,3 +35,7 @@ docs/hw2/.video-raw/
 # HW3 demo media — recorded locally, not committed
 docs/hw3/.demo-frames/
 docs/hw3/.video-raw/
+
+# HW4 demo media — recorded locally, not committed
+docs/hw4/.demo-frames/
+docs/hw4/.video-raw/
