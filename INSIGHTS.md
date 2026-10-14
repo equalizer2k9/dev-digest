@@ -14,6 +14,10 @@ or delete; cleanup only via `/engineering-insights review root`.
 ## What Doesn't Work
 <!-- Dead ends and antipatterns, each with what to do instead -->
 
+- **2026-10-14** · NEVER ablate a skill rule for an eval delta by deleting only its numbered line — remove every restatement, including the frontmatter `description`.
+  - Why: `skillContent()` injects SKILL.md with frontmatter, and onion-architecture restates each rule in the ring diagram, so the knowledge survives a one-line removal.
+  - Evidence: `evals/src/artifacts/load.ts:19` · rule 4 removed → practice 100%→100%; + diagram line → 100%→67%, `container.ts` still named in 2/3 (`docs/hw6/lab/report.md`)
+
 ## Codebase Patterns
 <!-- Undocumented conventions and architectural decisions, with the reason -->
 
@@ -59,3 +63,7 @@ or delete; cleanup only via `/engineering-insights review root`.
 
 ## Open Questions
 <!-- Unverified hypotheses and unanswered questions; close with a "Resolved" sub-bullet -->
+
+- **2026-10-14** · Why does an Agent SDK session report `cache_read_input_tokens` far above its visible context?
+  - Known: architecture-reviewer, 3 turns, ~8k context → second request alone reports 137,430 cache-read tokens; `modelUsage` also shows a hidden ~800-token haiku side call per session (SDK 0.3.198).
+  - Matters because: eval token totals in `evals/results/records.jsonl` are dominated by this figure, so prompt-token cost is an upper bound.

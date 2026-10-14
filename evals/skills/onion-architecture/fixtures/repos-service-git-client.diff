@@ -1,0 +1,21 @@
+diff --git a/server/src/modules/repos/service.ts b/server/src/modules/repos/service.ts
+--- a/server/src/modules/repos/service.ts
++++ b/server/src/modules/repos/service.ts
+@@ -1,6 +1,7 @@
+ import type { Container } from '../../platform/container.js';
+ import { type Repo } from '@devdigest/shared';
+ import { NotFoundError } from '../../platform/errors.js';
++import { SimpleGitClient } from '../../adapters/git/simple-git.js';
+ import { RepoRepository } from './repository.js';
+ import { parseRepoUrl, withGitHubToken, toRepoDto } from './helpers.js';
+ import {
+@@ -52,7 +53,8 @@
+     const { repoId, owner, name, url } = payload;
+     const token = await this.container.secrets.get(GITHUB_TOKEN_SECRET);
+     const cloneUrl = token ? withGitHubToken(url, token) : url;
+-    const { path } = await this.container.git.clone({ owner, name }, cloneUrl, {
++    const git = new SimpleGitClient(this.container.config.cloneDir);
++    const { path } = await git.clone({ owner, name }, cloneUrl, {
+       depth: CLONE_DEPTH,
+     });
+     await this.repo.updateClonePath(repoId, path);
