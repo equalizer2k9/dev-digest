@@ -6,7 +6,7 @@
  *
  *   .claude/skills/<name>/**   OR  evals/skills/<name>/**   → run evals/skills/<name>  (content tier)
  *   .claude/agents/<name>.md   OR  evals/agents/<name>/**   → run evals/agents/<name>  (tool tier)
- *   CLAUDE.md / .claude/CLAUDE.md / any agent / engine change → run the workflow tier
+ *   AGENTS.md / CLAUDE.md / .claude/CLAUDE.md / any agent / engine change → run the workflow tier
  *
  * A changed artifact with NO written evals is NOT a failure: it is reported on the `skipped_*`
  * outputs so the job can print a visible "SKIP <name> (no evals)" line instead of going red.
@@ -60,8 +60,10 @@ const skippedAgents = agentNames.filter((n) => !hasEvals("agents", n));
 
 // The workflow tier measures the LIVE harness, so anything that changes it re-triggers it:
 // the root or .claude CLAUDE.md, any agent definition, the workflow cases, or the engine itself.
+// Root CLAUDE.md is a symlink to AGENTS.md, so a diff only ever lists AGENTS.md.
 const runWorkflow = changed.some(
   (f) =>
+    f === "AGENTS.md" ||
     f === "CLAUDE.md" ||
     f === ".claude/CLAUDE.md" ||
     /^\.claude\/agents\/.+\.md$/.test(f) ||

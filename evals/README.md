@@ -555,6 +555,18 @@ Analyst flags (benchmark): `non_discriminating` (100% in both configs), `always_
 both), `flaky` (pass rate strictly 20–80% within a config), `cost_regression` (candidate mean
 tokens > 125% of baseline), `missing_data` (a config has zero records for a test/practice).
 
+## Routing: change → eval
+
+The rule for this repo — the root `AGENTS.md` points here. `scripts/ci-detect.mjs` applies the
+same mapping in CI; an artifact without evals is a `SKIP <name> (no evals)` line, not a failure.
+
+| Change | Run (in `evals/`) |
+|--------|-------------------|
+| `.claude/skills/<name>/**` | `pnpm eval:quality` + `pnpm vitest run skills/<name>` if `skills/<name>/` has evals |
+| `.claude/agents/<name>.md` | `pnpm vitest run agents/<name>` if `agents/<name>/` has evals + `pnpm eval:workflow` |
+| Root `AGENTS.md` / `CLAUDE.md` (`CLAUDE.md` is a symlink to `AGENTS.md`) | `pnpm eval:workflow` |
+| A case or the judge in `evals/` | a fresh baseline series: `pnpm eval:repeat <path> -n 3 --label <new>` — the old baseline is no longer comparable |
+
 ## Which change → which run
 
 | Change | Run |
