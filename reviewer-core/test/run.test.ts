@@ -1,7 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import type { LLMProvider, StructuredResult } from '@devdigest/shared';
+import type {
+  ChatMessage,
+  LLMProvider,
+  StructuredRequest,
+  StructuredResult,
+} from '@devdigest/shared';
 import { MockLLMProvider, MockGitClient } from '../../server/src/adapters/mocks.js';
-import { reviewPullRequest } from '../src/index.js';
+import { reviewPullRequest, type SkillPart } from '../src/index.js';
 
 /**
  * Engine-level test for reviewPullRequest (the core lifted out of the server's
@@ -134,5 +139,134 @@ describe('reviewPullRequest (engine)', () => {
     await reviewPullRequest({ systemPrompt: 's', model: 'm', diff, llm: recorder, sessionId: 'sess-abc' });
     expect(seen.length).toBeGreaterThan(0);
     expect(seen.every((s) => s === 'sess-abc')).toBe(true);
+  });
+});
+
+/**
+ * Skills Lab — the engine forwards `skills` + `countTokens` into assemblePrompt
+ * unchanged, on BOTH strategies, and the returned assembly carries the per-skill
+ * trace record (AC-14 order, AC-19 token attribution).
+ */
+describe('reviewPullRequest — skills + countTokens forwarding', () => {
+  const clean = { verdict: 'approve', summary: 'looks good', score: 90, findings: [] };
+
+  const skills: SkillPart[] = [
+    { id: 's-house', name: 'house-style', version: 3, body: 'Prefer early returns.', trusted: true },
+    { id: 's-comm', name: 'community-sec', version: 1, body: 'Flag eval().', trusted: false },
+  ];
+
+  /** LLM stub that records the messages of every chunk call. */
+  function recordingLlm(): { llm: LLMProvider; seen: ChatMessage[][] } {
+    const seen: ChatMessage[][] = [];
+    const llm: LLMProvider = {
+      id: 'openrouter',
+      async completeStructured<T>(req: StructuredRequest<T>): Promise<StructuredResult<T>> {
+        seen.push(req.messages);
+        return {
+          data: clean as unknown as T,
+          model: req.model,
+          tokensIn: 0,
+          tokensOut: 0,
+          costUsd: 0,
+          raw: '',
+          attempts: 1,
+        };
+      },
+      async listModels() {
+        return [];
+      },
+      async complete() {
+        throw new Error('not used');
+      },
+      async embed() {
+        return [];
+      },
+    };
+    return { llm, seen };
+  }
+
+  /** Distinctive counter: a default (ceil(len/4)) could never produce these. */
+  const countTokens = (text: string) => text.length * 10;
+
+  const TWO_FILE_DIFF =
+    'diff --git a/src/config.ts b/src/config.ts\n--- a/src/config.ts\n+++ b/src/config.ts\n' +
+    '@@ -10,3 +10,4 @@\n   port: 3000,\n+  stripeKey: "sk_live_xxx",\n   redisUrl: x,\n' +
+    'diff --git a/src/server.ts b/src/server.ts\n--- a/src/server.ts\n+++ b/src/server.ts\n' +
+    '@@ -1,2 +1,3 @@\n const a = 1;\n+const b = 2;\n const c = 3;';
+
+  it('single-pass: renders both skills in the prompt and traces them in order', async () => {
+    const { llm, seen } = recordingLlm();
+    const diff = await new MockGitClient().diff();
+
+    const outcome = await reviewPullRequest({
+      systemPrompt: 'security reviewer',
+      model: 'gpt-4.1',
+      diff,
+      llm,
+      skills,
+      countTokens,
+    });
+
+    expect(outcome.mode).toBe('single-pass');
+    expect(seen).toHaveLength(1);
+    const user = seen[0]![1]!.content;
+    expect(user).toContain('## Skills / rules');
+    expect(user).toContain('### house-style (v3)\nPrefer early returns.');
+    expect(user).toContain('### community-sec (v1)\n<untrusted source="skill:community-sec">');
+
+    expect(outcome.assembly.skill_blocks!.map((b) => b.skill_id)).toEqual(['s-house', 's-comm']);
+    expect(outcome.assembly.skill_blocks!.map((b) => b.version)).toEqual([3, 1]);
+    // the INJECTED counter was used, not the ceil(len/4) default
+    expect(outcome.assembly.skills_tokens).toBe(outcome.assembly.skills!.length * 10);
+    expect(outcome.assembly.skill_blocks!.every((b) => b.tokens % 10 === 0)).toBe(true);
+  });
+
+  it('map-reduce: every chunk gets the identical skills section, assembly keeps skill_blocks', async () => {
+    const { llm, seen } = recordingLlm();
+    const diff = await new MockGitClient({ diff: TWO_FILE_DIFF }).diff();
+    expect(diff.files).toHaveLength(2);
+
+    const outcome = await reviewPullRequest({
+      systemPrompt: 'security reviewer',
+      model: 'gpt-4.1',
+      diff,
+      llm,
+      strategy: 'map-reduce',
+      skills,
+      countTokens,
+    });
+
+    expect(outcome.mode).toBe('map-reduce');
+    expect(seen).toHaveLength(2);
+    const sections = seen.map((msgs) => {
+      const user = msgs[1]!.content;
+      const start = user.indexOf('## Skills / rules');
+      return user.slice(start, user.indexOf('\n\n##', start));
+    });
+    expect(sections[0]).toContain('### house-style (v3)');
+    expect(sections[1]).toBe(sections[0]);
+
+    expect(outcome.assembly.skill_blocks!.map((b) => b.name)).toEqual([
+      'house-style',
+      'community-sec',
+    ]);
+    expect(outcome.assembly.skills_tokens).toBe(outcome.assembly.skills!.length * 10);
+  });
+
+  it('no skills: the section and all three trace fields are absent', async () => {
+    const { llm, seen } = recordingLlm();
+    const diff = await new MockGitClient().diff();
+
+    const outcome = await reviewPullRequest({
+      systemPrompt: 'security reviewer',
+      model: 'gpt-4.1',
+      diff,
+      llm,
+    });
+
+    expect(seen[0]![1]!.content).not.toContain('## Skills / rules');
+    expect(outcome.assembly.skills ?? null).toBeNull();
+    expect(outcome.assembly.skill_blocks ?? null).toBeNull();
+    expect(outcome.assembly.skills_tokens ?? null).toBeNull();
   });
 });

@@ -17,7 +17,7 @@ the columns (how a hook is built, how the boundary is drawn) are in
 
 ## The routes
 
-Seven routes and one layout. There are no route groups, no parallel or intercepting routes, no
+Ten routes and one layout. There are no route groups, no parallel or intercepting routes, no
 Route Handlers, and no `loading.tsx` / `error.tsx` / `not-found.tsx` anywhere — every state below
 is a branch inside the page.
 
@@ -26,11 +26,14 @@ is a branch inside the page.
 | *(all)* | [app/layout.tsx](../src/app/layout.tsx) | Server (`async`) | — | loads all |
 | `/` | [app/page.tsx](../src/app/page.tsx) | Client | — | none (literal English) |
 | `/onboarding` | [app/onboarding/page.tsx](../src/app/onboarding/page.tsx) | Client | — | none (literal English) |
+| `/skills` | [app/skills/page.tsx](../src/app/skills/page.tsx) | Client | — | `skills` |
+| `/skills/[id]` | [app/skills/[id]/page.tsx](<../src/app/skills/[id]/page.tsx>) | Client | `id`, `?tab` | `skills` |
 | `/agents` | [app/agents/page.tsx](../src/app/agents/page.tsx) | **Server** wrapper → client view | — | `agents` |
 | `/agents/[id]` | [app/agents/[id]/page.tsx](<../src/app/agents/[id]/page.tsx>) | Client | `id`, `?tab` | `agents` |
 | `/settings/[section]` | [app/settings/[section]/page.tsx](<../src/app/settings/[section]/page.tsx>) | **Server** wrapper → client view | `section` | `settings` |
 | `/repos/[repoId]/pulls` | [app/repos/[repoId]/pulls/page.tsx](<../src/app/repos/[repoId]/pulls/page.tsx>) | Client | `repoId`, `?status` | `prReview` |
 | `/repos/[repoId]/pulls/[number]` | [app/repos/[repoId]/pulls/[number]/page.tsx](<../src/app/repos/[repoId]/pulls/[number]/page.tsx>) | Client | `repoId`, `number`, `?tab`, `?trace` | `prReview`, `runs`, `common` |
+| `/repos/[repoId]/conventions` | [app/repos/[repoId]/conventions/page.tsx](<../src/app/repos/[repoId]/conventions/page.tsx>) | **Server** wrapper → client view | `repoId` | `conventions`, `common` |
 
 ## True for every route
 
@@ -90,6 +93,69 @@ pushes `/repos/<new repo id>/pulls`.
   failure), keeping the typed URL.
 - **Escape** — `Esc` and the close button both `router.push("/")`; the footer advertises it.
 
+## `/skills` — skills grid
+
+[app/skills/page.tsx](../src/app/skills/page.tsx) →
+[SkillsGridView](../src/app/skills/_components/SkillsGridView/SkillsGridView.tsx) · Client.
+
+| Needs | Hook | Call |
+|---|---|---|
+| All skills + how many agents link each | `useSkills` ([skills.ts](../src/lib/hooks/skills.ts)) | `GET /skills` |
+| Enable/disable toggle (optimistic) | `useUpdateSkill` | `PUT /skills/:id` |
+| Delete | `useDeleteSkill` | `DELETE /skills/:id` |
+| Create | `useCreateSkill` (in [CreateSkillModal](../src/app/skills/_components/SkillsGridView/_components/CreateSkillModal/CreateSkillModal.tsx)) | `POST /skills` |
+| Import preview + save | `useImportSkillPreview`, `useImportSkill` (in [ImportSkillModal](../src/app/skills/_components/SkillsGridView/_components/ImportSkillModal/ImportSkillModal.tsx)) | `POST /skills/import/preview` · `POST /skills/import` (both `multipart/form-data`) |
+
+Cards sit in an auto-fill grid (`repeat(auto-fill, minmax(280px, 1fr))`). Search is local state
+filtered by `filterSkills()`, not a URL param, and **so is the preview selection**: clicking a
+card opens [SkillPreviewDrawer](../src/app/skills/_components/SkillPreviewDrawer/SkillPreviewDrawer.tsx)
+(a 480px right-hand `Drawer`) over the still-mounted grid — it is not a navigation, so a preview
+is not linkable. Its `Open →` pushes `/skills/<id>?tab=config`.
+
+- **Loading** — three `Skeleton` cards.
+- **Error** — `ErrorState` with a retry that calls `refetch()`.
+- **Empty** — `EmptyState`; with an active search it switches to the "no matching skills" copy
+  and drops the create CTA, so "nothing here" stays distinguishable from "nothing matching".
+- The trash on a card opens [ConfirmDialog](../src/components/confirm-dialog/ConfirmDialog/ConfirmDialog.tsx);
+  the toggle and the trash both stop propagation, so neither opens the preview.
+- Import failures (too large, ambiguous zip, unsupported format) render **inline in the modal**,
+  from `ApiError.message` — never as a toast that outlives the modal.
+
+## `/skills/[id]` — skill detail
+
+[app/skills/[id]/page.tsx](<../src/app/skills/[id]/page.tsx>) →
+[SkillDetailView](<../src/app/skills/[id]/_components/SkillDetailView/SkillDetailView.tsx>) · Client.
+
+| Needs | Hook | Call |
+|---|---|---|
+| The skill | `useSkill(id)` | `GET /skills/:id` |
+| Save | `useUpdateSkill` (in [SkillConfigTab](<../src/app/skills/[id]/_components/SkillDetailView/_components/SkillConfigTab/SkillConfigTab.tsx>)) | `PUT /skills/:id` |
+| Delete | `useDeleteSkill` | `DELETE /skills/:id` |
+| Version history | `useSkillVersions(id)` (in [SkillVersionsTab](<../src/app/skills/[id]/_components/SkillDetailView/_components/SkillVersionsTab/SkillVersionsTab.tsx>)) | `GET /skills/:id/versions` |
+| One snapshot, only while a Diff modal is open | `useSkillVersion(id, v)` | `GET /skills/:id/versions/:version` |
+| Restore | `useRestoreSkillVersion` | `POST /skills/:id/restore` |
+
+**Params.** `id` from the path. `?tab` is validated against `TAB_KEYS`
+([constants.ts](<../src/app/skills/[id]/_components/SkillDetailView/constants.ts>)) — exactly
+`config`, `preview` and `versioning` — and falls back to `config`; switching tabs is
+`router.replace`.
+
+**Tabs.**
+
+- `config` — name, description, type, body and an `Enabled` toggle, plus a danger zone whose
+  delete goes through `ConfirmDialog` and pushes `/skills` on success. The body hint states that
+  saving a *changed* body snapshots the text as `v{version + 1}`.
+- `preview` — the body through the `Markdown` primitive: headings, lists and fenced code as
+  elements, never a `<pre>` of raw markdown.
+- `versioning` — every snapshot, newest first. The current version is badged *Current* and has
+  no buttons; every older row has **Diff** (a `Modal` over a line-level LCS diff computed in the
+  browser by [helpers.ts](<../src/app/skills/[id]/_components/SkillDetailView/helpers.ts>), added
+  lines green and removed red) and **Restore** (behind `ConfirmDialog`; the old body is applied
+  as a *new* version, so the older rows stay).
+
+- **Loading** — two `Skeleton`s.
+- **Error or missing skill** — full-screen `ErrorState` with retry, inside the shell.
+
 ## `/agents` — agent list
 
 [app/agents/page.tsx](../src/app/agents/page.tsx) (Server, two lines) →
@@ -102,13 +168,17 @@ pushes `/repos/<new repo id>/pulls`.
 | Create | `useCreateAgent` (in [CreateAgentModal](../src/app/agents/_components/AgentsListView/_components/CreateAgentModal/CreateAgentModal.tsx)) | `POST /agents` |
 | Delete | `useDeleteAgent` (in [AgentCard](../src/app/agents/_components/AgentCard/AgentCard.tsx)) | `DELETE /agents/:id` |
 
-Search is local state filtered by `filterAgents()`; it is not a URL param.
+Agents render as tiles in the same auto-fill grid as `/skills`
+(`repeat(auto-fill, minmax(280px, 1fr))`). Search is local state filtered by
+`filterAgents()`; it is not a URL param.
 
 - **Loading** — three `Skeleton` cards.
 - **Error** — `ErrorState` with a retry that calls `refetch()`.
 - **Empty** (no agents, or none matching the search) — `EmptyState` with a "create" CTA that
   opens the modal.
-- Creating pushes `/agents/<id>?tab=config`; deleting is behind a `window.confirm`.
+- Creating pushes `/agents/<id>?tab=config`; deleting opens
+  [ConfirmDialog](../src/components/confirm-dialog/ConfirmDialog/ConfirmDialog.tsx) — confirm,
+  cancel and the modal's `×` — never `window.confirm`.
 
 ## `/agents/[id]` — agent editor
 
@@ -120,11 +190,16 @@ Search is local state filtered by `filterAgents()`; it is not a URL param.
 | The edited agent | `useAgent(id)` | `GET /agents/:id` |
 | Save / toggle | `useUpdateAgent` | `PUT /agents/:id` |
 | Model picker options | `useProviderModels(provider)` (in [ConfigTab](<../src/app/agents/[id]/_components/AgentEditor/_components/ConfigTab/ConfigTab.tsx>)) | `GET /providers/:provider/models` |
+| The agent's linked skills + every skill | `useAgentSkills(id)`, `useSkills`, `useSetAgentSkills(id)` (in [SkillsTab](<../src/app/agents/[id]/_components/AgentEditor/_components/SkillsTab/SkillsTab.tsx>)) | `GET`/`POST /agents/:id/skills`, `GET /skills` |
 
-**Params.** `id` from the path. `?tab` is validated against `VALID_TABS = ["config"]` and falls
-back to `config`; switching tabs is `router.replace`. The editor is one tab today
-([AgentEditor.tsx](<../src/app/agents/[id]/_components/AgentEditor/AgentEditor.tsx>)) — `?tab`
-is kept for the lessons that add more.
+**Params.** `id` from the path. `?tab` is validated against `TAB_KEYS`
+([AgentEditor/constants.ts](<../src/app/agents/[id]/_components/AgentEditor/constants.ts>)) —
+exactly `config` and `skills` — and falls back to `config`; switching tabs is `router.replace`.
+
+**Tabs.**
+
+- `config` → [ConfigTab](<../src/app/agents/[id]/_components/AgentEditor/_components/ConfigTab/ConfigTab.tsx>) — name, description, provider, model, review strategy, CI gate, repo-intel and the system prompt.
+- `skills` → [SkillsTab](<../src/app/agents/[id]/_components/AgentEditor/_components/SkillsTab/SkillsTab.tsx>) — every skill in the workspace with a per-agent toggle, a name search, native HTML5 drag-and-drop over the enabled rows and Move up / Move down buttons. Attach, detach and reorder are all one `POST /agents/:id/skills` carrying the full ordered id list; a failed write rolls the list back and raises a toast.
 
 - **Loading** — the left list renders as soon as `useAgents` resolves; the editor pane shows two
   `Skeleton`s while `useAgent` is in flight.
@@ -254,6 +329,41 @@ the value is `null`.
   ends, the page invalidates `["pr-active-runs", prId]` and `["pr-runs", prId]` and refetches
   the reviews, so a finished or failed run appears without a reload.
 
+## `/repos/[repoId]/conventions` — conventions extractor
+
+[app/repos/[repoId]/conventions/page.tsx](<../src/app/repos/[repoId]/conventions/page.tsx>) →
+[ConventionsView](<../src/app/repos/[repoId]/conventions/_components/ConventionsView/ConventionsView.tsx>) ·
+Server wrapper → client view. Spec: [conventions-extractor.md](conventions-extractor.md).
+
+| Needs | Hook | Call |
+|---|---|---|
+| Candidates + what the latest scan did | `useConventions(repoId)` ([conventions.ts](../src/lib/hooks/conventions.ts)) | `GET /repos/:repoId/conventions` |
+| `Run Scan` / `ReScan` | `useExtractConventions(repoId)` | `POST /repos/:repoId/conventions/extract` |
+| Accept / Reject / in-place Edit (optimistic) | `useUpdateConvention(repoId)` (in [ConventionCard](<../src/app/repos/[repoId]/conventions/_components/ConventionCard/ConventionCard.tsx>)) | `PUT /conventions/:id` |
+| The merged draft skill, only while the modal is open | `useConventionDraft(repoId, true)` (in [CreateSkillFromConventionsModal](<../src/app/repos/[repoId]/conventions/_components/CreateSkillFromConventionsModal/CreateSkillFromConventionsModal.tsx>)) | `GET /repos/:repoId/conventions/draft` (`staleTime: 0`) |
+| Create the skill from the edited draft | `useCreateConventionSkill(repoId)` | `POST /repos/:repoId/conventions/skill` |
+| Active repo name / validity | `useActiveRepo`, `useRepoNotFound` ([repo-context.tsx](../src/lib/repo-context.tsx)) | — (reads the shared `GET /repos`) |
+
+**Params.** `repoId` from the path, read by the view with `useParams()`. Nothing is in the query
+string — the scan state lives on the server, and the create modal is local state.
+
+Breadcrumb `Skills Lab › Conventions`; the sidebar item sits in **SKILLS LAB** with the `g c`
+chord ([vendor/ui/nav.ts](../src/vendor/ui/nav.ts)).
+
+- **Two scan buttons, both always rendered.** `Run Scan` is live only while
+  `extracted_at === null`, `ReScan` only once a scan exists, and an in-flight scan disables both
+  while the active one shows a spinner and "Scanning…" — the call is one synchronous model
+  round-trip.
+- **Unknown `:repoId`** — [RepoNotFound](../src/components/repo-not-found/RepoNotFound.tsx) inside
+  the shell, exactly as on the PR list.
+- **Loading** — three skeleton cards.
+- **Error** — a `409` from the scan (the server's `repo_not_indexed` guard) renders inline under
+  the header; a failed `GET` or any other scan failure is an `ErrorState` with retry.
+- **Empty** — `EmptyState` ("No conventions extracted yet"), whose CTA runs the same scan; the CTA
+  is dropped once a scan exists, so a scan that found nothing does not offer a first run again.
+- **`Create skill`** is rendered only while at least one candidate is accepted — absent from the
+  DOM at zero, not disabled.
+
 ---
 
 ## Private folders and their owners
@@ -263,13 +373,17 @@ the value is `null`.
 | Folder | Owner |
 |---|---|
 | [app/onboarding/_components/](../src/app/onboarding/_components/AddRepoView/AddRepoView.tsx) | `/onboarding` |
+| [app/skills/_components/](../src/app/skills/_components/SkillsGridView/SkillsGridView.tsx) | `/skills` |
+| [app/skills/[id]/_components/](<../src/app/skills/[id]/_components/SkillDetailView/SkillDetailView.tsx>) | `/skills/[id]` |
 | [app/agents/_components/](../src/app/agents/_components/AgentsListView/AgentsListView.tsx) | `/agents` — but `AgentCard` is also imported by `/agents/[id]` |
 | [app/agents/[id]/_components/](<../src/app/agents/[id]/_components/AgentEditor/AgentEditor.tsx>) | `/agents/[id]` |
 | [app/settings/[section]/_components/](<../src/app/settings/[section]/_components/SettingsView/SettingsView.tsx>) | `/settings/[section]` |
 | [app/repos/[repoId]/pulls/_components/](<../src/app/repos/[repoId]/pulls/_components/PRRow/PRRow.tsx>) | `/repos/[repoId]/pulls` |
 | [app/repos/[repoId]/pulls/[number]/_components/](<../src/app/repos/[repoId]/pulls/[number]/_components/FindingsTab/FindingsTab.tsx>) | `/repos/[repoId]/pulls/[number]` |
+| [app/repos/[repoId]/conventions/_components/](<../src/app/repos/[repoId]/conventions/_components/ConventionsView/ConventionsView.tsx>) | `/repos/[repoId]/conventions` — `ConventionCard` is also mounted by the showcase gallery |
 
 Cross-route UI lives outside `src/app` instead: [components/app-shell](../src/components/app-shell/AppShell.tsx),
+[components/confirm-dialog](../src/components/confirm-dialog/index.ts),
 [components/diff-viewer](../src/components/diff-viewer/index.ts),
 [components/page-shell](../src/components/page-shell/PageShell.tsx),
 [components/repo-not-found](../src/components/repo-not-found/RepoNotFound.tsx),
@@ -281,11 +395,12 @@ Cross-route UI lives outside `src/app` instead: [components/app-shell](../src/co
 Three places name paths this contract does not cover. They resolve to a 404 if reached, and that
 is the current expected behaviour:
 
-- [helpers.ts](../src/components/app-shell/helpers.ts)'s `activeKeyFor()` maps `/skills`,
-  `/memory`, `/eval`, `/ci-runs`, `/agent-performance`, `/context`, `/conventions`,
-  `/multi-agent` to sidebar keys. Only the two entries in `NAV`
-  ([vendor/ui/nav.ts](../src/vendor/ui/nav.ts)) — `/repos/:repoId/pulls` and `/agents` — plus
-  `SETTINGS_ITEM` (`/settings/api-keys`) are rendered, so the other keys are unreachable today.
+- [helpers.ts](../src/components/app-shell/helpers.ts)'s `activeKeyFor()` maps `/memory`,
+  `/eval`, `/ci-runs`, `/agent-performance`, `/context`, `/multi-agent` to sidebar keys. Only the
+  four entries in `NAV` ([vendor/ui/nav.ts](../src/vendor/ui/nav.ts)) — `/repos/:repoId/pulls`
+  under **WORKSPACE**, `/skills`, `/agents` and `/repos/:repoId/conventions` under **SKILLS
+  LAB** — plus `SETTINGS_ITEM` (`/settings/api-keys`) are rendered, so the other keys are
+  unreachable today.
 - `messages/en/` holds namespaces for those same unbuilt screens; they are merged into the
   message tree but nothing reads them.
 - The design system's README refers to a `/showcase` route. There is none — the gallery is

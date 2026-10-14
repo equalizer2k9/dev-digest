@@ -115,7 +115,17 @@ export type MemoryItem = z.infer<typeof MemoryItem>;
 export const SkillType = z.enum(['rubric', 'convention', 'security', 'custom']);
 export type SkillType = z.infer<typeof SkillType>;
 
-export const SkillSource = z.enum(['manual', 'imported_url', 'extracted', 'community']);
+// 'imported_file' — uploaded as a .md file or a .zip archive through the Skills
+// page. Like 'imported_url' and 'community' it is third-party text: the body is
+// stored verbatim and delimiter-wrapped at prompt-assembly time, never trusted
+// as instructions. 'manual' and 'extracted' are authored in-workspace.
+export const SkillSource = z.enum([
+  'manual',
+  'imported_file',
+  'imported_url',
+  'extracted',
+  'community',
+]);
 export type SkillSource = z.infer<typeof SkillSource>;
 
 export const Skill = z.object({
@@ -131,6 +141,38 @@ export const Skill = z.object({
 });
 export type Skill = z.infer<typeof Skill>;
 
+/** A skill as the Skills grid reads it: the row plus how many agents link it. */
+export const SkillWithUsage = Skill.extend({ agent_count: z.number().int() });
+export type SkillWithUsage = z.infer<typeof SkillWithUsage>;
+
+/**
+ * One immutable body snapshot from `skill_versions`. Written on create and on
+ * every body change; never mutated or dropped, so a restore is itself undoable
+ * and a past run still resolves the exact text it was scored on.
+ */
+export const SkillVersion = z.object({
+  skill_id: z.string(),
+  version: z.number().int(),
+  body: z.string(),
+  created_at: z.string(),
+});
+export type SkillVersion = z.infer<typeof SkillVersion>;
+
+/**
+ * The parsed core of an uploaded .md / .zip, returned by
+ * `POST /skills/import/preview`. Persists NOTHING — the user corrects these
+ * fields and they are posted back alongside the file to `POST /skills/import`.
+ */
+export const SkillImportPreview = z.object({
+  name: z.string(),
+  description: z.string(),
+  type: SkillType,
+  body: z.string(),
+  source: z.literal('imported_file'),
+  warnings: z.array(z.string()),
+});
+export type SkillImportPreview = z.infer<typeof SkillImportPreview>;
+
 export const CommunitySkill = z.object({
   name: z.string(),
   repo: z.string(),
@@ -141,15 +183,77 @@ export const CommunitySkill = z.object({
 export type CommunitySkill = z.infer<typeof CommunitySkill>;
 
 // ---- Conventions ----
+/** What kind of house rule a candidate states — rendered as the card's chip. */
+export const ConventionCategory = z.enum([
+  'naming',
+  'structure',
+  'error-handling',
+  'typing',
+  'testing',
+  'imports',
+  'api',
+  'style',
+  'other',
+]);
+export type ConventionCategory = z.infer<typeof ConventionCategory>;
+
+/**
+ * Review state of a candidate — the source of truth (`accepted` is a mirror).
+ * 'rejected' is a TOMBSTONE: the row survives a rescan so a rediscovered rule
+ * cannot come back, and it is never returned on the wire.
+ */
+export const ConventionStatus = z.enum(['pending', 'accepted', 'rejected']);
+export type ConventionStatus = z.infer<typeof ConventionStatus>;
+
 export const ConventionCandidate = z.object({
   id: z.string(),
+  category: ConventionCategory,
   rule: z.string(),
   evidence_path: z.string(),
+  evidence_start_line: z.number().int(),
+  evidence_end_line: z.number().int(),
+  /** Re-read from the file for the cited range in code — never model output. */
   evidence_snippet: z.string(),
+  /** Head sha of the scan that found it; pins the GitHub blob link to it. */
+  head_sha: z.string().nullable(),
   confidence: z.number().min(0).max(1),
+  status: ConventionStatus,
+  /** Kept for compatibility: always `status === 'accepted'`. */
   accepted: z.boolean(),
 });
 export type ConventionCandidate = z.infer<typeof ConventionCandidate>;
+
+/**
+ * What `GET /repos/:id/conventions` and `POST …/extract` return: the visible
+ * candidates (pending + accepted, confidence descending) plus what the latest
+ * scan itself did. `extracted_at` is null when the repo has never been scanned.
+ */
+export const ConventionScan = z.object({
+  repo_id: z.string(),
+  candidates: z.array(ConventionCandidate),
+  extracted_at: z.string().nullable(),
+  sample_files: z.number().int(),
+  /** Candidates dropped by code-side evidence verification. */
+  dropped: z.number().int(),
+  model: z.string().nullable(),
+  warnings: z.array(z.string()),
+});
+export type ConventionScan = z.infer<typeof ConventionScan>;
+
+/**
+ * The skill the accepted candidates merge into, built on the server from
+ * `status = 'accepted'` rows only. Every field is editable before the user
+ * posts it back to `POST /repos/:id/conventions/skill`.
+ */
+export const ConventionSkillDraft = z.object({
+  name: z.string(),
+  description: z.string(),
+  type: SkillType,
+  enabled: z.boolean(),
+  body: z.string(),
+  count: z.number().int(),
+});
+export type ConventionSkillDraft = z.infer<typeof ConventionSkillDraft>;
 
 // ---- Agents ----
 export const Provider = z.enum(['openai', 'anthropic', 'openrouter']);

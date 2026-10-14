@@ -7,15 +7,22 @@ export function Textarea({
   placeholder,
   rows = 5,
   mono,
+  ...rest
 }: {
   value: string;
   onChange?: (v: string) => void;
   placeholder?: string;
   rows?: number;
   mono?: boolean;
-}) {
+  // Same escape hatch as TextInput: pass through the standard textarea
+  // attributes (aria-label, name, disabled, …) without re-declaring each one.
+} & Omit<
+  React.TextareaHTMLAttributes<HTMLTextAreaElement>,
+  "value" | "onChange" | "rows" | "placeholder"
+>) {
   return (
     <textarea
+      {...rest}
       className={mono ? "mono" : undefined}
       value={value}
       rows={rows}

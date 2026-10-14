@@ -79,6 +79,17 @@ export const s = {
     overflow: "auto",
   } satisfies CSSProperties,
 
+  // ---- Skills block group (TraceBody) ----
+  skillsHeader: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    margin: "2px 0 8px",
+  } satisfies CSSProperties,
+  skillsHeaderLabel: { fontSize: 12, fontWeight: 700, letterSpacing: "0.04em" } satisfies CSSProperties,
+  skillsTotal: { marginLeft: "auto", fontSize: 12, color: "var(--text-muted)" } satisfies CSSProperties,
+  skillTokens: { fontSize: 12, color: "var(--text-muted)" } satisfies CSSProperties,
+
   // ---- Stat ----
   stat: {
     flex: 1,

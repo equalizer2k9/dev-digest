@@ -12,6 +12,8 @@ export const s = {
     marginBottom: 10,
   }),
   headerRow: { display: "flex", alignItems: "center", gap: 10 } satisfies CSSProperties,
+  /** Wraps the toggle + trash so their clicks never reach the card. */
+  actions: { display: "flex", alignItems: "center", gap: 4 } satisfies CSSProperties,
   iconBox: {
     width: 26,
     height: 26,

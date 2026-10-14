@@ -1,0 +1,21 @@
+{
+  "name": "Skills Lab: skills page, add menu, agent editor tabs",
+  "description": "Covers the Skills Lab section of the sidebar (criteria 6, 9, 11) and the agent editor (35, 30/13 entry point). Data-independent on purpose: the seed creates no skills, so this flow asserts page chrome — heading, subtitle, the Add Skill menu (create vs import) — plus the seeded Security Reviewer, its two-tab editor, and the Skills tab's prompt-order hint. Nothing is created, so no LLM call and no mutation.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/skills"], "label": "load the skills page" },
+    { "cmd": ["wait", "--url", "/skills"], "label": "skills route reached" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "skills fetch settles" },
+    { "cmd": ["wait", "--text", "Reusable review instructions. Attach them to an agent to add them to its prompt."], "label": "skills page subtitle renders" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Add Skill"], "label": "open the Add Skill menu" },
+    { "cmd": ["wait", "--text", "Create from scratch"], "label": "menu offers create" },
+    { "cmd": ["wait", "--text", "Import from file"], "label": "menu offers import" },
+    { "cmd": ["open", "{BASE}/agents"], "label": "load the agents page" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "agents fetch settles" },
+    { "cmd": ["find", "text", "Security Reviewer", "click"], "label": "open the seeded Security Reviewer" },
+    { "cmd": ["wait", "--url", "/agents/"], "label": "agent editor route reached" },
+    { "cmd": ["wait", "--text", "Configuration"], "label": "Config tab renders" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Skills"], "label": "switch to the agent's Skills tab" },
+    { "cmd": ["wait", "--url", "tab=skills"], "label": "skills tab selected" },
+    { "cmd": ["wait", "--text", "Order matters — earlier skills appear earlier in the assembled prompt. Toggle to attach."], "label": "prompt-order hint renders" }
+  ]
+}

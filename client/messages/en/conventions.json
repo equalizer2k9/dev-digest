@@ -2,25 +2,97 @@
   "page": {
     "crumbLab": "Skills Lab",
     "crumbConventions": "Conventions",
-    "headingPrefix": "Conventions in ",
+    "title": "Conventions in <mono>{repo}</mono>",
     "repoFallback": "repo",
-    "subtitle": "Scan the cloned repo to surface house-rules — each backed by evidence you can turn into a Skill.",
+    "loadErrorTitle": "Could not load conventions",
+    "loadErrorBody": "The engine did not return this repo's conventions. Try again."
+  },
+  "scan": {
+    "subtitle": "Detected from {files} sample files · last scan {when}",
+    "subtitleNeverScanned": "Scan the cloned repo to surface the house rules it already follows — each backed by real evidence.",
+    "run": "Run Scan",
+    "rescan": "ReScan",
     "scanning": "Scanning…",
-    "rescan": "Re-scan",
-    "runExtraction": "Run extraction",
-    "extractionFailed": "Extraction failed",
-    "loadError": "Could not load conventions.",
-    "empty": {
-      "title": "No conventions extracted yet",
-      "body": "Scan the repo to surface house-rules — naming, error handling, structure — each backed by evidence you can turn into a Skill.",
-      "cta": "Run extraction"
-    },
-    "candidateCount": "{count, plural, one {# candidate} other {# candidates}} · grounded against sampled files"
+    "dropped": "{count, plural, one {# candidate dropped by evidence verification} other {# candidates dropped by evidence verification}}",
+    "notIndexed": "This repo is not indexed yet — index it first, then run the scan.",
+    "failedTitle": "Scan failed",
+    "failedBody": "The extraction did not finish. Try again.",
+    "ago": {
+      "now": "just now",
+      "minutes": "{n}m ago",
+      "hours": "{n}h ago",
+      "days": "{n}d ago"
+    }
   },
   "card": {
     "confidence": "Confidence",
+    "accept": "Accept",
     "accepted": "Accepted",
-    "accepting": "Accepting…",
-    "acceptAsSkill": "Accept as Skill"
+    "reject": "Reject",
+    "edit": "Edit",
+    "copyPath": "Copy path",
+    "copied": "Path copied",
+    "evidenceLink": "Open {path} on GitHub",
+    "categories": {
+      "naming": "naming",
+      "structure": "structure",
+      "error-handling": "error handling",
+      "typing": "typing",
+      "testing": "testing",
+      "imports": "imports",
+      "api": "api",
+      "style": "style",
+      "other": "other"
+    }
+  },
+  "edit": {
+    "rule": "Rule",
+    "category": "Category",
+    "save": "Save",
+    "cancel": "Cancel"
+  },
+  "toolbar": {
+    "acceptAll": "Accept all",
+    "deselectAll": "Deselect all",
+    "count": "{n} of {m} accepted",
+    "createSkill": "Create skill"
+  },
+  "create": {
+    "title": "Create skill from conventions",
+    "banner": "Merged from <b>{count, plural, one {# accepted convention} other {# accepted conventions}}</b> in <mono>{repo}</mono>. Everything below is editable before you save.",
+    "loading": "Building the draft from the accepted conventions…",
+    "name": "Name",
+    "namePlaceholder": "repo-conventions",
+    "description": "Description",
+    "descriptionPlaceholder": "What this skill makes the reviewer look for",
+    "type": "Type",
+    "types": {
+      "rubric": "Rubric",
+      "convention": "Convention",
+      "security": "Security",
+      "custom": "Custom"
+    },
+    "enabled": "Enabled",
+    "enabledHint": "Whether this block is added to agents' prompts.",
+    "body": "Skill body",
+    "bodyHint": "The only text sent to the model. Merged from the accepted rules + evidence — edit freely.",
+    "agent": "Link to agent",
+    "agentNone": "Don't link yet",
+    "savedAs": "Saved as v1 · added to Skills Lab",
+    "cancel": "Cancel",
+    "submit": "Create skill",
+    "creating": "Creating…",
+    "created": "Skill “{name}” created from {count, plural, one {# convention} other {# conventions}}.",
+    "openInSkills": "Open in Skills →"
+  },
+  "empty": {
+    "title": "No conventions extracted yet",
+    "body": "Scan the repo to surface house-rules — naming, error handling, structure — each backed by evidence you can turn into a Skill.",
+    "cta": "Run extraction"
+  },
+  "errors": {
+    "update": "Could not save that change — it has been rolled back.",
+    "draft": "Could not build the draft skill from the accepted conventions.",
+    "create": "Could not create the skill."
   }
 }

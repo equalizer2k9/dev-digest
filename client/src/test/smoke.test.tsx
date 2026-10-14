@@ -21,6 +21,9 @@ describe("web smoke (both themes)", () => {
       // a few representative components are present
       expect(screen.getAllByText("Primary").length).toBeGreaterThan(0);
       expect(screen.getAllByText("Critical").length).toBeGreaterThan(0);
+      // Conventions Extractor card, with its evidence link and confidence.
+      expect(screen.getAllByText("Confidence").length).toBeGreaterThan(0);
+      expect(screen.getByText("91%")).toBeInTheDocument();
     });
   });
 

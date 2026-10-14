@@ -36,6 +36,19 @@ export const ToolCall = z.object({
 });
 export type ToolCall = z.infer<typeof ToolCall>;
 
+/**
+ * One assembled skill's contribution to the prompt. `tokens` measures THAT
+ * skill's rendered sub-block (heading + body, wrapped when untrusted) alone —
+ * never the surrounding prompt.
+ */
+export const SkillBlock = z.object({
+  skill_id: z.string(),
+  name: z.string(),
+  version: z.number().int(),
+  tokens: z.number().int(),
+});
+export type SkillBlock = z.infer<typeof SkillBlock>;
+
 export const PromptAssembly = z.object({
   system: z.string(),
   skills: z.string().nullish(),
@@ -48,6 +61,11 @@ export const PromptAssembly = z.object({
   repo_map: z.string().nullish(),
   /** PR author's description/body (truncated); null when absent. */
   pr_description: z.string().nullish(),
+  /** One entry per assembled skill, in prompt order; null when none ran.
+      Nullish so every trace persisted before Skills Lab stays valid. */
+  skill_blocks: z.array(SkillBlock).nullish(),
+  /** Token weight of the skills block as a whole; null when none ran. */
+  skills_tokens: z.number().int().nullish(),
   user: z.string(),
 });
 export type PromptAssembly = z.infer<typeof PromptAssembly>;
