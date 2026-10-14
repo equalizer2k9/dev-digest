@@ -17,6 +17,9 @@ or delete; cleanup only via `/engineering-insights review server`.
 - **2026-09-22** · NEVER treat a resolved `container.git.readFile()` as proof the path exists — probe with content, not with the absence of a throw.
   - Why: `MockGitClient.readFile` answers a MISSING path with `''`, and `capLines('')` returns `['']` (length 1, not 0), so a read-to-probe sample selector turned every candidate config FILENAME into an empty sample under test.
   - Evidence: `src/adapters/mocks.ts:299` (`?? ''`) · fix treats a file with no non-blank line as absent, `src/modules/conventions/helpers.ts:208`
+- **2026-09-20** · NEVER edit a file under `server/` while a review run is in flight — wait it out, or start the API without `tsx watch`.
+  - Why: a save restarts `tsx watch`, and boot reaps EVERY `status='running'` row as orphaned; in dev the "dead previous process" it assumes is your own, and the run it kills was still alive.
+  - Evidence: `src/app.ts:70-85` (awaited before listen) · `reapStaleRunningRuns` at `src/modules/reviews/repository/run.repo.ts:105-112` (no run-id or age filter) · 3 PR#4 runs reaped on one restart; longest run observed 1619 s
 
 ## Codebase Patterns
 <!-- Undocumented conventions and architectural decisions, with the reason -->
@@ -72,6 +75,10 @@ or delete; cleanup only via `/engineering-insights review server`.
 - Done: `src/modules/conventions/` (5 routes) — code-only sample selection, ONE structured model call on the Settings-resolved model, code-side evidence verification with the snippet re-read from the file, rescan merge on the normalized rule with rejected tombstones, accepted rows → an editable draft → an `extracted` skill optionally linked to an agent; 39 unit + 9 integration tests, whole suite 237 green.
 - Added: What Works, What Doesn't Work, Codebase Patterns, Tool & Library Notes.
 - Open: on the §6 update path `evidence_files` keeps its previous value, because the spec scopes the new field to `CreateSkillInput` only.
+### 2026-09-20 — PR-list totals verified against 30 real runs
+- Done: `cost_usd` (sum of successful priced runs) and `findings_counts` (latest review per agent) reconciled against the DB across 8 PRs — 0 discrepancies; 7 of 8 costs bitwise equal, one off by 1 ULP from double summation order.
+- Added: What Doesn't Work.
+- Open: `skills`, `memory` and `specs` were null in all 30 traces — that part of the context pipeline never ran.
 
 ## Open Questions
 <!-- Unverified hypotheses and unanswered questions; close with a "Resolved" sub-bullet -->

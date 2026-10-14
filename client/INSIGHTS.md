@@ -36,6 +36,9 @@ or delete; cleanup only via `/engineering-insights review client`.
 - **2026-09-22** · To tell an inline hint from a full `ErrorState` in a test, assert on the copy, NEVER on `queryByRole("alert")`.
   - Why: `ErrorState` carries `role="alert"` itself, so "no alert in the document" is true for neither branch and the assertion passes or fails for the wrong reason.
   - Evidence: `src/vendor/ui/primitives/ErrorState.tsx:19` · `conventions/_components/ConventionsView/ConventionsView.test.tsx` asserts `"Scan failed"` plus the absence of the empty-state title instead
+- **2026-09-20** · Automating the PR-list findings preview: cross the cell→popover gutter in ONE pointer event, never an interpolated path.
+  - Why: the popover is a DOM child of the cell but painted 6px below it, so a mid-path sample hits the row and `onMouseLeave` unmounts it.
+  - Evidence: `src/app/repos/[repoId]/pulls/styles.ts:61` · `PRRow.tsx` findings-cell `onMouseLeave` · `Claude outputs/screencast/record.mjs`
 
 ## Tool & Library Notes
 <!-- Dependency and tooling quirks, with the version -->
@@ -99,6 +102,9 @@ or delete; cleanup only via `/engineering-insights review client`.
 - Done: `/repos/[repoId]/conventions` under SKILLS LAB (`g c`) — Run Scan / ReScan, candidate cards with a commit-pinned GitHub evidence link, Accept / Reject / in-place Edit (all optimistic with rollback), a conditional `Create skill` and the editable merged-skill modal; 39 new tests, suite 183 green, `pnpm build` clean.
 - Added: Codebase Patterns, Recurring Errors & Fixes.
 - Open: the toolbar's bulk control is the design's single `Accept all` ⇄ `Deselect all` toggle rather than two buttons — the spec writes it with a slash and only demands a pair for the SCAN buttons.
+### 2026-09-20 — Playwright screencast of the findings feature
+- Done: 97s 1920x1080 mp4 recorded by a standalone rig in `Claude outputs/screencast/` (git-ignored, deliberately outside `e2e/`).
+- Added: Codebase Patterns
 
 ## Open Questions
 <!-- Unverified hypotheses and unanswered questions; close with a "Resolved" sub-bullet -->
