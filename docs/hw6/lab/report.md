@@ -5,7 +5,7 @@
 суддя — `claude-sonnet-5`. Серія — 3 прогони (`eval:repeat … -n 3`), workflow — 2; з n = 3 одна
 зміна в одному прогоні — це ±33 п. п., тому все, що рухається на один прогін, читаємо як шум.
 
-Розділи про Skill Creator (експеримент 1) і CI (5) — окремо.
+Експеримент 1 (Skill Creator на скілі `zod`) — окремий звіт [exp1-skill-creator.md](exp1-skill-creator.md); CI (експеримент 5) — наприкінці.
 
 **Спільний висновок експериментів 2 і 3.** Однорядкова правка поведінку не змінила, бо правило
 повторене в кількох місцях: евал показав дубль, який можна прибрати без втрат. Повне прибирання
@@ -348,3 +348,34 @@ Contrast пройдено, коли в репо файл прочитано, а 
 AGENTS.md до `docs/agent-prompts/README.md` спрацював 1/2 (у порожній теці — 0/2), а dispatch
 (0/2; з назвою агента — 1/1) і читання `server/AGENTS.md` (0/2) не працюють через наш harness:
 опис агента не покриває рев'ю плану, а правило про `<pkg>/AGENTS.md` сховане в заголовку таблиці.
+
+---
+
+## Експеримент 5 — CI: `.github/workflows/evals.yml`
+
+| Job | Що робить | Гейт? |
+|---|---|---|
+| `changes` | `ci-detect.mjs` над `git diff base...head` (`fetch-depth: 0`); артефакт без евалів → рядок `SKIP <name> (no evals)`; перевіряє, чи доступний `OPENROUTER_API_KEY` | — |
+| `quality` | `pnpm typecheck` + `pnpm eval:quality`, без секретів | **так** |
+| `skills` | матриця по скілах з евалами, OpenRouter напряму, модель за замовчуванням `deepseek/deepseek-v4-flash` | ні (`continue-on-error`) |
+| `agents` | матриця по агентах з евалами, через LiteLLM-проксі пакета, `anthropic/claude-haiku-4.5`, `max-parallel: 1` | ні |
+| `workflow` | `eval:workflow` через проксі, `anthropic/claude-haiku-4.5` | ні |
+
+- Моделі — inputs ручного запуску (`workflow_dispatch`); суддя — `deepseek/deepseek-v4-flash`.
+- Один прогін на кейс.
+- `permissions: contents: read`; `concurrency` з `cancel-in-progress`; `timeout-minutes` на кожному job.
+- pnpm 12.10.1 — саме він читає `allowBuilds` з `evals/pnpm-workspace.yaml`; чисте `install --frozen-lockfile` перевірено локально під 10 і 12.
+- Значення матриці (імена тек з PR) передаються в `run:` через `env`, не підставляються напряму; `pull_request_target` не використовується.
+- Конфіг перевірено `actionlint`.
+
+**Тестовий PR** [#20](https://github.com/equalizer2k9/dev-digest/pull/20) (`test/hw6-evals-ci` → `feat/homework-6`,
+не мерджити): нейтральні правки в `onion-architecture/SKILL.md`, `architecture-reviewer.md`,
+`zod/SKILL.md`, `AGENTS.md`. Прогін [38621288357](https://github.com/equalizer2k9/dev-digest/actions/runs/38621288357):
+
+| Job | Результат |
+|---|---|
+| `changes` | ✓ 7 с: `skills → onion-architecture`, `agents → architecture-reviewer`, `workflow tier: run`, `SKIP zod (no evals)` |
+| `quality` | ✓ 29 с: typecheck і `eval:quality` (15 скілів, 0 FAIL) |
+| `skills`, `agents`, `workflow` | пропущено: у репо форку нема Actions-секрету `OPENROUTER_API_KEY`, тож `changes` записав `SKIP model evals … OPENROUTER_API_KEY is not available` |
+
+Гілку «нема ключа» (вона ж — fork-PR) підтверджено. Прогону модельних jobs ще нема.
