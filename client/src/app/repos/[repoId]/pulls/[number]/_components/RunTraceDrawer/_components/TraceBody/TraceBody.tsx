@@ -6,7 +6,7 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge } from "@devdigest/ui";
 import type { RunTrace, FindingRecord } from "@devdigest/shared";
-import { visiblePath } from "@/components/project-context/DocPicker";
+import { visiblePath } from "@/lib/visible-path";
 import { PROMPT_COLORS } from "../../constants";
 import { formatCost, formatSeconds, formatTokens } from "../../helpers";
 import { s } from "../../styles";

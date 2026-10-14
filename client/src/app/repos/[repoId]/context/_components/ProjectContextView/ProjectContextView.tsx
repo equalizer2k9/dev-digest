@@ -11,8 +11,8 @@ import { Badge, EmptyState, ErrorState, Icon, Skeleton } from "@devdigest/ui";
 import type { ProjectContextDocument } from "@devdigest/shared";
 import { AppShell } from "@/components/app-shell";
 import { RepoNotFound } from "@/components/repo-not-found";
-import { DocPreview } from "@/components/project-context/DocPreview";
-import { visiblePath } from "@/components/project-context/DocPicker";
+import { DocPreview, previewPathFor, previewStatus } from "@/components/project-context/DocPreview";
+import { visiblePath } from "@/lib/visible-path";
 import { useContextDocument, useContextDocuments } from "@/lib/hooks/project-context";
 import { useActiveRepo, useRepoNotFound } from "@/lib/repo-context";
 import { SKELETON_ROWS } from "./constants";
@@ -31,10 +31,8 @@ export function ProjectContextView() {
 
   const documents = React.useMemo<ProjectContextDocument[]>(() => data?.documents ?? [], [data]);
   const tree = React.useMemo(() => buildTree(documents), [documents]);
-  const selectedDoc = documents.find((d) => d.path === selected);
   // A too-large document is known from the listing: no request is made for it.
-  const previewPath = selected !== null && !selectedDoc?.too_large ? selected : null;
-  const doc = useContextDocument(repoId, previewPath);
+  const doc = useContextDocument(repoId, previewPathFor(selected, documents));
 
   const crumb = [{ label: t("crumb") }];
 
@@ -46,20 +44,7 @@ export function ProjectContextView() {
     );
   }
 
-  const status: "idle" | "loading" | "error" | "ready" | "tooLarge" =
-    selected === null
-      ? "idle"
-      : selectedDoc?.too_large
-        ? "tooLarge"
-        : doc.isLoading
-          ? "loading"
-          : doc.isError
-            ? (doc.error as { status?: number } | null)?.status === 413
-              ? "tooLarge"
-              : "error"
-            : doc.data
-              ? "ready"
-              : "loading";
+  const status = previewStatus(selected, documents, doc);
 
   const renderNodes = (nodes: TreeNode[], depth: number): React.ReactNode =>
     nodes.map((node) =>

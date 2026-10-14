@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { ProjectContextDocument, ProjectContextEffective } from "@devdigest/shared";
-import { buildRows, filterRows, moveItem, sumTokens, visiblePath } from "./helpers";
+import { buildRows, filterRows, moveItem, sumTokens } from "./helpers";
 
 const doc = (path: string, extra: Partial<ProjectContextDocument> = {}): ProjectContextDocument => ({
   path,
@@ -81,11 +81,5 @@ describe("moveItem", () => {
     expect(moveItem(["a", "b", "c"], 0, 1)).toEqual(["b", "a", "c"]);
     const same = ["a", "b"];
     expect(moveItem(same, 0, -1)).toBe(same);
-  });
-});
-
-describe("visiblePath", () => {
-  it("writes bidi and control characters as escapes", () => {
-    expect(visiblePath("docs/a‮b\n.md")).toBe("docs/a\\u{202e}b\\u{a}.md");
   });
 });

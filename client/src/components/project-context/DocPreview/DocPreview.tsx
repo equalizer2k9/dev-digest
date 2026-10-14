@@ -6,11 +6,12 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Button, Markdown, Skeleton } from "@devdigest/ui";
-import { visiblePath } from "../DocPicker/helpers";
+import { visiblePath } from "@/lib/visible-path";
+import type { PreviewStatus } from "./helpers";
 import { s } from "./styles";
 
 export interface DocPreviewProps {
-  status: "idle" | "loading" | "error" | "ready" | "tooLarge";
+  status: PreviewStatus;
   path: string | null;
   content: string | null;
   onRetry: () => void;

@@ -11,7 +11,8 @@ import type {
   ProjectContextEffective,
   ProjectContextSkipReason,
 } from "@devdigest/shared";
-import { buildRows, filterRows, sumTokens, visiblePath } from "./helpers";
+import { visiblePath } from "@/lib/visible-path";
+import { buildRows, filterRows, sumTokens } from "./helpers";
 import { s } from "./styles";
 
 export interface DocPickerProps {

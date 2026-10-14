@@ -1,2 +1,2 @@
 export { DocPicker } from "./DocPicker";
-export { visiblePath } from "./helpers";
+export { moveItem } from "./helpers";
