@@ -55,6 +55,10 @@ or delete; cleanup only via `/engineering-insights review root`.
   - Cause: `slugify()` cuts the label to 80 chars before the `[treatment]`/`[control]` suffix, so both write one file and control wins.
   - Fix: keep contrast case names ≤ 65 chars, or slug the suffix separately in `record()`.
   - Evidence: `evals/src/records/record.ts:26`
+- **2026-10-14** · `UnsafeMasterKeyError: LiteLLM proxy refused to start: no master key is set` on `docker compose -f evals/proxy/docker-compose.yml up`
+  - Cause: the unpinned `ghcr.io/berriai/litellm:main-stable` image now refuses no-auth mode, which `evals/proxy/litellm.config.yaml` uses on purpose.
+  - Fix: not applied yet — pin the image, or set a per-run `LITELLM_MASTER_KEY` and send it as the bearer (`evals/src/runtime/env.ts` sends `OPENROUTER_API_KEY` today).
+  - Evidence: CI run 38626992479, jobs `agents` and `workflow`, step `LiteLLM proxy up`
 
 ## Session Notes
 <!-- ### YYYY-MM-DD — task: outcome, sections that got entries, what stayed open -->

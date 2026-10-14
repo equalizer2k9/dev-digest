@@ -370,12 +370,54 @@ AGENTS.md до `docs/agent-prompts/README.md` спрацював 1/2 (у пор�
 
 **Тестовий PR** [#20](https://github.com/equalizer2k9/dev-digest/pull/20) (`test/hw6-evals-ci` → `feat/homework-6`,
 не мерджити): нейтральні правки в `onion-architecture/SKILL.md`, `architecture-reviewer.md`,
-`zod/SKILL.md`, `AGENTS.md`. Прогін [38621288357](https://github.com/equalizer2k9/dev-digest/actions/runs/38621288357):
+`zod/SKILL.md`, `AGENTS.md`.
 
-| Job | Результат |
-|---|---|
-| `changes` | ✓ 7 с: `skills → onion-architecture`, `agents → architecture-reviewer`, `workflow tier: run`, `SKIP zod (no evals)` |
-| `quality` | ✓ 29 с: typecheck і `eval:quality` (15 скілів, 0 FAIL) |
-| `skills`, `agents`, `workflow` | пропущено: у репо форку нема Actions-секрету `OPENROUTER_API_KEY`, тож `changes` записав `SKIP model evals … OPENROUTER_API_KEY is not available` |
+- Перший прогін [38621288357](https://github.com/equalizer2k9/dev-digest/actions/runs/38621288357)
+  пройшов без секрету: модельні jobs пропущено з рядком `SKIP model evals … OPENROUTER_API_KEY is not
+  available`. Так перевірено гілку «нема ключа / fork-PR».
+- Після того як у форку з'явився Actions-секрет `OPENROUTER_API_KEY`, гілку оновлено merge-ем з
+  `feat/homework-6` (без rebase і force-push), і запустився новий прогін
+  [38626992479](https://github.com/equalizer2k9/dev-digest/actions/runs/38626992479). Старий прогін не
+  перезапускали.
 
-Гілку «нема ключа» (вона ж — fork-PR) підтверджено. Прогону модельних jobs ще нема.
+| Job | Результат | Тривалість | Деталі |
+|---|---|---|---|
+| `changes` | ✓ | 5 с | `skills → onion-architecture`, `agents → architecture-reviewer`, `workflow tier: run`, `SKIP zod (no evals)` |
+| `quality` | ✓ (гейт) | 17 с | typecheck + `eval:quality`: 15 скілів, 0 FAIL |
+| `skills (onion-architecture)` | ✓ | 101 с | 3/3 кейси, 8/8 практик PASS; задача й суддя — `deepseek/deepseek-v4-flash`, 1 хід на кейс |
+| `agents (architecture-reviewer)` | ✗ (звіт, не гейт) | 157 с | впав на кроці `LiteLLM proxy up`; жоден кейс не запускався |
+| `workflow` | ✗ (звіт, не гейт) | 160 с | впав на кроці `LiteLLM proxy up`; жоден кейс не запускався |
+
+Підсумок прогону — **success**: модельні jobs мають `continue-on-error`, тож їхнє падіння не блокує PR.
+
+**Чому впали `agents` і `workflow` (з логу, без правок під зелений).** Образ проксі
+`ghcr.io/berriai/litellm:main-stable` у `evals/proxy/docker-compose.yml` (з upstream) має незакріплений
+тег. Нова версія LiteLLM відмовляється стартувати без master key:
+
+```
+litellm.proxy.auth.master_key_boot_check.UnsafeMasterKeyError: LiteLLM proxy refused to start:
+no master key is set, so every request would be accepted without authentication.
+Neither general_settings.master_key nor the LITELLM_MASTER_KEY environment variable is set.
+```
+
+`evals/proxy/litellm.config.yaml` навмисно працює без `master_key` («No master_key on purpose»).
+Тож це інфраструктура — тег образу плюс конфіг проксі, — а не кейси, модель чи наш AGENTS.md.
+Варіанти виправлення (не застосовано):
+- закріпити образ на версії до цієї перевірки;
+- задати в CI випадковий `LITELLM_MASTER_KEY` на кожен job і передавати його клієнтам як bearer —
+  це потребує окремої змінної в `evals/src/runtime/env.ts`, бо зараз bearer = `OPENROUTER_API_KEY`;
+- `LITELLM_DANGEROUSLY_PERMIT_WEAK_OR_UNSET_MASTER_KEY=true` — LiteLLM радить його лише для
+  локальної розробки.
+
+**Вартість прогону** — з usage в артефакті `evals-skill-onion-architecture` (`records.jsonl`: задача
++ суддя) за публічними цінами OpenRouter (`/api/v1/models`):
+
+| Job | Вхід / вихід, токени | Ціна за 1M (вхід / вихід) | Вартість |
+|---|---|---|---|
+| skills — задача, 3 виклики | 6 968 / 2 957 | $0,091 / $0,182 (`deepseek/deepseek-v4-flash`) | |
+| skills — суддя, 3 виклики | 2 472 / 4 609 | те саме | |
+| **skills разом** | **9 440 / 7 566** | | **≈ $0,0022** |
+| agents, workflow | 0 — проксі не стартував, запитів до моделі не було | | $0 |
+
+Активність самого CI-ключа на OpenRouter не перевіряли: ключ є лише в Actions-секретах, локально
+його нема.
