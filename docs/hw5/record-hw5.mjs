@@ -1,17 +1,20 @@
-/* DevDigest — homework #5 demo screencast (PR Why + Risk Brief).
+/* DevDigest — homework #5 demo screencast (PR Brief + Project Context Folder).
  *
- * Drives the live studio (:3000 / :3001) through the PR Brief block of the test
- * PR, then shows the homework PR on GitHub, and writes
- *   docs/hw5/hw5-demo.mp4        H.264, 1440x900, silent
+ * Drives the live studio (:3000 / :3001) through the PR Brief of test PR #16, the
+ * Project Context page and an agent's Context tab, the stored review of test PR #19
+ * whose finding cites an attached document, then the homework PR on GitHub, and
+ * writes
+ *   docs/hw5/hw5-demo.mp4        H.264, 1440x900, silent (git-ignored)
  *   docs/hw5/.demo-frames/*.png  one still per step, to eyeball the take
  *
  *   node docs/hw5/record-hw5.mjs
  *
- * Unlike the HW4 take this one CHANGES the stand: step a presses "Generate
- * brief", which makes one real model call (Settings → Risk Brief) and stores a
- * row in pr_brief. The take needs the block empty, so delete that PR's row
- * first; the preflight refuses to start otherwise. If the generation fails the
- * script stops — it never retries and never switches the model.
+ * The take CHANGES the stand once: step a presses "Generate brief" on PR #16, which
+ * makes one real model call (Settings → Risk Brief) and stores a row in pr_brief.
+ * The block must start empty, so delete PR #16's pr_brief row first; the preflight
+ * refuses to start otherwise. PR #19's review is NOT re-run: the take shows the
+ * stored run. If the generation fails the script stops — it never retries and never
+ * switches the model.
  *
  * Dependencies are NOT installed here: Playwright, ffmpeg-static and the cursor
  * overlay come from the HW1 rig in "Claude outputs/screencast" (git-ignored).
@@ -42,26 +45,31 @@ const CLIENT = "http://localhost:3000";
 const API = "http://localhost:3001";
 
 const REPO = "equalizer2k9/dev-digest";
-const TEST_PR = 16;
+const BRIEF_PR = 16;
+const INVARIANT_PR = 19;
 const MAIN_PR = 17;
 const BRANCH = "feat/homework-5";
-/* The Review focus item clicked in step б: any line of this file. */
-const FOCUS_FILE = "server/src/modules/settings/helpers.ts";
+const AGENT = "General Reviewer";
+const DOC = "docs/architecture/invariants.md";
 const GITHUB_DOCS = [
   { path: "specs/pr-brief/spec.md", text: "Acceptance criteria" },
   { path: "specs/pr-brief/plan.md", text: "Traceability" },
+  { path: "specs/project-context/spec.md", text: "Acceptance criteria" },
+  { path: "specs/project-context/plan.md", text: "Traceability" },
   { path: "docs/hw5/plan-verification.md", text: "Matrix" },
+  { path: "docs/hw5/plan-verification-pcf.md", text: "Live check" },
+  { path: "docs/retros/ledger.md", text: "Workflow retro ledger" },
 ];
 const CAPTION =
-  "Модель отримує готові факти, а не код diff: вхід малий і передбачуваний, кожен шлях можна перевірити, а код PR не підкине їй інструкцій";
+  "Модель отримує готові факти — intent, blast radius, статистику diff і прикріплені спеки — а не код diff: один дешевий виклик, перевірювані шляхи, без інструкцій з коду";
 
 const W = 1440;
 const H = 900;
 const FPS = 25;
 
-const BEAT = 1000;
-const STEP = 1500;
-const HOLD = 2200;
+const BEAT = 900;
+const STEP = 1300;
+const HOLD = 2000;
 
 class Fatal extends Error {}
 function die(msg) {
@@ -74,27 +82,50 @@ async function api(path) {
   return res.json();
 }
 
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 /* ---------------------------------------------------------------- preflight */
 
 async function preflight() {
   const repo = (await api("/repos")).find((r) => r.full_name === REPO);
   if (!repo) die(`repo ${REPO} is not imported`);
-  const pr = (await api(`/repos/${repo.id}/pulls`)).find((p) => p.number === TEST_PR);
-  if (!pr) die(`PR #${TEST_PR} of ${REPO} is not imported`);
+  const pulls = await api(`/repos/${repo.id}/pulls`);
+  const briefPr = pulls.find((p) => p.number === BRIEF_PR);
+  const invPr = pulls.find((p) => p.number === INVARIANT_PR);
+  if (!briefPr || !invPr) die(`PR #${BRIEF_PR} or #${INVARIANT_PR} of ${REPO} is not imported`);
 
   const index = await api(`/repos/${repo.id}/index-state`);
   if (index.status !== "full") die(`index of ${REPO} is ${index.status}, not full`);
 
-  const { brief } = await api(`/pulls/${pr.id}/brief`);
-  if (brief) die(`PR #${TEST_PR} already has a stored brief — delete its pr_brief row so the take starts at "Generate brief"`);
+  const { brief } = await api(`/pulls/${briefPr.id}/brief`);
+  if (brief) die(`PR #${BRIEF_PR} already has a stored brief — delete its pr_brief row so the take starts at "Generate brief"`);
+  const { intent } = await api(`/pulls/${briefPr.id}/intent`);
+  if (!intent) die(`PR #${BRIEF_PR} has no stored intent — the Intent card would be empty`);
+  const blast = await api(`/pulls/${briefPr.id}/blast`);
+  if (blast.degraded || blast.downstream.flatMap((d) => d.callers).length < 1) die(`PR #${BRIEF_PR}: blast radius has no callers (${blast.summary})`);
 
-  const blast = await api(`/pulls/${pr.id}/blast`);
-  const callers = blast.downstream.flatMap((d) => d.callers);
-  if (blast.degraded || callers.length < 1) die(`PR #${TEST_PR}: blast radius has no callers (${blast.summary})`);
+  const docs = await api(`/repos/${repo.id}/context`);
+  if (!docs.documents.some((d) => d.path === DOC)) die(`${DOC} is not in the clone — resync the repo`);
+  const agent = (await api("/agents")).find((a) => a.name === AGENT);
+  if (!agent) die(`agent "${AGENT}" not found`);
+  const att = await api(`/agents/${agent.id}/context?repo_id=${repo.id}`);
+  if (!att.attached.includes(DOC)) die(`${DOC} is not attached to "${AGENT}"`);
+
+  const reviews = await api(`/pulls/${invPr.id}/reviews`);
+  const cites = (reviews.items ?? reviews).some((r) => (r.findings ?? []).some((f) => (f.rationale ?? "").includes(DOC)));
+  if (!cites) die(`PR #${INVARIANT_PR} has no stored finding citing ${DOC} — this take never runs a review`);
 
   const fm = (await api("/settings")).feature_models?.risk_brief;
-  console.log(`✓ #${TEST_PR} ${blast.summary} · index ${index.status} · Risk Brief ${fm?.provider}/${fm?.model}`);
-  return { prId: pr.id, url: `${CLIENT}/repos/${repo.id}/pulls/${TEST_PR}` };
+  console.log(`✓ #${BRIEF_PR} ${blast.summary} · intent stored · Risk Brief ${fm?.provider}/${fm?.model} · #${INVARIANT_PR} finding cites ${DOC}`);
+  const base = `${CLIENT}/repos/${repo.id}`;
+  return {
+    repoId: repo.id,
+    briefPrId: briefPr.id,
+    briefUrl: `${base}/pulls/${BRIEF_PR}`,
+    invUrl: `${base}/pulls/${INVARIANT_PR}`,
+    contextUrl: `${base}/context`,
+    agentUrl: `${CLIENT}/agents/${agent.id}?tab=context`,
+  };
 }
 
 /* ------------------------------------------------------------------ driving */
@@ -133,7 +164,7 @@ async function clickAt(page, locator, label) {
 
 /* ---------------------------------------------------------------- recording */
 
-async function record({ prId, url }) {
+async function record(ctx) {
   rmSync(VIDEO_DIR, { recursive: true, force: true });
   mkdirSync(VIDEO_DIR, { recursive: true });
   rmSync(FRAMES_DIR, { recursive: true, force: true });
@@ -147,9 +178,9 @@ async function record({ prId, url }) {
    * GitHub pages load slower cold. It only reads — no generation here. */
   const warm = await browser.newContext({ viewport: { width: W, height: H } });
   const wp = await warm.newPage();
-  await wp.goto(url, { waitUntil: "networkidle" });
-  await wp.getByRole("button", { name: "Generate brief" }).waitFor({ timeout: 30_000 }).catch(() => die(`no "Generate brief" button on ${url}`));
-  await wp.goto(`${url}?tab=diff`, { waitUntil: "networkidle" });
+  await wp.goto(ctx.briefUrl, { waitUntil: "networkidle" });
+  await wp.getByRole("button", { name: "Generate brief" }).waitFor({ timeout: 30_000 }).catch(() => die(`no "Generate brief" button on ${ctx.briefUrl}`));
+  for (const u of [`${ctx.briefUrl}?tab=diff`, ctx.contextUrl, ctx.agentUrl, ctx.invUrl]) await wp.goto(u, { waitUntil: "networkidle" });
   for (const u of [mainPr, ...GITHUB_DOCS.map((d) => github(d.path))]) await wp.goto(u, { waitUntil: "domcontentloaded" });
   await warm.close();
 
@@ -176,25 +207,27 @@ async function record({ prId, url }) {
     const overviewTab = page.getByRole("button", { name: /^Overview/ });
     const refresh = page.getByRole("button", { name: "Refresh brief" });
     const skeleton = page.locator('[data-testid="brief-skeleton"]');
-    /* Risk title buttons, scoped to the brief block: other blocks have aria-expanded buttons too. */
-    const riskTitles = page.locator("section").filter({ has: refresh }).locator("button[aria-expanded]");
+    const briefBlock = page.locator("section").filter({ has: refresh });
 
-    /* ---- a. PR #16 → Overview → Generate brief → the brief ---------------- */
-    await page.goto(url, { waitUntil: "domcontentloaded" });
+    /* ---- a. PR #16 → Overview: Intent, Blast radius → Generate brief ------ */
+    await page.goto(ctx.briefUrl, { waitUntil: "domcontentloaded" });
     const generate = page.getByRole("button", { name: "Generate brief" });
     await generate.waitFor({ timeout: 30_000 }).catch(() => die('the "Generate brief" button never rendered'));
     await page.waitForLoadState("networkidle");
-    scene("a", `PR #${TEST_PR}: Overview, Generate brief`);
+    scene("a", `PR #${BRIEF_PR}: Intent, Blast radius, Generate brief`);
     await page.waitForTimeout(STEP);
-    await glideTo(page, overviewTab, "Overview tab");
-    await page.waitForTimeout(BEAT);
+    await glideTo(page, page.getByRole("button", { name: "Recalculate" }), "Intent card", -260, 40);
+    await still("a1-intent");
+    await page.waitForTimeout(HOLD);
+    await glideTo(page, page.getByText(/^\d+ callers?$/).first(), "blast radius stats");
+    await still("a2-blast-radius");
+    await page.waitForTimeout(HOLD);
     await glideTo(page, generate, "Generate brief");
-    await still("a1-generate-button");
     await page.waitForTimeout(BEAT);
     await clickAt(page, generate, "Generate brief");
     await skeleton.waitFor({ timeout: 5_000 }).catch(() => die("no skeleton after the click"));
     await page.waitForTimeout(700);
-    await still("a2-generating");
+    await still("a3-generating");
 
     /* One model call. A failure is shown in the block — stop, never retry. */
     const outcome = await Promise.race([
@@ -206,42 +239,32 @@ async function record({ prId, url }) {
     facts.generation_ms = now() - scenes[0].start_ms;
     await page.waitForTimeout(BEAT);
 
-    await glideTo(page, text("No intent available for this PR."), "no-intent note", 0, -40);
-    await still("a3-summary");
+    await glideTo(page, briefBlock.getByText(DOC), "attached document in the brief", 0, -30);
+    await still("a4-summary-intent-document");
     await page.waitForTimeout(HOLD);
-    await glideTo(page, text("No intent available for this PR."), "no-intent note");
-    await page.waitForTimeout(BEAT);
-    await glideTo(page, text("No specs attached."), "no-specs note");
+    await glideTo(page, briefBlock.getByText(DOC), "attached document in the brief");
     await page.waitForTimeout(STEP);
-    const firstRisk = riskTitles.first();
-    await glideTo(page, firstRisk, "first risk");
-    await still("a4-risk-areas");
+    await glideTo(page, briefBlock.locator("button[aria-expanded]").first(), "first risk");
+    await still("a5-risk-areas");
     await page.waitForTimeout(HOLD);
-    const focus = page.getByRole("button", { name: new RegExp(`^${FOCUS_FILE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}:\\d+$`) }).first();
-    if ((await focus.count()) === 0) die(`the brief has no Review focus item on ${FOCUS_FILE}`);
+    const focus = briefBlock.getByRole("button", { name: /^[\w./@-]+:\d+$/ }).first();
+    if ((await focus.count()) === 0) die("the brief has no Review focus item in the PR's diff");
     facts.focus = (await focus.innerText()).trim();
     await glideTo(page, focus, "focus item");
-    await still("a5-review-focus");
-    await page.waitForTimeout(HOLD);
-    const blastStat = page.getByText(/^\d+ callers?$/).first();
-    await glideTo(page, blastStat, "blast radius stats");
-    await still("a6-blast-radius");
+    await still("a6-review-focus");
     await page.waitForTimeout(HOLD);
 
-    /* ---- б. click the focus item → Files changed, line highlighted -------- */
-    scene("b", `${facts.focus} → Files changed`);
+    /* ---- b. focus item → Files changed, line highlighted; back, reload ----- */
+    scene("b", `${facts.focus} → Files changed; reload`);
     await clickAt(page, focus, "focus item");
     const lit = page.locator("[data-target-highlight]").first();
     await lit.waitFor({ timeout: 10_000 }).catch(() => die("no highlighted line on Files changed"));
     facts.highlighted = await lit.getAttribute("data-line-key");
-    await still("b-line-highlighted");
+    await still("b1-line-highlighted");
     await page.waitForTimeout(600);
     const lb = await lit.boundingBox();
     if (lb) await glide(page, lb.x + 520, lb.y + lb.height / 2);
-    await page.waitForTimeout(HOLD + BEAT);
-
-    /* ---- в. back to Overview, reload → the brief is there, no generation -- */
-    scene("c", "Overview, reload: the stored brief");
+    await page.waitForTimeout(HOLD);
     await clickAt(page, overviewTab, "Overview tab");
     await refresh.waitFor({ timeout: 10_000 }).catch(() => die("the brief is gone after returning to Overview"));
     await page.waitForTimeout(BEAT);
@@ -250,46 +273,75 @@ async function record({ prId, url }) {
     if ((await skeleton.count()) > 0) die("the reload started a generation");
     await page.waitForLoadState("networkidle");
     await glideTo(page, refresh, "Refresh brief", -220, 0);
-    await still("c-after-reload");
+    await still("b2-after-reload");
     await page.waitForTimeout(HOLD);
 
-    /* ---- г. expand a risk; an entry that is not in the PR's diff ---------- */
-    scene("d", "Risk expanded; File not in this PR's diff");
-    const risk = riskTitles.first();
-    await clickAt(page, risk, "first risk");
-    await page.waitForTimeout(500);
-    if ((await risk.getAttribute("aria-expanded")) !== "true") die("the risk row did not expand");
-    await still("d1-risk-expanded");
+    /* ---- c. Project Context → preview; agent → Context tab ---------------- */
+    scene("c", "Project Context: preview; agent Context tab");
+    await page.goto(ctx.contextUrl, { waitUntil: "domcontentloaded" });
+    const docButton = page.getByRole("button", { name: /^invariants\.md/ });
+    await docButton.waitFor({ timeout: 15_000 }).catch(() => die(`${DOC} is not on the Project Context page`));
+    await page.waitForTimeout(BEAT);
+    await clickAt(page, docButton, "invariants.md");
+    const docHeading = page.getByRole("heading", { name: "Architecture invariants" });
+    await docHeading.waitFor({ timeout: 10_000 }).catch(() => die("the preview did not render the document"));
+    await glideTo(page, docHeading, "preview heading", 0, 60);
+    await still("c1-preview");
     await page.waitForTimeout(HOLD);
-    const notInDiff = text("File not in this PR's diff");
-    if ((await notInDiff.count()) === 0) die('the brief has no "File not in this PR\'s diff" entry');
-    await glideTo(page, notInDiff, "not-in-diff note");
-    await still("d2-not-in-diff");
+    /* The agent page has no repo in its path: the studio falls back to the
+     * switcher's stored choice, which a fresh browser lacks — pick the repo the
+     * way the switcher does. */
+    await page.evaluate((id) => localStorage.setItem("dd-repo", id), ctx.repoId);
+    await page.goto(ctx.agentUrl, { waitUntil: "domcontentloaded" });
+    const attached = page.getByRole("checkbox", { name: `Attach ${DOC}` });
+    await attached.waitFor({ timeout: 15_000 }).catch(() => die(`no ${DOC} row in the agent's Context tab`));
+    await page.waitForTimeout(BEAT);
+    await glideTo(page, attached, "attached document", 120, 0);
+    await still("c2-agent-context-attached");
+    await page.waitForTimeout(HOLD);
+    const footer = page.getByText(/≈ [\d,]+ tokens · injected as untrusted/).first();
+    await glideTo(page, footer, "token footer");
+    facts.footer = (await footer.innerText()).trim();
+    await still("c3-agent-context-tokens");
+    await page.waitForTimeout(HOLD);
+
+    /* ---- d. PR #19 → Agent runs: the stored finding cites the document --- */
+    scene("d", `PR #${INVARIANT_PR}: the finding cites ${DOC}`);
+    await page.goto(ctx.invUrl, { waitUntil: "domcontentloaded" });
+    const runsTab = page.getByRole("button", { name: /^Agent runs/ });
+    await runsTab.waitFor({ timeout: 15_000 }).catch(() => die("no Agent runs tab on PR #19"));
+    await page.waitForLoadState("networkidle");
+    await clickAt(page, runsTab, "Agent runs");
+    const cite = page.getByText(DOC, { exact: true }).first();
+    await cite.waitFor({ timeout: 15_000 }).catch(() => die(`the stored finding does not show ${DOC}`));
+    await page.waitForTimeout(BEAT);
+    await glideTo(page, cite, "document path in the rationale");
+    await still("d-finding-cites-document");
     await page.waitForTimeout(HOLD + BEAT);
 
-    /* ---- ґ. the homework PR on GitHub: description, spec, plan, report ---- */
+    /* ---- e. the homework PR on GitHub: description, specs, plans, reports - */
     scene("e", `PR #${MAIN_PR} on GitHub`);
     await page.goto(mainPr, { waitUntil: "domcontentloaded" });
-    await text("SDD pipeline").waitFor({ timeout: 30_000 }).catch(() => die("GitHub did not render the PR description"));
-    await glide(page, W / 2, 300);
+    await text("Review this PR").waitFor({ timeout: 30_000 }).catch(() => die("GitHub did not render the PR description"));
+    await glide(page, W / 2, 320);
     await page.waitForTimeout(STEP);
     await still("e1-pr-description");
-    const cross = page.getByRole("heading", { name: "Cross-model review" }).first();
-    await glideTo(page, cross, "Cross-model review heading", 0, 60);
-    await still("e2-cross-model-note");
-    await page.waitForTimeout(HOLD + BEAT);
+    await page.mouse.wheel(0, 600);
+    await page.waitForTimeout(HOLD);
     for (const d of GITHUB_DOCS) {
       await page.goto(github(d.path), { waitUntil: "domcontentloaded" });
-      await text(d.text).waitFor({ timeout: 30_000 }).catch(() => die(`GitHub did not render ${d.path}`));
+      /* A heading, not raw text: GitHub also puts heading text in a hidden outline. */
+      const heading = page.getByRole("heading", { name: new RegExp(escapeRe(d.text)) }).first();
+      await heading.waitFor({ timeout: 30_000 }).catch(() => die(`GitHub did not render ${d.path}`));
       await glide(page, W / 2, 420);
       await page.waitForTimeout(BEAT);
-      await still(`e-${d.path.split("/").pop().replace(/\W/g, "_")}`);
+      await still(`e-${d.path.replace(/\W/g, "_")}`);
       await page.mouse.wheel(0, 500);
-      await page.waitForTimeout(HOLD);
+      await page.waitForTimeout(STEP);
     }
 
-    /* ---- д. closing caption, 5 s ------------------------------------------ */
-    await page.goto(url, { waitUntil: "domcontentloaded" });
+    /* ---- f. closing caption, 5 s ------------------------------------------ */
+    await page.goto(ctx.briefUrl, { waitUntil: "domcontentloaded" });
     await refresh.waitFor({ timeout: 15_000 }).catch(() => die("no brief on the closing screen"));
     await page.waitForLoadState("networkidle");
     await glide(page, W - 420, 84);
@@ -299,7 +351,7 @@ async function record({ prId, url }) {
       el.textContent = caption;
       Object.assign(el.style, {
         position: "fixed", left: "50%", bottom: "64px", transform: "translateX(-50%)", zIndex: "2147483000",
-        maxWidth: "1080px", padding: "22px 34px", borderRadius: "14px", background: "rgba(10,12,16,.94)",
+        maxWidth: "1120px", padding: "22px 34px", borderRadius: "14px", background: "rgba(10,12,16,.94)",
         border: "1px solid rgba(255,255,255,.18)", color: "#fff", font: "600 24px/1.4 system-ui, sans-serif",
         textAlign: "center", boxShadow: "0 18px 60px rgba(0,0,0,.6)",
       });
@@ -314,8 +366,10 @@ async function record({ prId, url }) {
     const video = page.video();
     await context.close();
     const closed = now();
-    const stored = (await api(`/pulls/${prId}/brief`)).brief;
-    facts.stored = stored ? `${stored.risks.length} risks, ${stored.review_focus.length} focus, sha ${stored.head_sha.slice(0, 8)}` : null;
+    const stored = (await api(`/pulls/${ctx.briefPrId}/brief`)).brief;
+    facts.stored = stored
+      ? `${stored.risks.length} risks, ${stored.review_focus.length} focus, docs ${JSON.stringify(stored.context_docs)}, sha ${stored.head_sha.slice(0, 8)}`
+      : null;
     console.log(`✓ raw wall clock ${(end / 1000).toFixed(1)}s · facts ${JSON.stringify(facts, null, 1)}`);
     take = { webm: video ? await video.path() : null, scenes, end, closed };
   } finally {
