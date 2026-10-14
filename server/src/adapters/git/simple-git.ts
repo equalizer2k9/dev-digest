@@ -129,8 +129,13 @@ export class SimpleGitClient implements GitClient {
     }));
   }
 
-  async readFile(repo: RepoRef, path: string, maxBytes?: number): Promise<string> {
-    const real = await confinePath(this.clonePathFor(repo), path);
+  async readFile(
+    repo: RepoRef,
+    path: string,
+    maxBytes?: number,
+    acceptReal?: (realRel: string) => boolean,
+  ): Promise<string> {
+    const real = await confinePath(this.clonePathFor(repo), path, acceptReal);
     if (maxBytes !== undefined) {
       const { size } = await stat(real);
       if (size > maxBytes) throw new FileTooLargeError(path, size, maxBytes);
@@ -145,7 +150,7 @@ export class SimpleGitClient implements GitClient {
     const root = this.clonePathFor(repo);
     return listFiles(root, opts, async (rel) => {
       try {
-        const real = await confinePath(root, rel);
+        const real = await confinePath(root, rel, opts.accept);
         return (await stat(real)).isFile();
       } catch (err) {
         if (isPathEscape(err) || (err as { code?: unknown }).code === 'ENOENT') return false;

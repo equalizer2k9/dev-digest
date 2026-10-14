@@ -71,3 +71,41 @@ describe('SimpleGitClient.listFiles', () => {
     });
   });
 });
+
+/** Security: a committed symlink must not smuggle .git/config, secrets or non-documents into a read. */
+describe('symlinks resolving to a non-document inside the clone', () => {
+  let base: string;
+  let client: SimpleGitClient;
+  const repo = { owner: 'o', name: 'sec' };
+  // Feature rule: the REAL relative path must itself be a document.
+  const accept = (p: string) =>
+    p.endsWith('.md') && !p.split('/').some((s) => s === '.git' || s === 'node_modules') && /(^|\/)docs\//.test(p);
+
+  beforeAll(async () => {
+    base = await mkdtemp(join(tmpdir(), 'list-sec-'));
+    client = new SimpleGitClient(base);
+    const root = client.clonePathFor(repo);
+    await mkdir(join(root, '.git'), { recursive: true });
+    await mkdir(join(root, 'docs'), { recursive: true });
+    await writeFile(join(root, '.git', 'config'), 'url = https://x-access-token:TOKEN@github.com/o/r');
+    await writeFile(join(root, '.env'), 'SECRET=1');
+    await writeFile(join(root, 'docs', 'ok.md'), 'fine');
+    await symlink(join(root, '.git', 'config'), join(root, 'docs', 'x.md'));
+    await symlink(join(root, '.env'), join(root, 'docs', 'env.md'));
+    await symlink(join(root, 'docs', 'ok.md'), join(root, 'docs', 'link-ok.md'));
+  });
+  afterAll(async () => {
+    await rm(base, { recursive: true, force: true });
+  });
+
+  it('listFiles lists only symlinks whose real path is itself a document', async () => {
+    const { paths } = await client.listFiles(repo, { accept, skipDirs: ['.git'], limit: 100, maxEntries: 1000 });
+    expect(paths).toEqual(['docs/link-ok.md', 'docs/ok.md']);
+  });
+
+  it('readFile with an accept rule refuses them and still reads the good ones', async () => {
+    await expect(client.readFile(repo, 'docs/x.md', undefined, accept)).rejects.toMatchObject({ code: 'PATH_ESCAPE' });
+    await expect(client.readFile(repo, 'docs/env.md', undefined, accept)).rejects.toMatchObject({ code: 'PATH_ESCAPE' });
+    expect(await client.readFile(repo, 'docs/link-ok.md', undefined, accept)).toBe('fine');
+  });
+});

@@ -15,11 +15,10 @@ import { ProjectContextService } from './service.js';
 
 const repo = vi.hoisted(() => ({
   repo: vi.fn(),
-  skill: vi.fn(),
+  pathsForAgents: vi.fn(),
   paths: vi.fn(),
   pathsForSkills: vi.fn(),
   setPaths: vi.fn(),
-  usage: vi.fn(),
 }));
 vi.mock('./repository.js', () => ({ ProjectContextRepository: vi.fn(() => repo) }));
 
@@ -35,8 +34,10 @@ class StrictGit extends MockGitClient {
   readCalls: string[] = [];
   listCalls: unknown[] = [];
   atRefCalls = 0;
-  async readFile(_r: RepoRef, path: string, maxBytes?: number): Promise<string> {
+  acceptFns: ((p: string) => boolean)[] = [];
+  async readFile(_r: RepoRef, path: string, maxBytes?: number, accept?: (p: string) => boolean): Promise<string> {
     this.readCalls.push(path);
+    if (accept) this.acceptFns.push(accept);
     const v = this.files[path];
     if (v === undefined) throw enoent();
     if (v instanceof Error) throw v;
@@ -58,7 +59,27 @@ class StrictGit extends MockGitClient {
 
 let git: StrictGit;
 let count: (t: string) => number;
-const agentsRepo = { getById: vi.fn(), linkedSkills: vi.fn() };
+const agentsRepo = { getById: vi.fn(), linkedSkills: vi.fn(), list: vi.fn() };
+const skillsRepo = { getById: vi.fn() };
+
+type UsageSeed = {
+  id: string;
+  name: string;
+  enabled: boolean;
+  own: string[];
+  skills: { id: string; name: string; enabled: boolean; paths: string[] }[];
+};
+/** Wire the agents/skills repositories and our own path tables to describe `agents`. */
+function setUsage(agents: UsageSeed[]) {
+  agentsRepo.list.mockResolvedValue(agents.map((a) => ({ id: a.id, name: a.name, enabled: a.enabled })));
+  agentsRepo.linkedSkills.mockImplementation(async (id: string) =>
+    (agents.find((a) => a.id === id)?.skills ?? []).map((s, order) => ({ skill: s, order })),
+  );
+  repo.pathsForAgents.mockResolvedValue(new Map(agents.map((a) => [a.id, a.own])));
+  repo.pathsForSkills.mockResolvedValue(
+    new Map(agents.flatMap((a) => a.skills.map((s) => [s.id, s.paths] as const))),
+  );
+}
 
 function make() {
   const container = {
@@ -66,6 +87,7 @@ function make() {
     git,
     tokenizer: { count: (t: string) => count(t) },
     agentsRepo,
+    skillsRepo,
   } as unknown as Container;
   return new ProjectContextService(container);
 }
@@ -75,7 +97,7 @@ beforeEach(() => {
   git = new StrictGit();
   count = (t) => t.length;
   repo.repo.mockResolvedValue(REPO);
-  repo.usage.mockResolvedValue([]);
+  setUsage([]);
 });
 
 describe('list', () => {
@@ -116,7 +138,7 @@ describe('list', () => {
   it('AC-3: used_by counts agents (enabled or not) reaching the path, not through a disabled skill', async () => {
     git.listing = { paths: ['docs/a.md'], truncated: false };
     git.files = { 'docs/a.md': 'a' };
-    repo.usage.mockResolvedValue([
+    setUsage([
       { id: 'a1', name: 'a1', enabled: true, own: ['docs/a.md'], skills: [] },
       {
         id: 'a2',
@@ -200,6 +222,16 @@ describe('read outcomes (AC-22, AC-23)', () => {
     expect(await reasonFor('docs/a.md', { 'docs/a.md': 'fine' })).toBe('ok');
   });
 
+  it('Security: every read passes a rule that accepts only documents as the resolved path', async () => {
+    git.files = { 'docs/a.md': 'fine' };
+    await make().readOutcome(REPO as never, 'docs/a.md');
+    const accept = git.acceptFns[0]!;
+    expect(accept('docs/a.md')).toBe(true);
+    for (const real of ['.git/config', '.env', 'src/a.md', 'node_modules/x/docs/a.md', 'docs/secret.txt']) {
+      expect(accept(real)).toBe(false);
+    }
+  });
+
   it('a stored path ../x.md is outside_clone and readFile is not called', async () => {
     expect(await reasonFor('../x.md', {})).toBe('outside_clone');
     expect(git.readCalls).toHaveLength(0);
@@ -217,7 +249,7 @@ beforeEach(() => {
   repo.paths.mockResolvedValue([]);
   repo.pathsForSkills.mockResolvedValue(new Map());
   repo.setPaths.mockResolvedValue(undefined);
-  repo.skill.mockResolvedValue({ id: 'sk1', name: 'Skill' });
+  skillsRepo.getById.mockResolvedValue({ id: 'sk1', name: 'Skill' });
 });
 
 const agent = { kind: 'agent', id: 'ag1' } as const;
@@ -270,7 +302,7 @@ describe('setAttachments', () => {
   it('AC-15: an unknown owner or repository is NotFound and nothing is stored', async () => {
     agentsRepo.getById.mockResolvedValue(undefined);
     await expect(put(['docs/a.md'])).rejects.toBeInstanceOf(NotFoundError);
-    repo.skill.mockResolvedValue(undefined);
+    skillsRepo.getById.mockResolvedValue(undefined);
     await expect(put(['docs/a.md'], skillOwner)).rejects.toBeInstanceOf(NotFoundError);
     agentsRepo.getById.mockResolvedValue(AGENT);
     repo.repo.mockResolvedValue(undefined);
@@ -388,7 +420,7 @@ describe('forBrief', () => {
   });
 
   it('AC-29: enabled agents in name order, a shared path once, the disabled one absent', async () => {
-    repo.usage.mockResolvedValue([
+    setUsage([
       agentUsage('a', 'a', true, ['docs/a.md', 'docs/shared.md']),
       agentUsage('b', 'b', true, ['docs/shared.md', 'docs/b.md']),
       agentUsage('c', 'c', false, ['docs/c.md']),
@@ -400,7 +432,7 @@ describe('forBrief', () => {
   });
 
   it('stops reading once maxChars is passed', async () => {
-    repo.usage.mockResolvedValue([agentUsage('a', 'a', true, ['docs/a.md', 'docs/b.md', 'docs/c.md'])]);
+    setUsage([agentUsage('a', 'a', true, ['docs/a.md', 'docs/b.md', 'docs/c.md'])]);
     git.files = { 'docs/a.md': 'x'.repeat(60), 'docs/b.md': 'y'.repeat(60), 'docs/c.md': 'z'.repeat(60) };
     const out = await make().forBrief(WS, 'r1', 100);
     expect(out.documents.map((d) => d.path)).toEqual(['docs/a.md', 'docs/b.md']);
@@ -408,7 +440,7 @@ describe('forBrief', () => {
   });
 
   it('SPEC-01 AC-34: unreadable ones come back in skipped with their reason; the next readable one is kept', async () => {
-    repo.usage.mockResolvedValue([
+    setUsage([
       agentUsage('a', 'a', true, ['docs/m.md', 'docs/u.md', 'docs/e.md', 'docs/t.md', 'docs/ok.md']),
     ]);
     git.files = {

@@ -31,6 +31,15 @@ export type ReadOutcome =
 const NOT_FOUND_MESSAGE = 'Document not found';
 const PATH_INVALID_MESSAGE = 'A path is not a project-context document of this repository';
 
+/** One agent with everything needed to resolve its effective documents. */
+interface AgentUsage {
+  id: string;
+  name: string;
+  enabled: boolean;
+  own: string[];
+  skills: SkillDocs[];
+}
+
 type Effective = { path: string; skill: { id: string; name: string } | null };
 type Resolved = { entry: ProjectContextEntry; skill: Effective['skill']; content: string | null };
 
@@ -65,6 +74,9 @@ export class ProjectContextService {
         { owner: repo.owner, name: repo.name },
         path,
         MAX_DOCUMENT_BYTES,
+        // The resolved target must itself be a document: a committed symlink must
+        // not reach .git/config (clone token), .env or any non-document file.
+        (realRel) => documentTag(realRel) !== null,
       );
     } catch (err) {
       if (isPathEscape(err)) return { ok: false, reason: 'outside_clone' };
@@ -100,7 +112,7 @@ export class ProjectContextService {
 
     // used_by: agents (enabled or not) whose effective documents hold the path.
     const usedBy = new Map<string, number>();
-    for (const agent of await this.repo.usage(workspaceId, repo.id)) {
+    for (const agent of await this.usage(workspaceId, repo.id)) {
       for (const d of effectiveDocuments(agent.own, agent.skills)) {
         usedBy.set(d.path, (usedBy.get(d.path) ?? 0) + 1);
       }
@@ -134,13 +146,47 @@ export class ProjectContextService {
     throw new AppError('context_document_unreadable', 'Document could not be read', 422);
   }
 
+  /**
+   * Every agent of the workspace (name, then id) with its attachments for the
+   * repository and its linked skills (agent_skills order) with theirs. Agents and
+   * links come from `container.agentsRepo`; only the attachments are our own.
+   */
+  private async usage(workspaceId: string, repoId: string): Promise<AgentUsage[]> {
+    const agents = await this.container.agentsRepo.list(workspaceId);
+    if (agents.length === 0) return [];
+    const links = new Map(
+      await Promise.all(
+        agents.map(async (a) => [a.id, await this.container.agentsRepo.linkedSkills(a.id)] as const),
+      ),
+    );
+    const skillIds = [...new Set([...links.values()].flatMap((l) => l.map((x) => x.skill.id)))];
+    const [ownBy, skillPaths] = await Promise.all([
+      this.repo.pathsForAgents(agents.map((a) => a.id), repoId),
+      this.repo.pathsForSkills(skillIds, repoId),
+    ]);
+    return agents
+      .map((a) => ({
+        id: a.id,
+        name: a.name,
+        enabled: a.enabled,
+        own: ownBy.get(a.id) ?? [],
+        skills: (links.get(a.id) ?? []).map((l) => ({
+          id: l.skill.id,
+          name: l.skill.name,
+          enabled: l.skill.enabled,
+          paths: skillPaths.get(l.skill.id) ?? [],
+        })),
+      }))
+      .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  }
+
   // ---------------------------------------------------------------- attachments
 
   private async ownerOrThrow(workspaceId: string, owner: ContextOwner): Promise<void> {
     const found =
       owner.kind === 'agent'
         ? await this.container.agentsRepo.getById(workspaceId, owner.id)
-        : await this.repo.skill(workspaceId, owner.id);
+        : await this.container.skillsRepo.getById(workspaceId, owner.id);
     if (!found) throw new NotFoundError(owner.kind === 'agent' ? 'Agent not found' : 'Skill not found');
   }
 
@@ -282,7 +328,7 @@ export class ProjectContextService {
     const skipped: { path: string; reason: Exclude<ProjectContextSkipReason, 'over_budget'> }[] = [];
     const seen = new Set<string>();
     let chars = 0;
-    for (const agent of await this.repo.usage(workspaceId, repo.id)) {
+    for (const agent of await this.usage(workspaceId, repo.id)) {
       if (!agent.enabled) continue;
       for (const { path } of effectiveDocuments(agent.own, agent.skills)) {
         if (seen.has(path)) continue;

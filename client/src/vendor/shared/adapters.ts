@@ -234,8 +234,17 @@ export interface GitClient {
   diffNameOnly(repo: RepoRef, base: string, head: string): Promise<string[]>;
   blame(repo: RepoRef, path: string): Promise<BlameLine[]>;
   log(repo: RepoRef, path?: string): Promise<GitCommit[]>;
-  /** `maxBytes`: reject (`code: 'FILE_TOO_LARGE'`) a bigger file before reading it. */
-  readFile(repo: RepoRef, path: string, maxBytes?: number): Promise<string>;
+  /**
+   * `maxBytes`: reject (`code: 'FILE_TOO_LARGE'`) a bigger file before reading it.
+   * `acceptReal`: given the symlink-resolved path relative to the clone root, return
+   * false to refuse the read (`code: 'PATH_ESCAPE'`) — e.g. a symlink into `.git/`.
+   */
+  readFile(
+    repo: RepoRef,
+    path: string,
+    maxBytes?: number,
+    acceptReal?: (realRel: string) => boolean,
+  ): Promise<string>;
   /**
    * Repo-relative paths (`/`-separated) of the working-tree files `accept` takes,
    * in segment order (depth-first, each directory's entries sorted by name).
