@@ -34,7 +34,15 @@
       "memoryPulled": "Memory pulled",
       "specsRead": "Specs read",
       "items": "{count, plural, one {# item} other {# items}}",
-      "none": "none"
+      "none": "none",
+      "specTokens": "{count, number} tokens",
+      "specSkipped": {
+        "missing": "skipped — missing from the clone",
+        "unreadable": "skipped — unreadable",
+        "outside_clone": "skipped — outside the clone",
+        "too_large": "skipped — too large",
+        "over_budget": "skipped — beyond the budget"
+      }
     },
     "stat": {
       "duration": "DURATION",

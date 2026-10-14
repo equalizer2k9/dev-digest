@@ -99,7 +99,20 @@ export function PrBriefBlock(props: PrBriefBlockProps) {
           <div style={s.subhead}>{t("block.summary")}</div>
           <div style={s.summary}>{brief.summary}</div>
           {noIntent && <div style={s.note}>{t("inputs.noIntent")}</div>}
-          <div style={s.note}>{t("inputs.noSpecs")}</div>
+          {(brief.context_docs ?? []).length > 0 ? (
+            <div style={s.note}>
+              {t("inputs.specs")}
+              <ul style={s.list}>
+                {(brief.context_docs ?? []).map((p) => (
+                  <li key={p} className="mono">
+                    {visiblePath(p)}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <div style={s.note}>{t("inputs.noSpecs")}</div>
+          )}
 
           <div style={s.subhead}>{t("block.riskAreas")}</div>
           {brief.risks.length === 0 ? (

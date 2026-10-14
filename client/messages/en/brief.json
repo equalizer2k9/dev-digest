@@ -26,6 +26,7 @@
   "noFocus": "Nothing specific to read first.",
   "inputs": {
     "noIntent": "No intent available for this PR.",
+    "specs": "Project documents given to the model:",
     "noSpecs": "No specs attached."
   },
   "notInDiff": "File not in this PR's diff",

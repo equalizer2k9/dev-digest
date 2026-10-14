@@ -214,3 +214,25 @@ describe("visiblePath — control and bidi characters in a displayed path", () =
     expect(focusLabel("src/a‮b.ts", 7)).toBe("src/a\\u{202e}b.ts:7");
   });
 });
+
+describe("AC-31: project documents the brief was given", () => {
+  it("lists context_docs in stored order and hides the no-specs line", () => {
+    setup({ brief: { ...BRIEF, context_docs: ["docs/a.md", "specs/b.md"] } });
+    const items = screen.getAllByRole("listitem").map((li) => li.textContent);
+    expect(items.filter((x) => x === "docs/a.md" || x === "specs/b.md")).toEqual(["docs/a.md", "specs/b.md"]);
+    expect(screen.queryByText(messages.inputs.noSpecs)).toBeNull();
+  });
+
+  it("shows the no-specs line for [] and for a brief without the field", () => {
+    setup({ brief: { ...BRIEF, context_docs: [] } });
+    expect(screen.getByText(messages.inputs.noSpecs)).toBeInTheDocument();
+    cleanup();
+    setup({ brief: { ...BRIEF, context_docs: undefined } });
+    expect(screen.getByText(messages.inputs.noSpecs)).toBeInTheDocument();
+  });
+
+  it("prints a bidi override in a document path as an escape", () => {
+    setup({ brief: { ...BRIEF, context_docs: ["docs/a\u202Eb.md"] } });
+    expect(screen.getByText("docs/a\\u{202e}b.md")).toBeInTheDocument();
+  });
+});

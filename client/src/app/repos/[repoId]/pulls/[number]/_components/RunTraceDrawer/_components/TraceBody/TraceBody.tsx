@@ -6,6 +6,7 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge } from "@devdigest/ui";
 import type { RunTrace, FindingRecord } from "@devdigest/shared";
+import { visiblePath } from "@/components/project-context/DocPicker";
 import { PROMPT_COLORS } from "../../constants";
 import { formatCost, formatSeconds, formatTokens } from "../../helpers";
 import { s } from "../../styles";
@@ -40,7 +41,20 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
           </Row>
           <Row label={t("trace.config.specsRead")}>
             <div style={s.specsWrap}>
-              {trace.specs_read.length === 0 ? (
+              {(trace.project_context ?? []).length > 0 ? (
+                (trace.project_context ?? []).map((e, i) => (
+                  <div key={i} style={s.specEntry}>
+                    <span className="mono" style={s.spec}>
+                      {visiblePath(e.path)}
+                    </span>
+                    <span style={s.specsNone}>
+                      {e.skip_reason
+                        ? t(`trace.config.specSkipped.${e.skip_reason}`)
+                        : t("trace.config.specTokens", { count: e.tokens ?? 0 })}
+                    </span>
+                  </div>
+                ))
+              ) : trace.specs_read.length === 0 ? (
                 <span style={s.specsNone}>{t("trace.config.none")}</span>
               ) : (
                 trace.specs_read.map((sp, i) => (

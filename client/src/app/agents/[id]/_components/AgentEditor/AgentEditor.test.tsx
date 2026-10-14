@@ -3,6 +3,7 @@ import { render, screen, cleanup } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { Agent } from "@devdigest/shared";
 import messages from "../../../../../../messages/en/agents.json";
+import contextMessages from "../../../../../../messages/en/context.json";
 import { ToastProvider } from "../../../../../lib/toast";
 
 // Mock the data hooks so the editor renders without a network/query client.
@@ -14,6 +15,30 @@ vi.mock("../../../../../lib/hooks/skills", () => ({
   useSkills: () => ({ data: [], isLoading: false, isError: false, refetch: vi.fn() }),
   useAgentSkills: () => ({ data: [] }),
   useSetAgentSkills: () => ({ mutate: vi.fn(), isPending: false }),
+}));
+
+vi.mock("../../../../../lib/repo-context", () => ({
+  useActiveRepo: () => ({ repoId: "r1" }),
+}));
+vi.mock("../../../../../lib/hooks/project-context", () => ({
+  useContextDocuments: () => ({
+    data: {
+      has_clone: true,
+      truncated: false,
+      documents: [{ path: "docs/a.md", tag: "docs", tokens: 5, too_large: false, used_by: 0 }],
+    },
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  }),
+  useContextDocument: () => ({ data: undefined, isLoading: false, isError: false, refetch: vi.fn() }),
+  useContextAttachments: () => ({
+    data: { repo_id: "r1", attached: [], effective: [] },
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  }),
+  useSetContextAttachments: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 import { AgentEditor } from "./AgentEditor";
@@ -37,7 +62,7 @@ const AGENT: Agent = {
 
 function renderWithIntl(ui: React.ReactElement) {
   return render(
-    <NextIntlClientProvider locale="en" messages={{ agents: messages }}>
+    <NextIntlClientProvider locale="en" messages={{ agents: messages, context: contextMessages }}>
       <ToastProvider>{ui}</ToastProvider>
     </NextIntlClientProvider>,
   );
@@ -51,10 +76,11 @@ describe("A2 Agent Editor (smoke)", () => {
     expect(screen.getByText("Save agent")).toBeInTheDocument();
   });
 
-  it("offers exactly two tabs, Config and Skills", () => {
+  it("offers exactly three tabs: Config, Skills and Context", () => {
     renderWithIntl(<AgentEditor agent={AGENT} tab="config" onTab={() => {}} />);
     expect(screen.getByText("Config")).toBeInTheDocument();
     expect(screen.getByText("Skills")).toBeInTheDocument();
+    expect(screen.getByText(messages.editor.tabs.context)).toBeInTheDocument();
     expect(screen.queryByText("Evals")).not.toBeInTheDocument();
     expect(screen.queryByText("Stats")).not.toBeInTheDocument();
     expect(screen.queryByText("CI")).not.toBeInTheDocument();
@@ -75,6 +101,12 @@ describe("A2 Agent Editor (smoke)", () => {
     expect(
       screen.getByText(/earlier skills appear earlier in the assembled prompt/),
     ).toBeInTheDocument();
+    expect(screen.queryByText("Configuration")).not.toBeInTheDocument();
+  });
+
+  it("renders the Context tab and not the Config form", () => {
+    renderWithIntl(<AgentEditor agent={AGENT} tab="context" onTab={() => {}} />);
+    expect(screen.getByText("docs/a.md")).toBeInTheDocument();
     expect(screen.queryByText("Configuration")).not.toBeInTheDocument();
   });
 });

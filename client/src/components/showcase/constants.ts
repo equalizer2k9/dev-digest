@@ -6,6 +6,8 @@ import type {
   PrBrief,
   PrFile,
   PrIntentDetail,
+  ProjectContextDocument,
+  ProjectContextEffective,
   SkillWithUsage,
 } from "@devdigest/shared";
 
@@ -157,3 +159,18 @@ export const SHOWCASE_INTENT: PrIntentDetail = {
   generated_at: "2026-10-12T10:00:00.000Z",
   stale: true,
 };
+
+/** Sample project-context listing used by the Project Context gallery group. */
+export const SHOWCASE_CONTEXT_DOCS: ProjectContextDocument[] = [
+  { path: "docs/architecture.md", tag: "docs", tokens: 1240, too_large: false, used_by: 2 },
+  { path: "specs/checkout/spec.md", tag: "specs", tokens: 860, too_large: false, used_by: 1 },
+  { path: "insights/2026-09.md", tag: "insights", tokens: null, too_large: true, used_by: 0 },
+];
+
+export const SHOWCASE_CONTEXT_EFFECTIVE: ProjectContextEffective[] = [
+  { path: "docs/architecture.md", tokens: 1240, skip_reason: null, skill: null },
+  { path: "specs/checkout/spec.md", tokens: 860, skip_reason: null, skill: { id: "sk-demo", name: "test-quality-rubric" } },
+];
+
+export const SHOWCASE_CONTEXT_MARKDOWN =
+  "# Architecture\n\nThe `api/` layer never imports `db/` directly.\n\n- routes call services\n- services call repositories";

@@ -54,6 +54,9 @@ import briefMessages from "../../../messages/en/brief.json";
 import prReviewMessages from "../../../messages/en/prReview.json";
 import shellMessages from "../../../messages/en/shell.json";
 import intentMessages from "../../../messages/en/intent.json";
+import contextMessages from "../../../messages/en/context.json";
+import { DocPicker } from "../project-context/DocPicker";
+import { DocPreview } from "../project-context/DocPreview";
 import { IntentCard } from "../../app/repos/[repoId]/pulls/[number]/_components/IntentCard";
 import { ApiError } from "../../lib/api";
 import { FileCard } from "../diff-viewer";
@@ -78,6 +81,9 @@ import {
   SHOWCASE_INTENT,
   SHOWCASE_SKILL,
   SHOWCASE_CONVENTION,
+  SHOWCASE_CONTEXT_DOCS,
+  SHOWCASE_CONTEXT_EFFECTIVE,
+  SHOWCASE_CONTEXT_MARKDOWN,
   SHOWCASE_CONVENTION_PENDING,
 } from "./constants";
 
@@ -342,6 +348,33 @@ export function Gallery() {
           </Group>
         </NextIntlClientProvider>
       </QueryClientProvider>
+
+      {/* Project Context: the attach list and the read-only preview. Both are
+          presentational and speak the `context` namespace. */}
+      <NextIntlClientProvider locale="en" messages={{ context: contextMessages }}>
+        <Group title="Project Context (DocPicker / DocPreview)">
+          <div style={s.w460}>
+            <DocPicker
+              documents={SHOWCASE_CONTEXT_DOCS}
+              attached={["docs/architecture.md"]}
+              effective={SHOWCASE_CONTEXT_EFFECTIVE}
+              truncated={false}
+              selectedPath="docs/architecture.md"
+              onToggle={() => {}}
+              onMove={() => {}}
+              onSelect={() => {}}
+            />
+          </div>
+          <div style={s.w460}>
+            <DocPreview
+              status="ready"
+              path="docs/architecture.md"
+              content={SHOWCASE_CONTEXT_MARKDOWN}
+              onRetry={() => {}}
+            />
+          </div>
+        </Group>
+      </NextIntlClientProvider>
 
       {/* Smart Diff: file card with review findings, and the role group header.
           Both are presentational (the finding card arrives as a render prop). */}
