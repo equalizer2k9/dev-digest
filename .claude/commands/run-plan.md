@@ -1,5 +1,5 @@
 ---
-description: Execute an approved spec + plan — implementer per package → architecture-reviewer → security-reviewer → fix rounds → plan-verifier → report
+description: Execute an approved spec + plan — implementer per package → architecture-reviewer → security-reviewer → fix rounds → plan-verifier (server ∥ client) → report
 argument-hint: <path/to/spec.md> <path/to/plan.md> [hw<N>]
 ---
 
@@ -97,22 +97,30 @@ review round and both reviewers, and leave the decision to them.
 
 ## 4. Verify
 
-Launch `plan-verifier` with the spec path, the plan path, the requirements doc and the final
-changed-file list. It returns the matrix `requirement | evidence | PASS / PARTIAL / MISSING`.
+Split the ACs by the plan's Traceability table (already read in step 0): an AC whose tasks are all
+server-group tasks → **server set**; all client-group → **client set**; tasks in both groups → both
+sets, each verifier checking its own side. A plan with tasks in one group only → one verifier with
+every AC, as before.
 
-Do not send its gaps back to the implementer — verification is the end of this command. A
-`needs runtime check` item is run by you (the test command, or the app) and the real result is
-recorded next to it.
+Launch two `plan-verifier`s in ONE message, in parallel. Each gets the spec path, the plan path, the
+requirements doc, its AC ids (amended criteria of another spec included) and only its group's part
+of the final changed-file list. Each returns the matrix `requirement | evidence | PASS / PARTIAL /
+MISSING` for its ACs.
+
+Merge the two into one matrix, in spec order: an AC checked by both gets the evidence of both and the
+worse status (MISSING < PARTIAL < PASS). Do not send gaps back to the implementer — verification is
+the end of this command. A `needs runtime check` item is run by you (the test command, or the app)
+and the real result is recorded next to it.
 
 ## 5. Report — `docs/<hw>/plan-verification.md`
 
-Write the file yourself (the verifier is read-only):
+Write the file yourself (the verifiers are read-only) — one report from the merged matrix:
 
 1. **Inputs** — spec path + Spec ID, plan path, branch, base and head commit.
 2. **Matrix** — one row per AC of the spec, in spec order:
    `AC | task(s) | test (file › case) | commit | evidence (file:line) | status`. Task and test come
    from the plan's Traceability table, commit from `git log`, evidence and status from the
-   verifier — copied, not improved. A row without a task, test or commit stays visibly empty.
+   merged verifier matrix — copied, not improved. A row without a task, test or commit stays visibly empty.
 3. **Open rows** — every PARTIAL / MISSING row and what would close it; `None.` only if true.
 4. **Reviews** — for the architecture review and the security review separately: rounds run,
    what was fixed, CRITICAL/major still open, and the minor/nit list as shown to the user.

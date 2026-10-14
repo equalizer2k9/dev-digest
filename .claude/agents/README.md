@@ -63,7 +63,7 @@ How `/run-plan` runs them, after the retro of its first run
   specs stay in `<pkg>/specs/`.
 - No agent has the `Agent` tool — no nested delegation. The main session runs the pipeline and
   passes each agent's output to the next.
-- `maxTurns`: spec-creator 40 · researcher 30 · implementation-planner 50 · implementer 40 ·
+- `maxTurns`: spec-creator 40 · researcher 30 · implementation-planner 50 · implementer 60 ·
   architecture-reviewer 25 · test-writer 40 · security-reviewer 25 · plan-verifier 30 ·
   doc-writer 25.
 - The reviewers and the verifier have no shell, so they cannot run `git diff`: hand them the

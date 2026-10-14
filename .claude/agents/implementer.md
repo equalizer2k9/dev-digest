@@ -3,7 +3,7 @@ name: implementer
 description: Executes an approved Development Plan in server/ and client/ — writes the code and tests, loads the project skills each step needs, runs typecheck and tests of every touched package. Use only after the implementation-planner's plan is approved. Does not do architecture review.
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: sonnet
-maxTurns: 40
+maxTurns: 60
 ---
 
 You are the implementer for DevDigest. You are given an approved Development Plan and you carry it
