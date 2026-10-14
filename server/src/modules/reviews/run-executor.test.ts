@@ -227,3 +227,57 @@ describe('ReviewRunExecutor — skills in the prompt', () => {
     expect(skillLines[1]!.msg).toBe(`skill: beta v1 — ${assembly.skill_blocks![1]!.tokens} token(s)`);
   });
 });
+
+/**
+ * A run's terminal status is the signal that its trace can be read: the PR timeline and
+ * `waitForPrRuns` poll `agent_runs`, then fetch `/runs/:id/trace`. Writing the status
+ * first left a window in which a reader saw `done` and got no trace (the intermittent
+ * failure of the intent "sentinel message" integration test).
+ */
+describe('ReviewRunExecutor — the trace is stored before the terminal status', () => {
+  async function writesFor(over: { llm?: () => Promise<unknown>; diffFails?: true }) {
+    const writes: string[] = [];
+    const container = {
+      runBus: new RunBus(),
+      llm: over.llm ?? (async () => new MockLLMProvider('openai', { structured: REVIEW })),
+      tokenizer: { count: (text: string) => text.length },
+      git: { diff: async () => (over.diffFails ? Promise.reject(new Error('clone gone')) : DIFF) },
+    } as unknown as Container;
+    const repo = {
+      // loadDiff falls back to pr_files when git fails; failing both fails the pre-work.
+      getPrFiles: async () => (over.diffFails ? Promise.reject(new Error('db gone')) : []),
+      insertReview: async () => ({ id: 'review-1' }),
+      insertFindings: async () => [],
+      markReviewed: async () => undefined,
+      completeAgentRun: async (_runId: string, row: { status: string }) => {
+        writes.push(`status:${row.status}`);
+      },
+      saveRunTrace: async () => {
+        writes.push('trace');
+      },
+    } as unknown as ReviewRepository;
+    const agents = { linkedSkills: async () => [] } as unknown as Container['agentsRepo'];
+    await new ReviewRunExecutor(container, repo, agents).executeRuns('ws-1', PULL, REPO_ROW, [
+      { agent: AGENT, runId: 'run-1' },
+    ]);
+    return writes;
+  }
+
+  it('a successful run', async () => {
+    expect(await writesFor({})).toEqual(['trace', 'status:done']);
+  });
+
+  it('a run whose agent fails', async () => {
+    const writes = await writesFor({
+      llm: async () => {
+        throw new Error('provider down');
+      },
+    });
+    expect(writes).toEqual(['trace', 'status:failed']);
+  });
+
+  it('a run failed by the shared pre-work (diff load)', async () => {
+    const writes = await writesFor({ diffFails: true });
+    expect(writes).toEqual(['trace', 'status:failed']);
+  });
+});
