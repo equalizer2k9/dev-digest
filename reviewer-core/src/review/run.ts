@@ -7,7 +7,7 @@ import type {
   UnifiedDiff,
 } from '@devdigest/shared';
 import { Review as ReviewSchema } from '@devdigest/shared';
-import { assemblePrompt, type PromptParts, type PromptSection, type SkillPart } from '../prompt.js';
+import { assemblePrompt, type PromptParts, type PromptSection, type SkillPart, type SpecPart } from '../prompt.js';
 import { groundFindings, groundingSummary } from '../grounding.js';
 import { reduceReviews, scoreFromFindings, sliceDiff } from './reduce.js';
 
@@ -65,8 +65,8 @@ export interface ReviewInput {
   countTokens?: (text: string) => number;
   /** Curated memory items. */
   memory?: string[];
-  /** Project-context spec chunks (untrusted; delimiter-wrapped downstream). */
-  specs?: string[];
+  /** Project documents (untrusted; one delimiter-wrapped block each downstream). */
+  specs?: SpecPart[];
   /**
    * Optional callers-of-changed-symbols digest (T1.3). Untrusted; rendered
    * before the diff section. Empty/undefined → section omitted.

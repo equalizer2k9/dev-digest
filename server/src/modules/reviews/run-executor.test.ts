@@ -79,7 +79,12 @@ const REPO_ROW = { owner: 'acme', name: 'widgets' } as never;
  * Run one agent over a fixed diff with `linked` as its agent_skills rows, and
  * hand back the messages the model saw plus the trace that was persisted.
  */
-async function runWith(linked: { skill: SkillSeed; order: number }[]) {
+type ForRun = () => Promise<{
+  documents: { path: string; content: string }[];
+  entries: { path: string; tokens: number | null; skip_reason: string | null }[];
+}>;
+
+async function runWith(linked: { skill: SkillSeed; order: number }[], forRun?: ForRun) {
   const llm = new MockLLMProvider('openai', { structured: REVIEW });
   let saved: RunTrace | undefined;
 
@@ -93,6 +98,7 @@ async function runWith(linked: { skill: SkillSeed; order: number }[]) {
     llm: async () => llm,
     tokenizer,
     git: { diff: async () => DIFF },
+    projectContext: { forRun: forRun ?? (async () => ({ documents: [], entries: [] })) },
   } as unknown as Container;
 
   const repo = {
@@ -121,9 +127,11 @@ async function runWith(linked: { skill: SkillSeed; order: number }[]) {
   const call = llm.calls.find((c) => c.method === 'completeStructured');
   const messages = (call?.req as { messages: { role: string; content: string }[] }).messages;
   const userMessage = messages.find((m) => m.role === 'user')!.content;
+  const systemMessage = messages.find((m) => m.role === 'system')!.content;
+  const modelCalls = llm.calls.filter((c) => c.method === 'completeStructured').length;
 
   if (!saved) throw new Error('no trace was persisted');
-  return { userMessage, trace: saved, assembly: saved.prompt_assembly, tokenizer };
+  return { userMessage, systemMessage, modelCalls, trace: saved, assembly: saved.prompt_assembly, tokenizer };
 }
 
 describe('ReviewRunExecutor — skills in the prompt', () => {
@@ -279,5 +287,69 @@ describe('ReviewRunExecutor — the trace is stored before the terminal status',
   it('a run failed by the shared pre-work (diff load)', async () => {
     const writes = await writesFor({ diffFails: true });
     expect(writes).toEqual(['trace', 'status:failed']);
+  });
+});
+
+
+describe('ReviewRunExecutor — project documents', () => {
+  const docs = [
+    { path: 'docs/architecture.md', content: '`api/` does not import `db/` directly' },
+    { path: 'specs/billing.md', content: 'Billing rules BILLING-TEXT' },
+  ];
+  const entries = [
+    { path: 'docs/architecture.md', tokens: 11, skip_reason: null },
+    { path: 'specs/billing.md', tokens: 7, skip_reason: null },
+    { path: 'docs/old.md', tokens: null, skip_reason: 'missing' },
+  ];
+  const withDocs: ForRun = async () => ({ documents: docs, entries });
+
+  it('AC-27: the section holds both texts, each in a block stating its path, with the document rule', async () => {
+    const { userMessage, systemMessage } = await runWith([], withDocs);
+    expect(userMessage).toContain('## Project context');
+    expect(userMessage).toContain('Path: docs/architecture.md\n\n`api/` does not import `db/` directly');
+    expect(userMessage).toContain('Path: specs/billing.md\n\nBilling rules BILLING-TEXT');
+    expect(systemMessage).toContain('PROJECT DOCUMENTS');
+  });
+
+  it('AC-25: the trace records the entries; specs_read stays []', async () => {
+    const { trace } = await runWith([], withDocs);
+    expect(trace.project_context).toEqual(entries);
+    expect(trace.specs_read).toEqual([]);
+  });
+
+  it('AC-20/EC-7: no documents -> no section, no rule, messages equal a run without the feature', async () => {
+    const none = await runWith([]);
+    expect(none.userMessage).not.toContain('## Project context');
+    expect(none.systemMessage).not.toContain('PROJECT DOCUMENTS');
+    const skipped = await runWith([], async () => ({
+      documents: [],
+      entries: [{ path: 'docs/old.md', tokens: null, skip_reason: 'missing' }],
+    }));
+    expect(skipped.userMessage).toBe(none.userMessage);
+    expect(skipped.systemMessage).toBe(none.systemMessage);
+  });
+
+  it('EC-17/NFR-6: forRun rejecting -> the run completes and one log line names the failure', async () => {
+    const { trace, userMessage } = await runWith([], async () => {
+      throw new Error('db down');
+    });
+    expect(userMessage).not.toContain('## Project context');
+    expect(trace.project_context ?? []).toEqual([]);
+    expect(trace.log.filter((l) => l.msg.startsWith('context:') && l.msg.includes('db down'))).toHaveLength(1);
+  });
+
+  it('NFR-4: one log line per entry with path and tokens or reason, none with document text', async () => {
+    const { trace } = await runWith([], withDocs);
+    const lines = trace.log.map((l) => l.msg).filter((m) => m.startsWith('context:'));
+    expect(lines).toEqual([
+      'context: docs/architecture.md — 11 token(s)',
+      'context: specs/billing.md — 7 token(s)',
+      'context: docs/old.md — skipped (missing)',
+    ]);
+    expect(trace.log.some((l) => l.msg.includes('BILLING-TEXT'))).toBe(false);
+  });
+
+  it('AC-19: the same number of model calls with and without documents', async () => {
+    expect((await runWith([], withDocs)).modelCalls).toBe((await runWith([])).modelCalls);
   });
 });

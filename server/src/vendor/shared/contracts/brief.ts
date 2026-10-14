@@ -144,6 +144,8 @@ export const PrBrief = PrBriefDraft.extend({
   head_sha: z.string(),
   intent: Intent.nullable(),
   history: PrHistory.nullable(),
+  /** Paths of the project documents given to the model; absent on older briefs. */
+  context_docs: z.array(z.string()).optional(),
 });
 export type PrBrief = z.infer<typeof PrBrief>;
 

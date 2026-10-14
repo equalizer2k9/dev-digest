@@ -17,6 +17,7 @@ const repo = vi.hoisted(() => ({ get: vi.fn(), upsert: vi.fn() }));
 const blastSvc = vi.hoisted(() => ({ forPull: vi.fn() }));
 const BlastCtor = vi.hoisted(() => vi.fn());
 const featureModels = vi.hoisted(() => ({ resolveFeatureModel: vi.fn() }));
+const projectContext = vi.hoisted(() => ({ forBrief: vi.fn() }));
 const intentSvc = vi.hoisted(() => ({ get: vi.fn(), recalculate: vi.fn(), ensureForReview: vi.fn() }));
 
 vi.mock('./repository.js', () => ({ BriefRepository: vi.fn(() => repo) }));
@@ -69,6 +70,7 @@ function make(opts: { structured?: unknown; llmThrows?: unknown } = {}) {
     db: {},
     reviewRepo,
     tokenizer: { count: (t: string) => count(t) },
+    projectContext,
     llm: llmFactory,
   } as unknown as Container;
   return new BriefService(container, log as never);
@@ -83,6 +85,7 @@ beforeEach(() => {
   blastSvc.forPull.mockResolvedValue(BLAST);
   featureModels.resolveFeatureModel.mockResolvedValue({ provider: 'openai', model: MODEL });
   intentSvc.get.mockResolvedValue(null);
+  projectContext.forBrief.mockResolvedValue({ documents: [], skipped: [] });
   repo.get.mockResolvedValue(undefined);
   repo.upsert.mockResolvedValue(undefined);
 });
@@ -234,7 +237,16 @@ describe('BriefService.generate', () => {
     expect(log.info).toHaveBeenCalledTimes(1);
     const [record, msg] = log.info.mock.calls[0]!;
     expect(msg).toBe('brief: generation');
-    expect(Object.keys(record).sort()).toEqual(['inputTokens', 'model', 'outcome', 'prId', 'provider']);
+    expect(Object.keys(record).sort()).toEqual([
+      'contextDocs',
+      'contextDocsDropped',
+      'contextDocsSkipped',
+      'inputTokens',
+      'model',
+      'outcome',
+      'prId',
+      'provider',
+    ]);
     expect(record).toMatchObject({ prId: PR, provider: 'openai', model: MODEL, outcome: 'stored' });
     expect(typeof record.inputTokens).toBe('number');
     const text = JSON.stringify(log.info.mock.calls) + JSON.stringify(log.warn.mock.calls);
@@ -391,5 +403,99 @@ describe('BriefService.get', () => {
     reviewRepo.getPull.mockResolvedValue(undefined);
     await expect(make().get(WS, PR)).rejects.toBeInstanceOf(NotFoundError);
     expect(repo.get).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('BriefService.generate — project documents', () => {
+  const DOC_TEXT = 'SECRET-DOC-TEXT ';
+  const two = {
+    documents: [
+      { path: 'docs/a.md', content: `${DOC_TEXT}a` },
+      { path: 'specs/b.md', content: `${DOC_TEXT}b` },
+    ],
+    skipped: [],
+  };
+
+  it('AC-19: one model call with maxRetries 0; intent is not recalculated', async () => {
+    projectContext.forBrief.mockResolvedValue(two);
+    await make().generate(WS, PR, 'sha');
+    expect(llm.calls).toHaveLength(1);
+    expect((llm.calls[0]!.req as Record<string, unknown>).maxRetries).toBe(0);
+    expect(intentSvc.recalculate).not.toHaveBeenCalled();
+    expect(intentSvc.ensureForReview).not.toHaveBeenCalled();
+    const user = (llm.calls[0]!.req as { messages: { content: string }[] }).messages[1]!.content;
+    expect(user).toContain(`${DOC_TEXT}a`);
+  });
+
+  it('SPEC-01 AC-36: context_docs lists the paths given, in order; [] when none', async () => {
+    projectContext.forBrief.mockResolvedValue(two);
+    await make().generate(WS, PR, 'sha');
+    expect(repo.upsert.mock.calls[0]![1].context_docs).toEqual(['docs/a.md', 'specs/b.md']);
+    repo.upsert.mockClear();
+    projectContext.forBrief.mockResolvedValue({ documents: [], skipped: [] });
+    await make().generate(WS, PR, 'sha');
+    expect(repo.upsert.mock.calls[0]![1].context_docs).toEqual([]);
+  });
+
+  it('EC-17: a tiny budget leaves only the documents that stayed in context_docs and counts the dropped', async () => {
+    projectContext.forBrief.mockResolvedValue({
+      documents: [
+        { path: 'docs/a.md', content: 'a'.repeat(12_000) },
+        { path: 'docs/b.md', content: 'b'.repeat(40_000) },
+      ],
+      skipped: [],
+    });
+    await make().generate(WS, PR, 'sha');
+    expect(repo.upsert.mock.calls[0]![1].context_docs).toEqual(['docs/a.md']);
+    expect(log.info.mock.calls[0]![0]).toMatchObject({ contextDocs: 1, contextDocsDropped: 1 });
+  });
+
+  it('NFR-6: forBrief rejecting still generates, context_docs [], warn without document text', async () => {
+    projectContext.forBrief.mockRejectedValue(new Error('db down'));
+    await make().generate(WS, PR, 'sha');
+    expect(repo.upsert.mock.calls[0]![1].context_docs).toEqual([]);
+    expect(log.warn).toHaveBeenCalledWith(expect.objectContaining({ prId: PR }), expect.any(String));
+  });
+
+  it('NFR-4: the log record has counts, skipped paths and reasons, never text', async () => {
+    projectContext.forBrief.mockResolvedValue({
+      documents: [{ path: 'docs/a.md', content: DOC_TEXT }],
+      skipped: [
+        { path: 'docs/m.md', reason: 'missing' },
+        { path: 'docs/t\n.md', reason: 'too_large' },
+      ],
+    });
+    await make().generate(WS, PR, 'sha');
+    const rec = log.info.mock.calls[0]![0];
+    expect(rec).toMatchObject({ contextDocs: 1 });
+    expect(rec.contextDocsSkipped).toEqual([
+      { path: 'docs/m.md', reason: 'missing' },
+      { path: 'docs/t\\u{a}.md', reason: 'too_large' },
+    ]);
+    expect(JSON.stringify([log.info.mock.calls, log.warn.mock.calls])).not.toContain('SECRET-DOC-TEXT');
+  });
+
+  it('forBrief is called with the pull repo id and budget x 12 characters', async () => {
+    await make().generate(WS, PR, 'sha');
+    expect(projectContext.forBrief).toHaveBeenCalledWith(WS, 'r1', 8_000 * 12);
+  });
+
+  it('SPEC-01 AC-35: a risk naming an attached document path is stored without that reference', async () => {
+    projectContext.forBrief.mockResolvedValue(two);
+    const svc = make({
+      structured: {
+        summary: 's',
+        risks: [
+          { kind: 'k', title: 't', explanation: 'e', severity: 'high', file_refs: ['docs/a.md', 'src/a.ts'] },
+          { kind: 'k', title: 't2', explanation: 'e', severity: 'low', file_refs: ['docs/a.md'] },
+        ],
+        review_focus: [{ file: 'docs/a.md', line: 1, reason: 'r' }],
+      },
+    });
+    const { brief } = await svc.generate(WS, PR, 'sha');
+    expect(brief!.risks).toHaveLength(1);
+    expect(brief!.risks[0]!.file_refs).toEqual(['src/a.ts']);
+    expect(brief!.review_focus).toEqual([]);
   });
 });

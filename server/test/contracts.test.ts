@@ -22,6 +22,8 @@ import {
   PrBrief,
   PrBriefDraft,
   PrBriefResponse,
+  ProjectContextEntry,
+  ProjectContextAttachInput,
 } from '@devdigest/shared';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -350,5 +352,64 @@ describe('PR Brief contracts', () => {
     const server = readFileSync(resolve(__dirname, '../src/vendor/shared/contracts/brief.ts'));
     const client = readFileSync(resolve(__dirname, '../../client/src/vendor/shared/contracts/brief.ts'));
     expect(server.equals(client)).toBe(true);
+  });
+
+  describe('project context', () => {
+    it('ProjectContextEntry accepts an included entry and each skip reason, rejects another', () => {
+      expect(ProjectContextEntry.parse({ path: 'docs/a.md', tokens: 12, skip_reason: null }).tokens).toBe(12);
+      for (const r of ['missing', 'unreadable', 'outside_clone', 'too_large', 'over_budget']) {
+        expect(ProjectContextEntry.parse({ path: 'a.md', tokens: null, skip_reason: r }).skip_reason).toBe(r);
+      }
+      expect(() => ProjectContextEntry.parse({ path: 'a.md', tokens: null, skip_reason: 'nope' })).toThrow();
+    });
+
+    it('ProjectContextAttachInput rejects 501 paths, a duplicate and an empty path', () => {
+      const repo_id = '11111111-1111-4111-8111-111111111111';
+      const paths = Array.from({ length: 500 }, (_, i) => `docs/${i}.md`);
+      expect(ProjectContextAttachInput.parse({ repo_id, paths }).paths).toHaveLength(500);
+      expect(() => ProjectContextAttachInput.parse({ repo_id, paths: [...paths, 'docs/x.md'] })).toThrow();
+      expect(() => ProjectContextAttachInput.parse({ repo_id, paths: ['a.md', 'a.md'] })).toThrow();
+      expect(() => ProjectContextAttachInput.parse({ repo_id, paths: [''] })).toThrow();
+    });
+
+    const baseTrace = {
+      config: { agent: 'A', model: 'm' },
+      stats: { duration_ms: 1, tokens_in: 1, tokens_out: 1, cost_usd: 0, findings: 0, grounding: '0/0 passed' },
+      prompt_assembly: { system: 's', user: 'u' },
+      tool_calls: [],
+      raw_output: '{}',
+      memory_pulled: [],
+      specs_read: [],
+      log: [],
+    };
+
+    it('RunTrace parses without project_context, with null, and with entries', () => {
+      expect(RunTrace.parse(baseTrace).project_context).toBeUndefined();
+      expect(RunTrace.parse({ ...baseTrace, project_context: null }).project_context).toBeNull();
+      const entries = [{ path: 'a.md', tokens: 3, skip_reason: null }];
+      expect(RunTrace.parse({ ...baseTrace, project_context: entries }).project_context).toEqual(entries);
+    });
+
+    it('PrBrief parses with and without context_docs', () => {
+      const brief = {
+        summary: 's',
+        risks: [],
+        review_focus: [],
+        head_sha: 'abc',
+        intent: null,
+        history: null,
+      };
+      expect(PrBrief.parse(brief).context_docs).toBeUndefined();
+      expect(PrBrief.parse({ ...brief, context_docs: ['a.md'] }).context_docs).toEqual(['a.md']);
+    });
+
+    it('contracts/project-context.ts copies are byte-identical; the trace.ts project_context line matches', () => {
+      const read = (pkg: string, f: string) =>
+        readFileSync(resolve(__dirname, `../../${pkg}/src/vendor/shared/contracts/${f}`), 'utf8');
+      expect(read('server', 'project-context.ts')).toBe(read('client', 'project-context.ts'));
+      const line = (s: string) => s.split('\n').filter((l) => l.includes('project_context'));
+      expect(line(read('server', 'trace.ts'))).toHaveLength(1);
+      expect(line(read('server', 'trace.ts'))).toEqual(line(read('client', 'trace.ts')));
+    });
   });
 });

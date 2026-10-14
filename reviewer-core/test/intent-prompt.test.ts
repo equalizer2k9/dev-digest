@@ -130,7 +130,7 @@ describe('S-AC-16: assembly sections', () => {
   it('S-AC-16: every emitted section has {name, source, tokens}, matching the messages', () => {
     const { sections, messages } = assemblePrompt({
       system: 'SYS', diff: 'DIFF', task: 'Review', prTitle: 'T', prDescription: 'B', intent,
-      memory: ['m'], specs: ['s'], callers: 'c', repoMap: 'r',
+      memory: ['m'], specs: [{ path: 'docs/s.md', content: 's' }], callers: 'c', repoMap: 'r',
       skills: [{ id: 'i', name: 'sk', version: 1, body: 'sb', trusted: true }],
     });
     const names = sections.map((s) => s.name);

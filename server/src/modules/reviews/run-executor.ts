@@ -1,6 +1,6 @@
 import type { Container } from '../../platform/container.js';
-import type { Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
-import { reviewPullRequest, countBlockers, type SkillPart } from '@devdigest/reviewer-core';
+import type { ProjectContextEntry, Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
+import { reviewPullRequest, countBlockers, visiblePath, type SkillPart, type SpecPart } from '@devdigest/reviewer-core';
 import { RunLogger } from '../../platform/run-logger.js';
 import * as schema from '../../db/schema.js';
 import type { AgentRow } from '../../db/rows.js';
@@ -242,6 +242,10 @@ export class ReviewRunExecutor {
       // stays byte-identical to a run with no skills at all.
       const skills = await this.resolveSkills(agent.id, runLog);
 
+      // Project context — the agent's effective documents, read once per run. A
+      // lookup failure degrades to a run without the section (EC-17).
+      const projectContext = await this.resolveProjectContext(agent.id, repo, runLog);
+
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
       // the CI runner). The service owns only I/O: repo-intel context resolution
@@ -302,6 +306,11 @@ export class ReviewRunExecutor {
           }),
         // Skills Lab — omitted entirely when the agent has no enabled skill.
         ...(skills.length > 0 ? { skills } : {}),
+        // Project documents — omitted unless one has text, so a run without
+        // documents assembles the same prompt as before.
+        ...(projectContext.documents.some((d) => d.content.trim().length > 0)
+          ? { specs: projectContext.documents }
+          : {}),
         // Token attribution for the skills block. The engine stays dependency-
         // free; the real tokenizer (js-tiktoken cl100k_base) is injected here
         // and degrades to ceil(chars/4) on its own if the BPE ranks fail.
@@ -376,6 +385,7 @@ export class ReviewRunExecutor {
         raw_output: outcome.raw,
         memory_pulled: [],
         specs_read: [],
+        project_context: projectContext.entries,
         // Persisted log = the run's FULL event buffer (incl. shared pre-work:
         // diff load + intent), not just events recorded inside this method.
         log: runLog.logFor(runId),
@@ -456,6 +466,34 @@ export class ReviewRunExecutor {
         body: l.skill.body,
         trusted: l.skill.source === 'manual' || l.skill.source === 'extracted',
       }));
+  }
+
+  /**
+   * Load the agent's project documents and write one Live Log line per entry,
+   * BEFORE the model call (so a failed or cancelled run keeps them). Lines carry
+   * the escaped path and a token count or reason — never document text.
+   * `entries` is null when the lookup itself failed (nothing was recorded).
+   */
+  private async resolveProjectContext(
+    agentId: string,
+    repo: typeof schema.repos.$inferSelect,
+    runLog: RunLogger,
+  ): Promise<{ documents: SpecPart[]; entries: ProjectContextEntry[] | null }> {
+    try {
+      const { documents, entries } = await this.container.projectContext.forRun(agentId, repo);
+      for (const e of entries) {
+        runLog.info(
+          e.skip_reason === null
+            ? `context: ${visiblePath(e.path)} — ${e.tokens ?? 0} token(s)`
+            : `context: ${visiblePath(e.path)} — skipped (${e.skip_reason})`,
+        );
+      }
+      return { documents, entries };
+    } catch (err) {
+      // Never let document loading break a run — degrade to no documents.
+      runLog.info(`context: lookup failed — ${(err as Error).message}`);
+      return { documents: [], entries: null };
+    }
   }
 
   /**

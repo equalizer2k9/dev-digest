@@ -41,6 +41,7 @@ describe('S-AC-1 contracts', () => {
   it('S-AC-21: PrBrief keeps the pr-brief shape with a nullable intent, and Intent is exactly intent / in_scope / out_of_scope', () => {
     // The pr-brief feature owns PrBrief; the intent layer must leave its shape alone.
     expect(Object.keys(shared.PrBrief.shape).sort()).toEqual([
+      'context_docs',
       'head_sha',
       'history',
       'intent',

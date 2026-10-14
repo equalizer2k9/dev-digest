@@ -237,6 +237,23 @@ export interface GitClient {
   /** `maxBytes`: reject (`code: 'FILE_TOO_LARGE'`) a bigger file before reading it. */
   readFile(repo: RepoRef, path: string, maxBytes?: number): Promise<string>;
   /**
+   * Repo-relative paths (`/`-separated) of the working-tree files `accept` takes,
+   * in segment order (depth-first, each directory's entries sorted by name).
+   * Never enters a directory in `skipDirs` or a symlinked one; lists a symlinked
+   * file only when it resolves inside the clone. Stops after `limit` paths or
+   * `maxEntries` visited entries and reports `truncated`. A missing clone rejects
+   * with an `ENOENT`-coded error.
+   */
+  listFiles(
+    repo: RepoRef,
+    opts: {
+      accept(relPath: string): boolean;
+      skipDirs: readonly string[];
+      limit: number;
+      maxEntries: number;
+    },
+  ): Promise<{ paths: string[]; truncated: boolean }>;
+  /**
    * Text of `path` as committed at `ref` (`git show <ref>:<path>`), read from the
    * local clone. Rejects when the clone lacks the commit or the path.
    */

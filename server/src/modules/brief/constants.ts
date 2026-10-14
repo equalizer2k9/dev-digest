@@ -51,6 +51,7 @@ export const LABEL_DESCRIPTION = 'pr-description';
 export const LABEL_INTENT = 'pr-intent';
 export const LABEL_FILES = 'changed-files';
 export const LABEL_CALLERS = 'blast-callers';
+export const LABEL_DOCUMENT = 'project-doc';
 
 /** Marker ending a truncated PR title. */
 export const TITLE_ELLIPSIS = '…';

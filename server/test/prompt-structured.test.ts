@@ -16,7 +16,7 @@ describe('prompt assembly + injection hardening', () => {
       system: 'You are a reviewer.',
       skills: [{ id: 's1', name: 'secret-gate', version: 1, body: 'Detect sk_live', trusted: true }],
       memory: ['Do not flag try/catch around JSON.parse'],
-      specs: ['# Security baseline\nNo secrets in code.'],
+      specs: [{ path: 'docs/security-baseline.md', content: '# Security baseline\nNo secrets in code.' }],
       diff: '@@ -1 +1 @@\n+ stripeKey',
       task: "Review PR #482 'rate limit'",
     });

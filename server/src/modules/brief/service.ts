@@ -16,6 +16,7 @@ import {
   BRIEF_FAILURE_MESSAGE,
   BRIEF_FEATURE,
   BRIEF_INPUT_TOKEN_BUDGET,
+  MAX_CHARS_PER_TOKEN,
   BRIEF_NO_FILES_CODE,
   BRIEF_SCHEMA_NAME,
   BRIEF_SYSTEM_PROMPT,
@@ -25,7 +26,15 @@ import {
   MODEL_TEMPERATURE,
   type BriefFailureReason,
 } from './constants.js';
-import { type BriefIntentFacts, buildBriefInput, buildFacts, composeSystem, groundDraft } from './helpers.js';
+import {
+  type BriefDocument,
+  type BriefIntentFacts,
+  buildBriefInput,
+  buildFacts,
+  composeSystem,
+  groundDraft,
+  rowPath,
+} from './helpers.js';
 import { BriefRepository } from './repository.js';
 
 /**
@@ -100,7 +109,22 @@ export class BriefService {
       this.log.warn({ prId, err }, 'brief: stored intent unavailable, generating without one');
     }
 
-    const facts = buildFacts(pull, files, blast, intent);
+    // Attached project documents: optional context, paths and reasons only in logs.
+    let documents: BriefDocument[] = [];
+    let skipped: { path: string; reason: string }[] = [];
+    try {
+      const ctx = await this.container.projectContext.forBrief(
+        workspaceId,
+        pull.repoId,
+        BRIEF_INPUT_TOKEN_BUDGET * MAX_CHARS_PER_TOKEN,
+      );
+      documents = ctx.documents.map((d) => ({ path: d.path, text: d.content }));
+      skipped = ctx.skipped;
+    } catch (err) {
+      this.log.warn({ prId, err }, 'brief: project documents unavailable, generating without them');
+    }
+
+    const facts = buildFacts(pull, files, blast, intent, documents);
     const system = composeSystem(await renderPrompt(BRIEF_SYSTEM_PROMPT, {}));
     const input = buildBriefInput(
       facts,
@@ -124,6 +148,7 @@ export class BriefService {
             ? { intent: intent.intent, in_scope: intent.in_scope, out_of_scope: intent.out_of_scope }
             : null,
         history: null,
+        context_docs: input.documentPaths,
       };
       await this.repo.upsert(prId, brief);
       outcome = 'stored';
@@ -136,6 +161,9 @@ export class BriefService {
           model: choice.model,
           inputTokens: input.tokens,
           outcome,
+          contextDocs: input.documentPaths.length,
+          contextDocsDropped: documents.length - input.documentPaths.length,
+          contextDocsSkipped: skipped.map((s) => ({ path: rowPath(s.path), reason: s.reason })),
         },
         'brief: generation',
       );

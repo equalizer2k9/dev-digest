@@ -11,7 +11,8 @@ import type {
   GitCommit,
 } from '@devdigest/shared';
 import { parseUnifiedDiff } from './diff-parser.js';
-import { confinePath } from './confine-path.js';
+import { confinePath, isPathEscape } from './confine-path.js';
+import { listFiles } from './list-files.js';
 import { FileTooLargeError } from '../file-too-large.js';
 
 /**
@@ -135,6 +136,22 @@ export class SimpleGitClient implements GitClient {
       if (size > maxBytes) throw new FileTooLargeError(path, size, maxBytes);
     }
     return readFile(real, 'utf8');
+  }
+
+  async listFiles(
+    repo: RepoRef,
+    opts: Parameters<GitClient['listFiles']>[1],
+  ): Promise<{ paths: string[]; truncated: boolean }> {
+    const root = this.clonePathFor(repo);
+    return listFiles(root, opts, async (rel) => {
+      try {
+        const real = await confinePath(root, rel);
+        return (await stat(real)).isFile();
+      } catch (err) {
+        if (isPathEscape(err) || (err as { code?: unknown }).code === 'ENOENT') return false;
+        throw err;
+      }
+    });
   }
 
   async readFileAtRef(

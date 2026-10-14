@@ -26,6 +26,7 @@ import { ConfigError } from './errors.js';
 import { AgentsRepository } from '../modules/agents/repository.js';
 import { ReviewRepository } from '../modules/reviews/repository.js';
 import { PullsRepository } from '../modules/pulls/repository.js';
+import { ProjectContextService } from '../modules/project-context/service.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
 import { type DepGraph, DepCruiseGraph } from '../adapters/depgraph/index.js';
@@ -78,6 +79,7 @@ export class Container {
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
   private _priceBook?: PriceBook;
+  private _projectContext?: ProjectContextService;
 
   constructor(config: AppConfig, db: Db, private overrides: ContainerOverrides = {}) {
     this.config = config;
@@ -104,6 +106,11 @@ export class Container {
 
   get pullsRepo(): PullsRepository {
     return (this._pullsRepo ??= new PullsRepository(this.db));
+  }
+
+  /** Project-context documents; other modules reach the feature only through this. */
+  get projectContext(): ProjectContextService {
+    return (this._projectContext ??= new ProjectContextService(this));
   }
 
   get codeIndex(): CodeIndex {

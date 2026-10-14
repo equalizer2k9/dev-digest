@@ -6,7 +6,7 @@ import { buildApp } from '../../app.js';
 import { loadConfig } from '../../platform/config.js';
 import { seed } from '../../db/seed.js';
 import * as t from '../../db/schema.js';
-import { MockEmbedder, MockGitHubClient, MockLLMProvider } from '../../adapters/mocks.js';
+import { MockEmbedder, MockGitClient, MockGitHubClient, MockLLMProvider } from '../../adapters/mocks.js';
 import type { BlastResult, RepoIntel } from '../repo-intel/types.js';
 import { BRIEF_FEATURE } from './constants.js';
 import { ReviewRepository } from '../reviews/repository.js';
@@ -68,6 +68,7 @@ d('/pulls/:id/brief against Postgres', () => {
         llm: { [feature.defaultProvider]: llm },
         embedder: new MockEmbedder(),
         github: new MockGitHubClient(),
+        git: new MockGitClient({ files: { 'docs/brief-doc.md': 'BRIEF-DOC-TEXT house rules' } }),
         repoIntel,
       },
     });
@@ -116,6 +117,36 @@ d('/pulls/:id/brief against Postgres', () => {
     const res = await get(pr.id);
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ brief: null });
+  });
+
+  it('SPEC-01 AC-16: a document attached to an enabled agent reaches the model and context_docs names it', async () => {
+    const pr = await setupPr();
+    const [agent] = await pg.handle.db
+      .insert(t.agents)
+      .values({ workspaceId, name: `brief-doc-agent-${seq++}`, provider: 'openai', model: 'm', systemPrompt: 'p', enabled: true })
+      .returning();
+    const put = await app.inject({
+      method: 'PUT',
+      url: `/agents/${agent!.id}/context`,
+      payload: { repo_id: pr.repoId, paths: ['docs/brief-doc.md'] },
+    });
+    expect(put.statusCode).toBe(200);
+    const res = await post(pr.id, { head_sha: 'sha-doc' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().brief.context_docs).toEqual(['docs/brief-doc.md']);
+    const req = modelCalls()[0]!.req as { messages: { role: string; content: string }[] };
+    expect(req.messages.find((m) => m.role === 'user')!.content).toContain('BRIEF-DOC-TEXT house rules');
+    await pg.handle.db.delete(t.agents).where(eq(t.agents.id, agent!.id));
+  });
+
+  it('NFR-7: a brief stored without context_docs is still returned by GET', async () => {
+    const pr = await setupPr();
+    const old = {
+      summary: 's', risks: [], review_focus: [], head_sha: 'old', intent: null, history: null,
+    };
+    await pg.handle.db.insert(t.prBrief).values({ prId: pr.id, json: old });
+    const res = await get(pr.id);
+    expect(res.json().brief).toEqual(old);
   });
 
   it('POST stores a grounded brief with the body SHA; GET returns it with no model call', async () => {
