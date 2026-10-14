@@ -1,0 +1,295 @@
+# Harness evals (evals/) — per-PR checks for skills, subagents and AGENTS.md.
+#
+# Jobs:
+#  - changes:  maps the PR diff onto eval suites with evals/scripts/ci-detect.mjs. A changed
+#              artifact without evals prints `SKIP <name> (no evals)` — never a failure.
+#  - quality:  `eval:quality` (static SKILL.md gate) + typecheck. No model, no secrets — BLOCKS.
+#  - skills / agents / workflow: model-backed, one run per case, REPORT ONLY (continue-on-error):
+#              they cost money and LLM output varies, so they inform the review, not gate it.
+#
+# Secrets: only OPENROUTER_API_KEY. Fork PRs get no secrets under `pull_request`, so the model
+# jobs are skipped with a log line; `pull_request_target` is deliberately not used.
+#
+# Models are job parameters (workflow_dispatch inputs), never hard-coded in evals/src:
+#  - skills: content tier straight to OpenRouter — DeepSeek works natively there.
+#  - agents, workflow: the Claude Agent SDK needs the Anthropic wire protocol, so they go through
+#    the package's LiteLLM proxy (evals/proxy) to OpenRouter.
+#
+# pnpm 12: evals/ keeps its build approval (esbuild) in pnpm-workspace.yaml `allowBuilds`, which
+# is where pnpm 12 reads it — see root INSIGHTS.md.
+name: evals
+
+on:
+  pull_request:
+    paths:
+      - '.claude/**'
+      - 'AGENTS.md'
+      - 'CLAUDE.md'
+      - 'evals/**'
+      - '.github/workflows/evals.yml'
+  workflow_dispatch:
+    inputs:
+      skills_model:
+        description: 'skills tier model (OpenRouter slug, direct)'
+        default: 'deepseek/deepseek-v4-flash'
+      agents_model:
+        description: 'agents tier model (OpenRouter slug, via LiteLLM proxy)'
+        default: 'anthropic/claude-haiku-4.5'
+      workflow_model:
+        description: 'workflow tier model (OpenRouter slug, via LiteLLM proxy)'
+        default: 'anthropic/claude-haiku-4.5'
+      judge_model:
+        description: 'LLM judge for skills and agents (OpenRouter slug)'
+        default: 'deepseek/deepseek-v4-flash'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: evals-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      skills: ${{ steps.detect.outputs.skills }}
+      agents: ${{ steps.detect.outputs.agents }}
+      run_workflow: ${{ steps.detect.outputs.run_workflow }}
+      has_key: ${{ steps.key.outputs.has_key }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Changed files
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$EVENT" = "pull_request" ]; then
+            git diff --name-only "$BASE...$HEAD" > changed.txt
+          else
+            # Manual run: treat every harness artifact as changed → every suite that has evals.
+            git ls-files .claude AGENTS.md evals > changed.txt
+          fi
+          echo "changed files: $(wc -l < changed.txt)"
+          cat changed.txt
+
+      - name: Detect eval suites
+        id: detect
+        run: |
+          CHANGED_FILES="$(cat changed.txt)" node evals/scripts/ci-detect.mjs
+          read -ra skipped <<< "$(grep '^skipped_' "$GITHUB_OUTPUT" | cut -d= -f2- | tr '\n' ' ')"
+          for name in "${skipped[@]}"; do
+            echo "SKIP $name (no evals)"
+            echo "- SKIP \`$name\` (no evals)" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+      - name: OpenRouter key available?
+        id: key
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          if [ -n "$OPENROUTER_API_KEY" ]; then
+            echo "has_key=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_key=false" >> "$GITHUB_OUTPUT"
+            msg="SKIP model evals (skills, agents, workflow): OPENROUTER_API_KEY is not available — fork PR or secret not set"
+            echo "$msg"
+            echo "- $msg" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: evals
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.10.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: evals/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm eval:quality
+
+  skills:
+    needs: changes
+    if: needs.changes.outputs.skills != '[]' && needs.changes.outputs.has_key == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        skill: ${{ fromJSON(needs.changes.outputs.skills) }}
+    defaults:
+      run:
+        working-directory: evals
+    env:
+      EVAL_BACKEND: openrouter
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      # pull_request runs have no inputs — fall back to the dispatch defaults.
+      EVAL_MODEL: ${{ inputs.skills_model || 'deepseek/deepseek-v4-flash' }}
+      EVAL_JUDGE_MODEL: ${{ inputs.judge_model || 'deepseek/deepseek-v4-flash' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.10.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: evals/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      # Matrix values come from directory names in the PR — pass them via env, never inline.
+      - name: eval skills/${{ matrix.skill }} (1 run per case, model ${{ env.EVAL_MODEL }})
+        env:
+          SKILL: ${{ matrix.skill }}
+        run: pnpm vitest run "skills/$SKILL"
+
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evals-skill-${{ matrix.skill }}
+          path: evals/results/
+          if-no-files-found: ignore
+
+  agents:
+    needs: changes
+    if: needs.changes.outputs.agents != '[]' && needs.changes.outputs.has_key == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      # One at a time: tool tiers degrade under OpenRouter rate limits (evals/README.md).
+      max-parallel: 1
+      matrix:
+        agent: ${{ fromJSON(needs.changes.outputs.agents) }}
+    defaults:
+      run:
+        working-directory: evals
+    env:
+      EVAL_BACKEND: openrouter
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      OPENROUTER_BASE_URL: http://localhost:4000
+      EVAL_MODEL: ${{ inputs.agents_model || 'anthropic/claude-haiku-4.5' }}
+      EVAL_JUDGE_MODEL: ${{ inputs.judge_model || 'deepseek/deepseek-v4-flash' }}
+      # Claude Code's own side calls (title/summary) use its built-in haiku ID, which OpenRouter does
+      # not know — map them to an OpenRouter slug and drop non-essential traffic.
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: anthropic/claude-haiku-4.5
+      ANTHROPIC_SMALL_FAST_MODEL: anthropic/claude-haiku-4.5
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.10.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: evals/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: LiteLLM proxy up
+        run: |
+          docker compose -f proxy/docker-compose.yml up -d
+          pnpm proxy:wait
+
+      - name: eval agents/${{ matrix.agent }} (1 run per case, model ${{ env.EVAL_MODEL }})
+        env:
+          AGENT: ${{ matrix.agent }}
+        run: pnpm vitest run "agents/$AGENT/"
+
+      - if: failure()
+        run: docker compose -f proxy/docker-compose.yml logs --tail 100
+
+      - if: always()
+        run: docker compose -f proxy/docker-compose.yml down
+
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evals-agent-${{ matrix.agent }}
+          path: evals/results/
+          if-no-files-found: ignore
+
+  workflow:
+    needs: changes
+    if: needs.changes.outputs.run_workflow == 'true' && needs.changes.outputs.has_key == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: evals
+    env:
+      EVAL_BACKEND: openrouter
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      OPENROUTER_BASE_URL: http://localhost:4000
+      EVAL_MODEL: ${{ inputs.workflow_model || 'anthropic/claude-haiku-4.5' }}
+      # Claude Code's own side calls (title/summary) use its built-in haiku ID, which OpenRouter does
+      # not know — map them to an OpenRouter slug and drop non-essential traffic.
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: anthropic/claude-haiku-4.5
+      ANTHROPIC_SMALL_FAST_MODEL: anthropic/claude-haiku-4.5
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+    steps:
+      # The workflow tier runs with bypassPermissions over the checkout — the runner's checkout
+      # is disposable. devdigest-mcp deps are not installed, so the project MCP server cannot start.
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.10.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: evals/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: LiteLLM proxy up
+        run: |
+          docker compose -f proxy/docker-compose.yml up -d
+          pnpm proxy:wait
+
+      - name: eval workflow (1 run, model ${{ env.EVAL_MODEL }})
+        run: pnpm eval:workflow
+
+      - if: failure()
+        run: docker compose -f proxy/docker-compose.yml logs --tail 100
+
+      - if: always()
+        run: docker compose -f proxy/docker-compose.yml down
+
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evals-workflow
+          path: evals/results/
+          if-no-files-found: ignore
