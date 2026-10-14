@@ -5,6 +5,7 @@ import type { PrMeta, PrDetail, GitHubClient, PrReviewComment } from '@devdigest
 import { PrCommentInput } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
+import { latestReviewPerAgent } from '../_shared/latest-reviews.js';
 import { IdParams } from '../_shared/schemas.js';
 import { AppError, NotFoundError } from '../../platform/errors.js';
 import { deriveReviewStatus } from './status.js';
@@ -127,20 +128,16 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
           prId: t.reviews.prId,
           agentId: t.reviews.agentId,
           score: t.reviews.score,
+          createdAt: t.reviews.createdAt,
         })
         .from(t.reviews)
         .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')))
         .orderBy(desc(t.reviews.createdAt));
-      // Rows are newest-first → first seen per PR (resp. per PR+agent) wins.
-      const seenPrAgent = new Set<string>();
+      // Rows are newest-first → first seen per PR wins the latest score.
       for (const rv of reviewRows) {
         if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { score: rv.score });
-        const agentKey = `${rv.prId}|${rv.agentId ?? 'none'}`;
-        if (!seenPrAgent.has(agentKey)) {
-          seenPrAgent.add(agentKey);
-          countedReviewToPr.set(rv.id, rv.prId);
-        }
       }
+      for (const rv of latestReviewPerAgent(reviewRows)) countedReviewToPr.set(rv.id, rv.prId);
     }
 
     // Findings of those reviews, tallied by severity per PR. Dismissed findings

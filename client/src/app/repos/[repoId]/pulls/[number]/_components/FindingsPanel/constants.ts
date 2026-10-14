@@ -1,11 +1,11 @@
 import type { FindingActionKind } from "@devdigest/shared";
+import { FINDINGS_SEVERITIES } from "@/lib/findings";
 
-/** Sort weight per severity (lower = shown first). */
+/** Sort weight per severity (lower = shown first), derived from the shared
+ *  order. `INFO` (never emitted by the contract) sorts after all of them. */
 export const SEVERITY_ORDER: Record<string, number> = {
-  CRITICAL: 0,
-  WARNING: 1,
-  SUGGESTION: 2,
-  INFO: 3,
+  ...Object.fromEntries(FINDINGS_SEVERITIES.map((sev, i) => [sev, i])),
+  INFO: FINDINGS_SEVERITIES.length,
 };
 
 /** Confidence below this is hidden when "hide low confidence" is on. */
@@ -20,4 +20,4 @@ export const KEY_TO_ACTION: Record<string, FindingActionKind> = {
 /** Severities the filter row offers — always all three, whether or not this run
  *  has findings at that level. Driven by the wire contract, not by `SEV`, which
  *  carries a fourth value (`INFO`) the contract never emits. */
-export const FILTER_SEVERITIES = ["CRITICAL", "WARNING", "SUGGESTION"] as const;
+export const FILTER_SEVERITIES = FINDINGS_SEVERITIES;

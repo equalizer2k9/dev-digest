@@ -1,15 +1,18 @@
 /* Inline-comment support for the DiffViewer (Files changed tab).
    Pure helpers + the API shape the viewer needs; React bits live in
    DiffComments.tsx. Comments are GitHub PR review comments, proxied live. */
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
+import type { FindingRecord } from "@devdigest/shared";
 import type { PrReviewComment } from "../../lib/types";
+import { FINDINGS_SEVERITIES } from "../../lib/findings";
 import type { Line } from "./helpers";
 
 /** What the viewer needs to read + write inline comments. */
 export interface DiffCommentApi {
   comments: PrReviewComment[];
   canComment: boolean;
-  /** When false, existing comment threads are hidden (the "+" still works). */
+  /** The one visibility flag: when false, existing comment threads AND finding
+     comments are hidden (the "+" still works). */
   showComments: boolean;
   posting: boolean;
   onSubmit: (input: {
@@ -19,6 +22,14 @@ export interface DiffCommentApi {
     body: string;
     in_reply_to?: number;
   }) => Promise<unknown>;
+}
+
+/** What the viewer needs to draw review findings in the diff. The card itself
+   comes from the caller (`renderFinding`) — this folder is shared and must not
+   import a page-local component. */
+export interface DiffFindingsApi {
+  findings: FindingRecord[];
+  renderFinding: (f: FindingRecord) => ReactNode;
 }
 
 /** One review-comment thread anchored to a diff line (or outdated). */
@@ -103,6 +114,45 @@ export function partitionThreads(
     }
   }
   return { matched, outdated };
+}
+
+/**
+ * Split findings into those whose start line is a rendered row (keyed
+ * `RIGHT:<start_line>`) and those that are not in the patch. The second bucket
+ * is shown as its own block — a finding is never dropped or moved to a
+ * neighbouring line.
+ */
+export function partitionFindings(
+  findings: FindingRecord[],
+  renderedKeys: Set<string>,
+): { matched: Map<string, FindingRecord[]>; outside: FindingRecord[] } {
+  const matched = new Map<string, FindingRecord[]>();
+  const outside: FindingRecord[] = [];
+  for (const f of findings) {
+    const key = lineKey("RIGHT", f.start_line);
+    if (key && renderedKeys.has(key)) {
+      const list = matched.get(key) ?? [];
+      list.push(f);
+      matched.set(key, list);
+    } else {
+      outside.push(f);
+    }
+  }
+  return { matched, outside };
+}
+
+export type FindingSeverity = (typeof FINDINGS_SEVERITIES)[number];
+
+/** The most severe of the findings, or null when there are none. */
+export function worstSeverity(findings: FindingRecord[]): FindingSeverity | null {
+  let worst: FindingSeverity | null = null;
+  for (const f of findings) {
+    const sev = f.severity as FindingSeverity;
+    const rank = FINDINGS_SEVERITIES.indexOf(sev);
+    if (rank === -1) continue;
+    if (worst === null || rank < FINDINGS_SEVERITIES.indexOf(worst)) worst = sev;
+  }
+  return worst;
 }
 
 // ---- styles (layout only; cards/inputs/buttons reuse @devdigest/ui) ----

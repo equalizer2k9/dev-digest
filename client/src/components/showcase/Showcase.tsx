@@ -49,6 +49,14 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NextIntlClientProvider } from "next-intl";
 import skillMessages from "../../../messages/en/skills.json";
 import conventionMessages from "../../../messages/en/conventions.json";
+import prReviewMessages from "../../../messages/en/prReview.json";
+import shellMessages from "../../../messages/en/shell.json";
+import intentMessages from "../../../messages/en/intent.json";
+import { IntentCard } from "../../app/repos/[repoId]/pulls/[number]/_components/IntentCard";
+import { ApiError } from "../../lib/api";
+import { FileCard } from "../diff-viewer";
+import { FindingCard } from "../../app/repos/[repoId]/pulls/[number]/_components/FindingCard";
+import { DiffRoleGroup } from "../../app/repos/[repoId]/pulls/[number]/_components/DiffRoleGroup";
 import { ConfirmDialog } from "../confirm-dialog";
 import { SkillCard } from "../../app/skills/_components/SkillCard";
 import { SkillPreviewDrawer } from "../../app/skills/_components/SkillPreviewDrawer";
@@ -58,6 +66,10 @@ import {
   SEVERITIES,
   CATEGORIES,
   MODEL_OPTIONS,
+  SHOWCASE_DIFF_FILE,
+  SHOWCASE_FINDING,
+  SHOWCASE_FINDING_OUTSIDE,
+  SHOWCASE_INTENT,
   SHOWCASE_SKILL,
   SHOWCASE_CONVENTION,
   SHOWCASE_CONVENTION_PENDING,
@@ -324,6 +336,70 @@ export function Gallery() {
           </Group>
         </NextIntlClientProvider>
       </QueryClientProvider>
+
+      {/* Smart Diff: file card with review findings, and the role group header.
+          Both are presentational (the finding card arrives as a render prop). */}
+      <NextIntlClientProvider locale="en" messages={{ prReview: prReviewMessages, shell: shellMessages }}>
+        <Group title="Smart Diff (FileCard with findings / DiffRoleGroup)">
+          <div style={s.w460}>
+            <FileCard
+              file={SHOWCASE_DIFF_FILE}
+              hasFindings
+              findings={{
+                findings: [SHOWCASE_FINDING, SHOWCASE_FINDING_OUTSIDE],
+                renderFinding: (f) => <FindingCard f={f} defaultExpanded />,
+              }}
+            />
+          </div>
+          <div style={s.w460}>
+            <DiffRoleGroup
+              role="core"
+              label={prReviewMessages.smartDiff.coreLabel}
+              hint={prReviewMessages.smartDiff.coreHint}
+              fileCount={3}
+              filesWithFindings={2}
+            >
+              <div>Group body</div>
+            </DiffRoleGroup>
+            <DiffRoleGroup
+              role="docs"
+              label={prReviewMessages.smartDiff.docsLabel}
+              hint={prReviewMessages.smartDiff.docsHint}
+              fileCount={1}
+              filesWithFindings={0}
+              defaultOpen={false}
+            />
+            <DiffRoleGroup
+              role="wiring"
+              label={prReviewMessages.smartDiff.wiringLabel}
+              hint={prReviewMessages.smartDiff.wiringHint}
+              fileCount={0}
+              filesWithFindings={0}
+            />
+          </div>
+        </Group>
+      </NextIntlClientProvider>
+
+      {/* Intent layer card: presentational, shown in its four variants. */}
+      <NextIntlClientProvider locale="en" messages={{ intent: intentMessages }}>
+        <Group title="Intent (IntentCard: loaded / empty / generating / error)">
+          <div style={s.w460}>
+            <IntentCard intent={SHOWCASE_INTENT} isLoading={false} isError={false} onRetry={() => {}} onRecalculate={() => {}} isRecalculating={false} recalcError={null} />
+          </div>
+          <div style={s.w460}>
+            <IntentCard intent={null} isLoading={false} isError={false} onRetry={() => {}} onRecalculate={() => {}} isRecalculating={false} recalcError={null} />
+          </div>
+          <div style={s.w460}>
+            <IntentCard intent={SHOWCASE_INTENT} isLoading={false} isError={false} onRetry={() => {}} onRecalculate={() => {}} isRecalculating={true} recalcError={null} />
+          </div>
+          <div style={s.w460}>
+            <IntentCard intent={SHOWCASE_INTENT} isLoading={false} isError={false} onRetry={() => {}} onRecalculate={() => {}} isRecalculating={false} recalcError={new ApiError("out of credit", 402, "llm_payment_required")} />
+          </div>
+          <div style={s.w460}>
+            <IntentCard intent={undefined} isLoading={false} isError={true} onRetry={() => {}} onRecalculate={() => {}} isRecalculating={false} recalcError={null} />
+          </div>
+        </Group>
+      </NextIntlClientProvider>
 
       {confirm && (
         <ConfirmDialog

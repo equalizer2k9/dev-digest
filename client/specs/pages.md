@@ -293,14 +293,16 @@ being fetchable means no detail request is ever made.
 |---|---|---|
 | number → uuid | `usePulls(repoId)` | `GET /repos/:repoId/pulls` |
 | PR header, body, files, commits | `usePullDetail(prId)` | `GET /pulls/:prId` |
-| Persisted runs + findings | `usePrReviews(prId)` | `GET /pulls/:prId/reviews` |
+| Persisted runs + findings | `usePrReviews(prId)` (also read by [DiffTab](<../src/app/repos/[repoId]/pulls/[number]/_components/DiffTab/DiffTab.tsx>) for the findings in the diff) | `GET /pulls/:prId/reviews` |
+| Files grouped by role | `useSmartDiff(prId)` ([DiffTab](<../src/app/repos/[repoId]/pulls/[number]/_components/DiffTab/DiffTab.tsx>)) | `GET /pulls/:prId/smart-diff` |
 | In-flight runs (live state) | `usePrActiveRuns(prId)` | `GET /pulls/:prId/runs/active` (4 s poll while non-empty) |
 | Full run history (timeline) | `usePrRuns(prId)` | `GET /pulls/:prId/runs` (4 s poll while any run is running) |
+| Refresh reviews when runs settle | `useRefreshReviewsOnRunSettle(prId)` (page, every tab) | invalidates `["reviews", prId]` and `["smart-diff", prId]` when active runs go from some to none |
 | Delete a run | `useDeleteRun(prId)` | `DELETE /runs/:runId` |
 | Cancel a run | `useCancelRun` | `POST /runs/:runId/cancel` |
 | Start a review | `useRunReview` + `useAgents` ([RunReviewDropdown](<../src/app/repos/[repoId]/pulls/[number]/_components/RunReviewDropdown/RunReviewDropdown.tsx>)) | `POST /pulls/:prId/review`, `GET /agents` |
 | Delete one run's review | `useDeleteReview(prId)` ([ReviewRunAccordion](<../src/app/repos/[repoId]/pulls/[number]/_components/ReviewRunAccordion/ReviewRunAccordion.tsx>)) | `DELETE /reviews/:reviewId` |
-| Accept / dismiss a finding | `useFindingAction` ([FindingsPanel](<../src/app/repos/[repoId]/pulls/[number]/_components/FindingsPanel/FindingsPanel.tsx>)) | `POST /findings/:findingId/accept` · `/dismiss` |
+| Accept / dismiss a finding | `useFindingAction` ([FindingsPanel](<../src/app/repos/[repoId]/pulls/[number]/_components/FindingsPanel/FindingsPanel.tsx>), and [DiffTab](<../src/app/repos/[repoId]/pulls/[number]/_components/DiffTab/DiffTab.tsx>) on a finding comment) | `POST /findings/:findingId/accept` · `/dismiss` |
 | Live log | `useRunEvents` ([RunStatus](<../src/app/repos/[repoId]/pulls/[number]/_components/RunStatus/RunStatus.tsx>)) | **SSE** `GET /runs/:runId/events` |
 | Run trace document | `useRunTrace` ([RunTraceDrawer](<../src/app/repos/[repoId]/pulls/[number]/_components/RunTraceDrawer/RunTraceDrawer.tsx>)) | `GET /runs/:runId/trace` |
 | Inline GitHub comments | `usePrComments`, `useCreatePrComment` ([DiffTab](<../src/app/repos/[repoId]/pulls/[number]/_components/DiffTab/DiffTab.tsx>)) | `GET` / `POST /pulls/:prId/comments` |
@@ -314,7 +316,7 @@ the value is `null`.
 
 - `overview` → [OverviewTab](<../src/app/repos/[repoId]/pulls/[number]/_components/OverviewTab/OverviewTab.tsx>) — the PR description, or nothing at all when `pr.body` is empty.
 - `findings` → [FindingsTab](<../src/app/repos/[repoId]/pulls/[number]/_components/FindingsTab/FindingsTab.tsx>) — live-run log, the lethal-trifecta banner, the run/commit timeline, then one `ReviewRunAccordion` per run (newest first, first one open). Its per-run counters and severity filter are specified in [findings-severity-counters.md](findings-severity-counters.md).
-- `diff` → [DiffTab](<../src/app/repos/[repoId]/pulls/[number]/_components/DiffTab/DiffTab.tsx>) — the file-by-file diff; inline commenting is offered only when `pr.status === "open"` and a `prId` is known, and existing comments start hidden behind a toggle.
+- `diff` → [DiffTab](<../src/app/repos/[repoId]/pulls/[number]/_components/DiffTab/DiffTab.tsx>) — the file-by-file diff, grouped by role (core · tests · wiring · docs · boilerplate; docs and boilerplate start collapsed) with a Smart order / Original order switch, specified in [smart-diff.md](smart-diff.md). Review findings show as a counter on the group header, a dot on the file card and a comment under their line. Inline commenting is offered only when `pr.status === "open"` and a `prId` is known. Comments are shown by default when the PR has findings (hidden otherwise); one toggle hides GitHub comments and finding comments together.
 
 **States.**
 

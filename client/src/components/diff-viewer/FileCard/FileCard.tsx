@@ -11,13 +11,17 @@ import { parsePatch, type Line } from "../helpers";
 import {
   buildThreads,
   keysForLine,
+  partitionFindings,
   partitionThreads,
   type CommentThread,
   type DiffCommentApi,
+  type DiffFindingsApi,
 } from "../comments";
-import { s, chevronFor } from "../styles";
+import type { FindingRecord } from "@devdigest/shared";
+import { s, chevronFor, findingDot } from "../styles";
 import { CodeLine } from "../CodeLine";
 import { OutdatedComments } from "../OutdatedComments";
+import { FindingsOutsideDiff } from "../FindingsOutsideDiff";
 
 /** Threads anchored to a given parsed line (RIGHT=new, LEFT=old). */
 function threadsForLine(ln: Line, matched: Map<string, CommentThread[]>): CommentThread[] {
@@ -30,10 +34,36 @@ function threadsForLine(ln: Line, matched: Map<string, CommentThread[]>): Commen
   return out;
 }
 
-export function FileCard({ file, commenting }: { file: PrFile; commenting?: DiffCommentApi }) {
+/** Findings anchored to a given parsed line. */
+function findingsForLine(ln: Line, matched: Map<string, FindingRecord[]>): FindingRecord[] {
+  if (matched.size === 0) return [];
+  const out: FindingRecord[] = [];
+  for (const key of keysForLine(ln)) {
+    const list = matched.get(key);
+    if (list) out.push(...list);
+  }
+  return out;
+}
+
+export function FileCard({
+  file,
+  commenting,
+  findings,
+  hasFindings = false,
+  defaultOpen,
+}: {
+  file: PrFile;
+  commenting?: DiffCommentApi;
+  findings?: DiffFindingsApi;
+  /** Draws the "has findings" dot. Decided by the caller from the smart-diff
+     response (`finding_lines`), not derived from `findings`. */
+  hasFindings?: boolean;
+  /** Overrides the size rule (a collapsed group starts its cards closed). */
+  defaultOpen?: boolean;
+}) {
   const t = useTranslations("shell");
   const [open, setOpen] = React.useState(
-    (file.additions ?? 0) + (file.deletions ?? 0) <= AUTO_EXPAND_MAX_LINES
+    defaultOpen ?? (file.additions ?? 0) + (file.deletions ?? 0) <= AUTO_EXPAND_MAX_LINES
   );
   const lines = React.useMemo(() => parsePatch(file.patch), [file.patch]);
 
@@ -48,6 +78,19 @@ export function FileCard({ file, commenting }: { file: PrFile; commenting?: Diff
     return partitionThreads(fileThreads, renderedKeys);
   }, [comments, file.path, lines]);
 
+  // This file's review findings: anchored to a rendered row, or "outside" the patch.
+  const allFindings = findings?.findings;
+  const fileFindings = React.useMemo(
+    () => (allFindings ?? []).filter((f) => f.file === file.path),
+    [allFindings, file.path],
+  );
+  const { matchedFindings, outsideFindings } = React.useMemo(() => {
+    const renderedKeys = new Set<string>();
+    for (const ln of lines) for (const k of keysForLine(ln)) renderedKeys.add(k);
+    const { matched, outside } = partitionFindings(fileFindings, renderedKeys);
+    return { matchedFindings: matched, outsideFindings: outside };
+  }, [fileFindings, lines]);
+
   const commentCount = commenting
     ? commenting.comments.filter((c) => c.path === file.path).length
     : 0;
@@ -57,9 +100,17 @@ export function FileCard({ file, commenting }: { file: PrFile; commenting?: Diff
       <div onClick={() => setOpen((o) => !o)} style={s.fileHeader}>
         <Icon.ChevronRight size={13} style={chevronFor(open)} />
         <Icon.FileText size={14} style={s.fileIcon} />
-        <span className="mono" style={s.filePath}>
+        <span className="mono" data-file-path="" style={s.filePath}>
           {file.path}
         </span>
+        {hasFindings && (
+          <span
+            role="img"
+            aria-label={t("diffViewer.hasFindings")}
+            data-finding-dot=""
+            style={findingDot}
+          />
+        )}
         <span className="mono tnum" style={s.fileStat}>
           <span style={s.addText}>+{file.additions}</span>{" "}
           <span style={s.delText}>−{file.deletions}</span>
@@ -85,8 +136,13 @@ export function FileCard({ file, commenting }: { file: PrFile; commenting?: Diff
                 path={file.path}
                 threads={threadsForLine(ln, matched)}
                 commenting={commenting}
+                findings={findings}
+                lineFindings={findingsForLine(ln, matchedFindings)}
               />
             ))
+          )}
+          {findings && (commenting?.showComments ?? true) && (
+            <FindingsOutsideDiff findings={outsideFindings} renderFinding={findings.renderFinding} />
           )}
           {commenting && commenting.showComments && <OutdatedComments threads={outdated} />}
         </div>
