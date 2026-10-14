@@ -8,7 +8,8 @@ import { useTranslations } from "next-intl";
 import { Badge, Button, SectionLabel, Skeleton } from "@devdigest/ui";
 import type { PrBrief, Risk } from "@devdigest/shared";
 import { SEVERITY_COLORS, SEVERITY_KEYS } from "./constants";
-import { focusLabel, isStale, visiblePath } from "./helpers";
+import { visiblePath } from "@/lib/visible-path";
+import { focusLabel, isStale } from "./helpers";
 import { s } from "./styles";
 
 interface PrBriefBlockProps {

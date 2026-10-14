@@ -85,7 +85,7 @@ export function ProjectContextView() {
       </div>
     );
   } else if (isError || !data) {
-    content = <ErrorState body={t("loadError")} onRetry={() => refetch()} />;
+    content = <ErrorState title={t("loadErrorTitle")} body={t("loadError")} onRetry={() => refetch()} />;
   } else if (!data.has_clone) {
     content = <EmptyState icon="Folder" title={t("noClone.title")} body={t("noClone.body")} />;
   } else if (documents.length === 0) {

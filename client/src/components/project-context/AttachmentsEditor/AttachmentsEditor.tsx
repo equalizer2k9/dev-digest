@@ -83,11 +83,11 @@ export function AttachmentsEditor({ owner, ownerId }: AttachmentsEditorProps) {
     );
   }
   if (list.isError || !list.data) {
-    return <ErrorState body={t("loadError")} onRetry={() => list.refetch()} />;
+    return <ErrorState title={t("loadErrorTitle")} body={t("loadError")} onRetry={() => list.refetch()} />;
   }
   if (attachments.isError || !attachments.data) {
     // Writing without knowing the stored list would replace it with a guess.
-    return <ErrorState body={t("loadError")} onRetry={() => attachments.refetch()} />;
+    return <ErrorState title={t("loadErrorTitle")} body={t("loadError")} onRetry={() => attachments.refetch()} />;
   }
   if (documents.length === 0 && order.length === 0) {
     return <EmptyState icon="Folder" title={t("empty.title")} body={t("empty.body")} />;

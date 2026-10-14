@@ -39,8 +39,7 @@ export const s = {
     border: "1px solid " + (selected ? "var(--accent)" : "var(--border)"),
     background: "var(--bg-elevated)",
   }),
-  checkbox: { accentColor: "var(--accent)", margin: 0, flexShrink: 0 } satisfies CSSProperties,
-  checkboxSpacer: { display: "inline-block", width: 13, flexShrink: 0 } satisfies CSSProperties,
+  checkboxSpacer: { display: "inline-block", width: 16, flexShrink: 0 } satisfies CSSProperties,
   pathBtn: {
     flex: 1,
     minWidth: 0,

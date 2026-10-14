@@ -95,9 +95,22 @@ describe("ProjectContextView", () => {
     expect(screen.queryByText(messages.loadError)).not.toBeInTheDocument();
   });
 
+  it("AC-33: loading renders the skeleton placeholder rows", () => {
+    state.list = { ...state.list, data: undefined, isLoading: true };
+    const { container } = renderView();
+    expect(container.querySelectorAll(".skeleton").length).toBeGreaterThan(0);
+  });
+
+  it("AC-33: once loaded the skeleton placeholder is gone", () => {
+    const { container } = renderView();
+    expect(container.querySelectorAll(".skeleton")).toHaveLength(0);
+  });
+
   it("a load error shows its copy and a retry that calls refetch", () => {
     state.list = { ...state.list, data: undefined, isError: true };
     renderView();
+    expect(screen.getByText(messages.loadErrorTitle)).toBeInTheDocument();
+    expect(screen.queryByText("Something went wrong")).not.toBeInTheDocument();
     expect(screen.getByText(messages.loadError)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(state.list.refetch).toHaveBeenCalled();

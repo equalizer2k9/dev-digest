@@ -5,7 +5,7 @@
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { Badge, Icon, IconBtn } from "@devdigest/ui";
+import { Badge, Checkbox, Icon, IconBtn } from "@devdigest/ui";
 import type {
   ProjectContextDocument,
   ProjectContextEffective,
@@ -79,12 +79,10 @@ export function DocPicker({
               {row.kind === "skill" ? (
                 <span style={s.checkboxSpacer} />
               ) : (
-                <input
-                  type="checkbox"
-                  style={s.checkbox}
+                <Checkbox
                   checked={row.kind === "attached"}
-                  aria-label={t("picker.attach", { path: shown })}
-                  onChange={(e) => onToggle(row.path, e.target.checked)}
+                  ariaLabel={t("picker.attach", { path: shown })}
+                  onChange={(on) => onToggle(row.path, on)}
                 />
               )}
               <button type="button" className="mono" style={s.pathBtn} onClick={() => onSelect(row.path)}>

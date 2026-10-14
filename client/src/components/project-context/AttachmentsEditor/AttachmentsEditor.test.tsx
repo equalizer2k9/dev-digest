@@ -169,12 +169,33 @@ describe("AttachmentsEditor", () => {
       expect(screen.queryByText(messages.noClone.title)).not.toBeInTheDocument();
     });
 
+    it("AC-33: loading renders the skeleton placeholder", () => {
+      state.list = { ...state.list, data: undefined, isLoading: true };
+      const { container } = renderEditor();
+      expect(container.querySelectorAll(".skeleton").length).toBeGreaterThan(0);
+    });
+
+    it("AC-33: once loaded the skeleton placeholder is gone", () => {
+      const { container } = renderEditor();
+      expect(container.querySelectorAll(".skeleton")).toHaveLength(0);
+    });
+
     it("a load error shows its copy and a retry", () => {
       state.list = { ...state.list, data: undefined, isError: true };
       renderEditor();
+      expect(screen.getByText(messages.loadErrorTitle)).toBeInTheDocument();
+      expect(screen.queryByText("Something went wrong")).not.toBeInTheDocument();
       expect(screen.getByText(messages.loadError)).toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: "Retry" }));
       expect(state.list.refetch).toHaveBeenCalled();
+    });
+
+    it("an attachments load error shows the same titled error and retries it", () => {
+      state.attachments = { ...state.attachments, data: undefined, isError: true };
+      renderEditor();
+      expect(screen.getByText(messages.loadErrorTitle)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+      expect(state.attachments.refetch).toHaveBeenCalled();
     });
 
     it("zero documents and nothing attached shows the empty state", () => {

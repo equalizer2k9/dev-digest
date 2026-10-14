@@ -18,6 +18,7 @@
     "title": "No local clone",
     "body": "This repository has no clone on disk yet, so there are no documents to list. Import or re-sync the repository first."
   },
+  "loadErrorTitle": "Project documents unavailable",
   "loadError": "Couldn’t load the project documents",
   "truncated": "The list is cut at the first 500 documents.",
   "preview": {

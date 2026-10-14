@@ -86,6 +86,12 @@ describe("DocPicker", () => {
     expect(onSelect).toHaveBeenCalledWith("specs/x.md");
   });
 
+  it("clicking a path does not toggle its checkbox", () => {
+    const { onToggle } = setup();
+    fireEvent.click(screen.getByText("specs/x.md"));
+    expect(onToggle).not.toHaveBeenCalled();
+  });
+
   it("typing filters the rows by path, ignoring case", () => {
     setup();
     fireEvent.change(screen.getByPlaceholderText(messages.picker.search), { target: { value: "ARCH" } });

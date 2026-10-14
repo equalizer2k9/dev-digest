@@ -207,7 +207,8 @@ describe("PrBriefBlock", () => {
 
 describe("visiblePath — control and bidi characters in a displayed path", () => {
   it("writes them as visible escapes and leaves an ordinary path alone", async () => {
-    const { focusLabel, visiblePath } = await import("./helpers");
+    const { focusLabel } = await import("./helpers");
+    const { visiblePath } = await import("@/lib/visible-path");
     expect(visiblePath("src/modules/brief/helpers.ts")).toBe("src/modules/brief/helpers.ts");
     expect(visiblePath("src/a‮gnp.ts")).toBe("src/a\\u{202e}gnp.ts");
     expect(visiblePath("src/a​b\nc.ts")).toBe("src/a\\u{200b}b\\u{a}c.ts");

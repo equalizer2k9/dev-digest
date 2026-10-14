@@ -34,6 +34,20 @@ describe("DocPreview", () => {
     expect(hrefs.some((h) => h.toLowerCase().startsWith("javascript:"))).toBe(false);
   });
 
+  it("loads no remote image: the alt text is shown instead of an <img>", () => {
+    const { container } = setup({
+      content: "Before ![the diagram](https://attacker.example/x.png) and ![](//attacker.example/y.png)",
+    });
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.innerHTML).not.toContain("attacker.example");
+    expect(screen.getByText("the diagram")).toBeInTheDocument();
+  });
+
+  it("shows a plain link text that stays a normal link", () => {
+    setup({ content: "[docs](https://example.com/a)" });
+    expect(screen.getByRole("link", { name: "docs" })).toHaveAttribute("href", "https://example.com/a");
+  });
+
   it("shows a placeholder while loading", () => {
     setup({ status: "loading", content: null });
     expect(screen.getByText(messages.preview.loading)).toBeInTheDocument();

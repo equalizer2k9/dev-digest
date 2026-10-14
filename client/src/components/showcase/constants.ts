@@ -6,6 +6,7 @@ import type {
   PrBrief,
   PrFile,
   PrIntentDetail,
+  ProjectContextAttachments,
   ProjectContextDocument,
   ProjectContextEffective,
   SkillWithUsage,
@@ -174,3 +175,12 @@ export const SHOWCASE_CONTEXT_EFFECTIVE: ProjectContextEffective[] = [
 
 export const SHOWCASE_CONTEXT_MARKDOWN =
   "# Architecture\n\nThe `api/` layer never imports `db/` directly.\n\n- routes call services\n- services call repositories";
+
+/** Static data the AttachmentsEditor group is seeded with — the gallery never calls the API. */
+export const SHOWCASE_CONTEXT_REPO_ID = "repo-demo";
+export const SHOWCASE_CONTEXT_OWNER_ID = "agent-demo";
+export const SHOWCASE_CONTEXT_ATTACHMENTS: ProjectContextAttachments = {
+  repo_id: SHOWCASE_CONTEXT_REPO_ID,
+  attached: ["docs/architecture.md"],
+  effective: SHOWCASE_CONTEXT_EFFECTIVE,
+};

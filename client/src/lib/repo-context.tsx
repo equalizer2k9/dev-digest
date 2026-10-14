@@ -7,7 +7,8 @@ import { usePathname } from "next/navigation";
 import { useRepos } from "./hooks";
 import type { Repo } from "./types";
 
-const RepoCtx = React.createContext<{
+/** Exported so the showcase can fix a repo without the network (see Showcase.tsx). */
+export const RepoCtx = React.createContext<{
   repoId: string | null;
   setRepoId: (id: string) => void;
   repos: Repo[];

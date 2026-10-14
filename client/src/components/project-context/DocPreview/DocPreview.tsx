@@ -1,6 +1,7 @@
 /* DocPreview — read-only rendering of one project-context document. The text is
    untrusted repository content: it goes through the Markdown primitive only
-   (react-markdown, no raw-HTML plugin), never through innerHTML. */
+   (react-markdown, no raw-HTML plugin, images shown as alt text so nothing is
+   fetched), never through innerHTML. */
 "use client";
 
 import React from "react";
@@ -47,7 +48,7 @@ export function DocPreview({ status, path, content, onRetry }: DocPreviewProps) 
   } else {
     body = (
       <div style={s.body}>
-        <Markdown>{content}</Markdown>
+        <Markdown noImages>{content}</Markdown>
       </div>
     );
   }
