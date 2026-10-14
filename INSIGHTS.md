@@ -24,6 +24,10 @@ or delete; cleanup only via `/engineering-insights review root`.
 ## Tool & Library Notes
 <!-- Dependency and tooling quirks, with the version -->
 
+- **2026-10-14** · To restrict an eval session's tools, pass the Agent SDK `tools` option — `allowedTools` only auto-approves and removes nothing.
+  - Why: `evals/src/runtime/run-claude.ts` sets only `allowedTools` + `bypassPermissions`, so "read-only" and "no tools" sessions still get Bash/Write/Edit.
+  - Evidence: `@anthropic-ai/claude-agent-sdk` 0.3.198 `sdk.d.ts:1305-1311` · `evals/src/config.ts:28` · `evals/src/tasks.ts:50`
+
 ## Recurring Errors & Fixes
 <!-- Exact error text → real cause → fix -->
 

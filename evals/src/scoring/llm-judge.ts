@@ -7,6 +7,7 @@
 
 import { EVAL_JUDGE_MODEL } from "../config.js";
 import { runContent } from "../runtime/dispatch.js";
+import type { Metrics } from "../runtime/run-claude.js";
 
 const JUDGE_RUBRIC =
   "You are a strict, blind evaluator. Given an OUTPUT and a list of PRACTICES, judge each " +
@@ -21,6 +22,8 @@ export interface Verdict {
   passed: number;
   total: number;
   score: number;
+  /** The judge call's own cost — task metrics alone undercount a judged case. */
+  metrics: Metrics;
 }
 
 function parseVerdict(text: string): Verdict["results"] {
@@ -40,5 +43,5 @@ export async function llmJudge(output: string, practices: string[], model = EVAL
   const results = parseVerdict(res.text);
   const total = results.length || 1;
   const passed = results.filter((r) => r.passed).length;
-  return { results, passed, total, score: passed / total };
+  return { results, passed, total, score: passed / total, metrics: res.metrics };
 }

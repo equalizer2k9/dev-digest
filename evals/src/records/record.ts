@@ -73,6 +73,7 @@ export function record(label: string, data: RecordData): void {
     grounded,
     num_turns: result.numTurns,
     metrics: result.metrics,
+    judge_metrics: verdict?.metrics,
     trace: {
       tools: result.toolsUsed,
       subagents: result.subagents,

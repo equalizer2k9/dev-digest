@@ -12,6 +12,9 @@ export interface Metrics {
   durationMs: number;
   inputTokens: number;
   outputTokens: number;
+  /** Prompt tokens served from / written to the prompt cache — NOT included in inputTokens. */
+  cacheReadTokens?: number;
+  cacheCreationTokens?: number;
   /** Total tool_use blocks seen (NOT deduplicated — a measure of work done). */
   toolCallCount: number;
 }
@@ -64,6 +67,9 @@ export async function runClaude(prompt: string, opts: RunOptions = {}): Promise<
     maxTurns: opts.maxTurns ?? MAX_TURNS,
     permissionMode: "bypassPermissions", // safe: evals only read/plan and tools are allow-listed
     systemPrompt,
+    // `allowedTools` only auto-approves; `tools` is what actually limits the built-in set. Without
+    // it a bypassPermissions session keeps Bash/Write/Edit despite the read-only allow-list.
+    tools: allowedTools,
     allowedTools,
     cwd: opts.cwd ?? REPO_ROOT,
     // Default: do NOT load on-disk config — isolates the injected artifact. workflowTask overrides.
@@ -86,6 +92,8 @@ export async function runClaude(prompt: string, opts: RunOptions = {}): Promise<
   let durationMs = 0;
   let inputTokens = 0;
   let outputTokens = 0;
+  let cacheReadTokens = 0;
+  let cacheCreationTokens = 0;
   let stoppedEarly = false;
   // Wall-clock fallback: on an early stop we break before the result message that carries
   // duration_ms/usage, so those stay 0. Stamp duration ourselves, and accumulate output tokens
@@ -139,6 +147,8 @@ export async function runClaude(prompt: string, opts: RunOptions = {}): Promise<
         durationMs = m.duration_ms ?? 0;
         inputTokens = m.usage?.input_tokens ?? 0;
         outputTokens = m.usage?.output_tokens ?? 0;
+        cacheReadTokens = m.usage?.cache_read_input_tokens ?? 0;
+        cacheCreationTokens = m.usage?.cache_creation_input_tokens ?? 0;
         if (m.result) resultText = m.result;
       }
     }
@@ -160,6 +170,6 @@ export async function runClaude(prompt: string, opts: RunOptions = {}): Promise<
     filesRead: reads,
     numTurns,
     isError,
-    metrics: { durationMs, inputTokens, outputTokens, toolCallCount },
+    metrics: { durationMs, inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens, toolCallCount },
   };
 }
