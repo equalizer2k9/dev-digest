@@ -335,7 +335,24 @@ describe('ReviewRunExecutor — project documents', () => {
     });
     expect(userMessage).not.toContain('## Project context');
     expect(trace.project_context ?? []).toEqual([]);
-    expect(trace.log.filter((l) => l.msg.startsWith('context:') && l.msg.includes('db down'))).toHaveLength(1);
+    expect(trace.log.filter((l) => l.msg === 'context: lookup failed (Error)')).toHaveLength(1);
+  });
+
+  it('NFR-4: a failed lookup logs the error class or code, never its raw message', async () => {
+    const secret = '/home/u/clones/acme/api/.git/config token=ghp_SECRET';
+    const named = await runWith([], async () => {
+      throw new TypeError(secret);
+    });
+    const coded = await runWith([], async () => {
+      throw Object.assign(new Error(secret), { code: 'ECONNREFUSED' });
+    });
+    const msgs = (r: typeof named) => r.trace.log.map((l) => l.msg);
+    expect(msgs(named)).toContain('context: lookup failed (TypeError)');
+    expect(msgs(coded)).toContain('context: lookup failed (ECONNREFUSED)');
+    for (const m of [...msgs(named), ...msgs(coded)]) {
+      expect(m).not.toContain('ghp_SECRET');
+      expect(m).not.toContain('/home/u');
+    }
   });
 
   it('NFR-4: one log line per entry with path and tokens or reason, none with document text', async () => {

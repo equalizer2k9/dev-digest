@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RepoRef } from '@devdigest/shared';
 import { MockGitClient } from '../../adapters/mocks.js';
 import { FileTooLargeError } from '../../adapters/file-too-large.js';
-import { PathEscapeError } from '../../adapters/git/confine-path.js';
+import { PathEscapeError } from '@devdigest/shared';
 import type { Container } from '../../platform/container.js';
 import { NotFoundError } from '../../platform/errors.js';
 import { ProjectContextService } from './service.js';
@@ -429,6 +429,31 @@ describe('forBrief', () => {
     const out = await make().forBrief(WS, 'r1', 1000);
     expect(out.documents.map((d) => d.path)).toEqual(['docs/a.md', 'docs/shared.md', 'docs/b.md']);
     expect(out.skipped).toEqual([]);
+  });
+
+  it('AC-29 / SPEC-01 AC-34: agents returned out of name order -> documents in agent NAME order, a shared path once at its first position', async () => {
+    setUsage([
+      agentUsage('id-1', 'zeta', true, ['docs/z.md', 'docs/shared.md']),
+      agentUsage('id-2', 'alpha', true, ['docs/a1.md', 'docs/shared.md', 'docs/a2.md']),
+      agentUsage('id-3', 'mid', true, ['docs/m.md', 'docs/shared.md']),
+      agentUsage('id-4', 'beta-off', false, ['docs/off.md']),
+    ]);
+    git.files = {
+      'docs/z.md': 'Z',
+      'docs/a1.md': 'A1',
+      'docs/a2.md': 'A2',
+      'docs/m.md': 'M',
+      'docs/off.md': 'O',
+      'docs/shared.md': 'S',
+    };
+    const out = await make().forBrief(WS, 'r1', 1000);
+    expect(out.documents.map((d) => d.path)).toEqual([
+      'docs/a1.md',
+      'docs/shared.md',
+      'docs/a2.md',
+      'docs/m.md',
+      'docs/z.md',
+    ]);
   });
 
   it('stops reading once maxChars is passed', async () => {

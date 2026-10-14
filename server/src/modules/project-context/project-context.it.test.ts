@@ -7,7 +7,7 @@ import { buildApp } from '../../app.js';
 import { loadConfig } from '../../platform/config.js';
 import { MockGitClient, MockGitHubClient, MockLLMProvider, MockEmbedder } from '../../adapters/mocks.js';
 import { FileTooLargeError } from '../../adapters/file-too-large.js';
-import { PathEscapeError } from '../../adapters/git/confine-path.js';
+import { PathEscapeError } from '@devdigest/shared';
 import { documentTag } from './helpers.js';
 import { ProjectContextList, ProjectContextAttachments } from '@devdigest/shared';
 import type { RepoRef } from '@devdigest/shared';

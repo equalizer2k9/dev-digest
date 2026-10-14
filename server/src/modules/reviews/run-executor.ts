@@ -491,7 +491,10 @@ export class ReviewRunExecutor {
       return { documents, entries };
     } catch (err) {
       // Never let document loading break a run — degrade to no documents.
-      runLog.info(`context: lookup failed — ${(err as Error).message}`);
+      // Class name or code only: a raw message can carry a path or secret (NFR-4).
+      const code = (err as { code?: unknown } | null)?.code;
+      const kind = typeof code === 'string' ? code : ((err as Error | null)?.name ?? 'Error');
+      runLog.info(`context: lookup failed (${kind})`);
       return { documents: [], entries: null };
     }
   }

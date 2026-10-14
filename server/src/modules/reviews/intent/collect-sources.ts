@@ -3,7 +3,8 @@ import type { Container } from '../../../platform/container.js';
 import { MAX_DESCRIPTION_CHARS, MAX_SPEC_FILE_BYTES, MAX_SPEC_FILE_CHARS } from './constants.js';
 import { isFileTooLarge } from '../../../adapters/file-too-large.js';
 import { buildFileOutline } from './file-outline.js';
-import { parseReferences } from './parse-references.js';
+import { resolvedTargetRule } from '../../_shared/symlink-rule.js';
+import { normalizeRelPath, parseReferences } from './parse-references.js';
 
 /**
  * I/O half of the intent classifier input. Resolves the issues and plan / spec
@@ -127,7 +128,13 @@ async function readSpec(
     /* no token / network / 404 → next source */
   }
   try {
-    return nonEmpty(await container.git.readFile(repo, path, MAX_SPEC_FILE_BYTES));
+    return nonEmpty(await container.git.readFile(
+        repo,
+        path,
+        MAX_SPEC_FILE_BYTES,
+        // A committed symlink must not smuggle .git/config or a non-Markdown file in.
+        resolvedTargetRule((realRel) => normalizeRelPath(realRel) !== null),
+      ));
   } catch (err) {
     return isFileTooLarge(err) ? TOO_LARGE : null;
   }

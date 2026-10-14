@@ -751,3 +751,64 @@ describe('project documents in the brief input', () => {
     expect(calls(256)).toBeLessThan(calls(16) + 12);
   });
 });
+
+describe('buildBriefInput: budget order with an intent AND documents (AC-14 as amended by SPEC-02 AC-30)', () => {
+  const FILES_I: PrFileFacts[] = [
+    { path: 'src/a.ts', additions: 3, deletions: 1, patch: '@@ -1,2 +1,3 @@\n+x' },
+    { path: 'src/b.ts', additions: 1, deletions: 0, patch: '@@ -1,2 +1,3 @@\n+x' },
+  ];
+  const INTENT_I = {
+    intent: 'Add retry to the uploader',
+    in_scope: ['retry loop with backoff', 'configurable attempts'],
+    out_of_scope: ['UI changes', 'schema changes'],
+    confidence: 'high' as const,
+    stale: false,
+  };
+  const DOCS_I = Array.from({ length: 4 }, (_, i) => ({ path: `docs/d${i}.md`, text: `${i}`.repeat(300) }));
+  const lenCount = (t: string) => t.length;
+  const run = (documents: { path: string; text: string }[], budget: number) =>
+    buildBriefInput(buildFacts(pull, FILES_I, null, INTENT_I, documents), 'SYS', lenCount, budget);
+
+  const unlimited = 1e9;
+  const withAll = run(DOCS_I, unlimited);
+  const noDocs = run([], unlimited);
+  const perDoc = Math.round((withAll.tokens - noDocs.tokens) / DOCS_I.length);
+
+  it('AC-14: documents are dropped whole, last first, with the intent kept whole and the input within budget', () => {
+    const budget = noDocs.tokens + Math.round(perDoc * 2.5);
+    const out = run(DOCS_I, budget);
+    expect(out.tokens).toBeLessThanOrEqual(budget);
+    expect(out.documentPaths).toEqual(['docs/d0.md', 'docs/d1.md']);
+    // (c) no part of the intent is cut while a document remains
+    expect(blocks(out.user)['pr-intent']).toBe(blocks(noDocs.user)['pr-intent']);
+    for (const s of [...INTENT_I.in_scope, ...INTENT_I.out_of_scope]) expect(out.user).toContain(s);
+    expect(out.intentIncluded).toBe(true);
+    // a kept document is whole
+    expect(out.user).toContain(DOCS_I[1]!.text);
+    expect(out.user).not.toContain(DOCS_I[2]!.text);
+
+    const one = run(DOCS_I, noDocs.tokens + Math.round(perDoc * 1.5));
+    expect(one.documentPaths).toEqual(['docs/d0.md']);
+    expect(blocks(one.user)['pr-intent']).toBe(blocks(noDocs.user)['pr-intent']);
+  });
+
+  it('AC-14: the intent is reduced only after the document list is empty', () => {
+    // just under what the intent plus files need: every document must go, then the intent is cut
+    const tighter = noDocs.tokens - 20;
+    let out: ReturnType<typeof run> | undefined;
+    expect(() => {
+      out = run(DOCS_I, tighter);
+    }).not.toThrow();
+    expect(out!.documentPaths).toEqual([]);
+    expect(out!.user).not.toContain('project-doc');
+    expect(out!.tokens).toBeLessThanOrEqual(tighter);
+    const intentNow = blocks(out!.user)['pr-intent'] ?? '';
+    expect(intentNow.length).toBeLessThan((blocks(noDocs.user)['pr-intent'] ?? '').length);
+  });
+
+  it('AC-14: never throws at any budget, documents and intent together', () => {
+    for (const b of [0, 1, 50, noDocs.tokens - 200, noDocs.tokens, withAll.tokens - 1, withAll.tokens]) {
+      expect(() => run(DOCS_I, b)).not.toThrow();
+    }
+  });
+});

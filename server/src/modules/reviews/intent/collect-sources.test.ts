@@ -1,4 +1,8 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeAll, afterAll } from 'vitest';
+import { mkdtemp, mkdir, writeFile, symlink, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { SimpleGitClient } from '../../../adapters/git/simple-git.js';
 import type { Container } from '../../../platform/container.js';
 import { MockGitClient, MockGitHubClient } from '../../../adapters/mocks.js';
 import type { IssueMeta, RepoRef } from '@devdigest/shared';
@@ -247,5 +251,51 @@ describe('collectSources: refused references and fetch errors (S-AC-9, security 
     const src = out.sources.find((s) => s.ref === '#50')!;
     expect(src.reason).toBe('fetch_failed');
     expect(JSON.stringify(out.sources)).not.toContain('SENTINEL');
+  });
+});
+
+describe('collectSources: committed symlinks in the clone never reach the model (NFR-4)', () => {
+  let base: string;
+  let git: SimpleGitClient;
+
+  beforeAll(async () => {
+    base = await mkdtemp(join(tmpdir(), 'intent-symlink-'));
+    const root = join(base, 'acme', 'api');
+    await mkdir(join(root, '.git'), { recursive: true });
+    await mkdir(join(root, 'docs'), { recursive: true });
+    await writeFile(join(root, '.git', 'config'), '[remote "origin"] url = https://x:ghp_TOKEN@github.com/a/b');
+    await writeFile(join(root, '.git', 'notes.md'), 'GIT-NOTES');
+    await writeFile(join(root, '.env'), 'API_KEY=ENV-SECRET');
+    await writeFile(join(root, 'docs', 'real.md'), 'REAL SPEC');
+    await symlink('../.git/config', join(root, 'docs', 'cfg.md'));
+    await symlink('../.git/notes.md', join(root, 'docs', 'notes.md'));
+    await symlink('../.env', join(root, 'docs', 'env.md'));
+    await symlink('real.md', join(root, 'docs', 'ok.md'));
+    git = new SimpleGitClient(base);
+  });
+  afterAll(async () => {
+    await rm(base, { recursive: true, force: true });
+  });
+
+  const collect = (body: string) =>
+    collectSources({
+      container: { git, github: async () => new MockGitHubClient() } as unknown as Container,
+      repo,
+      pull: { title: 'T', body, headSha: 'abc1234' },
+      diff,
+    });
+
+  it('a symlink resolving into .git/ or to .env is not read', async () => {
+    const out = await collect('`docs/cfg.md` `docs/notes.md` `docs/env.md`');
+    expect(out.files).toEqual([]);
+    expect(JSON.stringify(out)).not.toMatch(/ghp_TOKEN|GIT-NOTES|ENV-SECRET/);
+    for (const ref of ['docs/cfg.md', 'docs/notes.md', 'docs/env.md']) {
+      expect(out.sources).toContainEqual(expect.objectContaining({ ref, status: 'missing' }));
+    }
+  });
+
+  it('a symlink to an acceptable Markdown file is still read', async () => {
+    const out = await collect('`docs/ok.md`');
+    expect(out.files).toEqual([{ path: 'docs/ok.md', content: 'REAL SPEC' }]);
   });
 });

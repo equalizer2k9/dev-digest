@@ -11,7 +11,8 @@ import type {
   GitCommit,
 } from '@devdigest/shared';
 import { parseUnifiedDiff } from './diff-parser.js';
-import { confinePath, isPathEscape } from './confine-path.js';
+import { isPathEscape } from '@devdigest/shared';
+import { confinePath } from './confine-path.js';
 import { listFiles } from './list-files.js';
 import { FileTooLargeError } from '../file-too-large.js';
 

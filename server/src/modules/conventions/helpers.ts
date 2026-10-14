@@ -25,6 +25,7 @@ import {
   NO_RANKED_SAMPLES_WARNING,
   PACKAGE_MANIFEST,
 } from './constants.js';
+import { resolvedTargetRule, sameKindAs } from '../_shared/symlink-rule.js';
 import type { ConventionRowWithSha } from './repository.js';
 
 /**
@@ -182,7 +183,7 @@ function join(dir: string, name: string): string {
 
 async function exists(container: Container, ref: RepoRef, path: string): Promise<boolean> {
   try {
-    await container.git.readFile(ref, path);
+    await container.git.readFile(ref, path, undefined, resolvedTargetRule(sameKindAs(path)));
     return true;
   } catch {
     return false;
@@ -197,7 +198,7 @@ async function readSample(
 ): Promise<ConventionSample | null> {
   let content: string;
   try {
-    content = await container.git.readFile(ref, path);
+    content = await container.git.readFile(ref, path, undefined, resolvedTargetRule(sameKindAs(path)));
   } catch {
     return null;
   }

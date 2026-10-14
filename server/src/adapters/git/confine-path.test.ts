@@ -2,7 +2,8 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtemp, mkdir, writeFile, symlink, rm, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { confinePath, isPathEscape } from './confine-path.js';
+import { isPathEscape } from '@devdigest/shared';
+import { confinePath } from './confine-path.js';
 import { SimpleGitClient } from './simple-git.js';
 
 /** S-AC-9: a path escaping the clone is rejected — absolute, `..`, symlink. */

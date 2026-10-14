@@ -8,10 +8,11 @@ import type {
   ProjectContextPreview,
   ProjectContextSkipReason,
 } from '@devdigest/shared';
+import { isPathEscape } from '@devdigest/shared';
+import { resolvedTargetRule } from '../_shared/symlink-rule.js';
 import type { Container } from '../../platform/container.js';
 import { AppError, NotFoundError } from '../../platform/errors.js';
 import { isFileTooLarge } from '../../adapters/file-too-large.js';
-import { isPathEscape } from '../../adapters/git/confine-path.js';
 import {
   IGNORED_SEGMENTS,
   MAX_DOCUMENTS,
@@ -76,7 +77,7 @@ export class ProjectContextService {
         MAX_DOCUMENT_BYTES,
         // The resolved target must itself be a document: a committed symlink must
         // not reach .git/config (clone token), .env or any non-document file.
-        (realRel) => documentTag(realRel) !== null,
+        resolvedTargetRule((realRel) => documentTag(realRel) !== null),
       );
     } catch (err) {
       if (isPathEscape(err)) return { ok: false, reason: 'outside_clone' };
