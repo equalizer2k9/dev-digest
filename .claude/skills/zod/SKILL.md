@@ -5,7 +5,7 @@ description: Zod schema validation best practices for type safety, parsing, and 
 
 # Zod Best Practices
 
-Comprehensive schema validation guide for Zod in TypeScript applications. Contains 43 rules across 8 categories, prioritized by impact to guide automated refactoring and code generation.
+A comprehensive schema validation guide for Zod in TypeScript applications. Contains 43 rules across 8 categories, prioritized by impact to guide automated refactoring and code generation.
 
 ## When to Apply
 
