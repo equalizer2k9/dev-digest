@@ -282,3 +282,83 @@ OpenRouter (Settings → Risk Brief). Перевірено в браузері �
 | client | чисто | 44 файли / 356; `pnpm build` — ok |
 | devdigest-mcp | чисто | 10 файлів / 64 |
 
+
+## 8. Повторна перевірка 2026-10-14 (після SPEC-02 і live check)
+
+Повний прогін усіх AC-1 … AC-36 на `feat/homework-5` @ `13aa54b`. Його робили два паралельні
+`plan-verifier`, як тепер передбачає `run-plan`:
+
+- **server-бік** — задачі T-1 … T-6 плану і серверна частина спільних AC;
+- **client-бік** — T-7 … T-10 і клієнтська частина спільних AC.
+
+Кожен отримав лише файли своєї групи від бази `a728862`. Для runtime-рядків вони брали докази з
+live check у `docs/hw5/plan-verification-pcf.md` §7 (PR #19, реальний виклик моделі). Агенти нічого не
+запускали; гейт прогнала головна сесія (`plan-verification-pcf.md` §8). Спільний AC має докази обох
+сторін і гірший зі статусів.
+
+Префікси шляхів:
+- `brief/` = `server/src/modules/brief/`
+- `pc/` = `server/src/modules/project-context/`
+- `PB/` = `client/src/app/repos/[repoId]/pulls/[number]/_components/PrBriefBlock/`
+- `OT/` = `…/_components/OverviewTab/`
+- `IC/` = `…/_components/IntentCard/`
+- `PG/` = `client/src/app/repos/[repoId]/pulls/[number]/`
+- `HK/` = `client/src/lib/hooks/`
+- `DV/` = `client/src/components/diff-viewer/`
+- `LIVE n` = рядок n таблиці Results у `plan-verification-pcf.md` §7
+
+| AC | Evidence | Status |
+|---|---|---|
+| AC-1 | `PB/PrBriefBlock.tsx:57-71`, `OT/OverviewTab.tsx:63-92`, `PG/page.tsx:149-155` › `PrBriefBlock.test.tsx:48-53`, `OverviewTab.test.tsx:135-139`; LIVE 8 | PASS |
+| AC-2 | server: `brief/routes.ts:30-40`, `brief/service.ts:141-155` › `brief.it.test.ts:152-167`; client: `OT/OverviewTab.tsx:71`, `HK/brief.ts:21-29` › `brief.test.ts:65-77`, `OverviewTab.test.tsx:147-155`; LIVE 8 | PASS |
+| AC-3 | `PB/PrBriefBlock.tsx:98-165` › `PrBriefBlock.test.tsx:55-64` | PASS |
+| AC-4 | `OT/OverviewTab.tsx:28,40-49,82-92` › `OverviewTab.test.tsx:135-139` | PASS |
+| AC-5 (amended) | `PB/PrBriefBlock.tsx:102-116`, `OT/OverviewTab.tsx:75` › `PrBriefBlock.test.tsx:172-183, 220-233`, `OverviewTab.test.tsx:276-290`; LIVE 8 | PASS |
+| AC-6 | server: `brief/helpers.ts:245-250, 256-257` › `helpers.test.ts:183-205`; client: `PB/PrBriefBlock.tsx:118-131,184-211` › `PrBriefBlock.test.tsx:76-83` | PASS |
+| AC-7 | server: `brief/helpers.ts:252-254` › `helpers.test.ts:183-205`; client: `PB/PrBriefBlock.tsx:138-164` › `PrBriefBlock.test.tsx:85-91` | PASS |
+| AC-8 | `brief/helpers.ts:256-263`, `brief/constants.ts:30-31` › `helpers.test.ts:207-221` | PASS |
+| AC-9 | server: `brief/service.ts:73-85` › `service.test.ts:95-107`, `brief.it.test.ts:179-193`; client: `PG/page.tsx:149-155`, `OT/OverviewTab.tsx:34-38` › `PrBriefBlock.test.tsx:155-164`, `OverviewTab.test.tsx:171-186` | PASS |
+| AC-10 | `brief/helpers.ts:245-250` › `helpers.test.ts:117` | PASS |
+| AC-11 | `brief/helpers.ts:252-254, 42-62, 129-141, 188-197` › `helpers.test.ts:132`, `helpers.bounds.test.ts:115-147` | PASS |
+| AC-12 | `brief/service.ts:88-93,127,143`, `brief/helpers.ts:185` › `service.test.ts:198-232`, `helpers.test.ts:151,170` | PASS |
+| AC-13 | one `completeStructured` with `maxRetries: 0` (`brief/service.ts:184-211`, `constants.ts:38`); the documents are read from the clone, the model is not asked for them (`service.ts:112-125`) › `service.test.ts:114-133, 420-429`; LIVE 9. Not covered: `server/src/adapters/llm/openai.ts:97-110` / `anthropic.ts:100` → `withRetry` (`server/src/platform/resilience.ts:47-58`) re-sends on 429/5xx | PARTIAL (by decision, `specs/pr-brief/plan.md:460`) |
+| AC-14 | `brief/helpers.ts:419-517`: cut order documents → intent lists → intent → other facts, never throws, no hunk body › `helpers.test.ts:316, 422, 713-726, 777-813` (the new cases with intent + documents), `helpers.bounds.test.ts:51-66` | PASS |
+| AC-15 | `brief/helpers.ts:304-305, 337-362` › `helpers.test.ts:300, 323` | PASS |
+| AC-16 | both `contracts/brief.ts` copies identical (`134-150` / `126-160`); validated against `PrBriefDraft` (`service.ts:194`), nothing stored on failure › `contracts.test.ts:351-353, 393-403`, `service.test.ts:124-133` | PASS |
+| AC-17 | `brief/service.ts:137,190,193` (`risk_brief`) › `service.test.ts:178-184`, `brief.it.test.ts:195-210` | PASS |
+| AC-18 | server: `brief/routes.ts:21-28` → `service.ts:60-70` › `brief.it.test.ts:152-167`, `routes.test.ts:25`; client: `HK/brief.ts:12-18`, `OT/OverviewTab.tsx:31-32` › `brief.test.ts:48-54`, `OverviewTab.test.tsx:141-145` | PASS |
+| AC-19 | `server/src/db/schema/reviews.ts:67-72`, `brief/repository.ts:25-30`, `service.ts:144` › `service.test.ts:186-196`, `brief.it.test.ts:169-177` | PASS |
+| AC-20 | `PB/PrBriefBlock.tsx:75-77`, `PB/helpers.ts:4` › `PrBriefBlock.test.tsx:93-100` | PASS |
+| AC-21 | server: `brief/service.ts:73-155`, `repository.ts:25-30` › `brief.it.test.ts:169-177`; client: `PB/PrBriefBlock.tsx:64-71`, `HK/brief.ts:28` › `PrBriefBlock.test.tsx:93-109`, `brief.test.ts:65-77` | PASS |
+| AC-22 | chain `PB/PrBriefBlock.tsx:145-152` → `PG/page.tsx:72-80,182-191` → `DiffTab.tsx:106,155` → `DV/DiffViewer/DiffViewer.tsx:43` → `DV/FileCard/FileCard.tsx:68-93` → `DV/CodeLine/CodeLine.tsx:64-71` › `page.test.tsx:114-126`, `DiffTab.test.tsx:360-367`, `FileCard.test.tsx:187-198`. `scrollIntoView` is mocked in the tests; scrolling to a line inside a collapsed group has not been seen in a browser | PARTIAL (by decision, `plan.md:462`) |
+| AC-23 | `PB/PrBriefBlock.tsx:191-203`, `DV/FileCard/FileCard.tsx:74-88` › `FileCard.test.tsx:200-209`, `page.test.tsx:128-138` | PASS |
+| AC-24 | `PB/PrBriefBlock.tsx:153-157, 204-208` › `PrBriefBlock.test.tsx:111-121` | PASS |
+| AC-25 | `PB/PrBriefBlock.tsx:182-212` › `PrBriefBlock.test.tsx:123-132` | PASS |
+| AC-26 | `PB/PrBriefBlock.tsx:67,83,90-96` › `PrBriefBlock.test.tsx:134-143`, `OverviewTab.test.tsx:157-162` | PASS |
+| AC-27 | `PB/PrBriefBlock.tsx:35-55`, `OT/OverviewTab.tsx:65` › `PrBriefBlock.test.tsx:145-153`, `OverviewTab.test.tsx:164-169` | PASS |
+| AC-28 | `PB/PrBriefBlock.tsx:79-88`, `HK/brief.ts:20-29` › `PrBriefBlock.test.tsx:155-164`, `brief.test.ts:79-91`, `OverviewTab.test.tsx:171-186` | PASS |
+| AC-29 | The block's own texts come from `brief` (`PB/PrBriefBlock.tsx:33,181`, `PB/constants.ts:4-8`). But the Intent block that AC-31 places inside the brief (`PB/PrBriefBlock.tsx:38,47,59`) takes its caption and texts from `intent` (`IC/IntentCard.tsx:47`), and its error state is the design-system `ErrorState` with a hardcoded "Retry" (`IC/IntentCard.tsx:66` → `client/src/vendor/ui/primitives/ErrorState.tsx:53-55`). `brief.json` `block.intent` exists but nothing uses it | **PARTIAL (new)** |
+| AC-30 | `brief/service.ts:173-177` → `reviews/repository/pull.repo.ts:9-19`, `brief/repository.ts:15-22` › `brief.it.test.ts:212-222`, `service.test.ts:109,402` | PASS |
+| AC-31 | server: `brief/service.ts:95-110`, `helpers.ts:326-335` › `service.test.ts:273-293, 361-382`, `brief.it.test.ts:282-306`, `helpers.test.ts:545-563`; client: `PB/PrBriefBlock.tsx:38,47,59`, `OT/OverviewTab.tsx:51-61,74-75` › `OverviewTab.test.tsx:263-274, 307-334`, `PrBriefBlock.test.tsx:191-205` | PASS |
+| AC-32 | server: only `IntentService.get` (`brief/service.ts:95-110`) › `service.test.ts:317-330, 420-429`, `brief.it.test.ts:298-306`; client: `OT/OverviewTab.tsx:71` › `OverviewTab.test.tsx:216-223`; LIVE 9. The "exactly one request" part carries the AC-13 caveat | PASS |
+| AC-33 | server: `reviews/intent/intent-service.ts:36`, `brief/helpers.ts:323-334` › `service.test.ts:295-315`, `brief.it.test.ts:308-321`; client: `IC/IntentCard.tsx:85` › `OverviewTab.test.tsx:292-305` | PASS |
+| AC-34 | `brief/service.ts:112-125` → `pc/service.ts:319-349` (enabled agents, by name, a path once; bad documents skipped) › `pc/service.test.ts:422-457` (incl. agents out of name order), `467-485`; `brief/service.test.ts:420-429, 454-459`; `brief.it.test.ts:122-140`; LIVE 8 | PASS |
+| AC-35 | `brief/helpers.ts:104-105, 167-205, 217` › `helpers.test.ts:697-711`, `service.test.ts:484-500`; LIVE 8 | PASS |
+| AC-36 | `brief/service.ts:151`, `helpers.ts:444` › `service.test.ts:431-452`, `brief.it.test.ts:122-140`; LIVE 8 | PASS |
+
+**Підсумок:**
+
+| | Кількість | AC |
+|---|---|---|
+| PASS | 33 | усі, крім трьох нижче |
+| PARTIAL | 3 | AC-13 (рішення), AC-22 (рішення), AC-29 (нове) |
+| MISSING | 0 | — |
+
+Проти §2 і §7:
+- **AC-29: PASS → PARTIAL.** Розрив з'явився разом з AC-31 (блок Intent усередині брифу, 2026-10-12); повторна перевірка тоді його не помітила.
+- **AC-14 і AC-34** тепер мають тести, яких бракувало: intent разом із документами під тісним бюджетом; агенти в неалфавітному порядку.
+- **AC-28 (бриф):** перевірено вживу на PR #19.
+
+**Відкрите:**
+- **AC-29.** Підпис і статичні тексти блоку Intent усередині брифу брати з `brief` (`block.intent` уже є), а кнопку повтору в стані помилки підписувати з message-файла. «Retry» живе в компоненті дизайн-системи `ErrorState`, тож потрібно або рендерити помилку без нього, або додати пропс до примітива. Рішення за власником.
+- **AC-13, AC-22** — без змін, PARTIAL за рішенням власника (`plan.md:460, 462`).
