@@ -89,7 +89,7 @@ PrBriefResponse      = { brief: PrBrief.nullable() }                            
 - Budget: `BRIEF_INPUT_TOKEN_BUDGET = 8_000`. It covers the whole input: system text (template + injection guard) plus the user message. The JSON-schema / tool envelope a provider adds around the messages is not counted.
 - Measured as `container.tokenizer.count(system + "\n\n" + user)` (`server/src/platform/container.ts:134-138`; `server/src/adapters/tokenizer/index.ts:28-42`, cl100k_base, `ceil(chars/4)` fallback at `:24-26`).
 - The builder is a pure function taking `count` as an argument. Build the full input first; if over budget, cut in this order, recounting the whole input after each cut and stopping as soon as it fits:
-  0. *(added with AC-31)* The stored PR intent: its in-scope and out-of-scope lists first, then the whole intent section. It goes before everything else, so no caller and no file row is cut to make room for it.
+  0. *(added with AC-31)* The stored PR intent: its in-scope and out-of-scope lists first, then the whole intent section. It goes before every other fact, so no caller and no file row is cut to make room for it — but after the attached documents, which the SPEC-02 step drops whole, last first, before step 0 (AC-14, amended 2026-10-14).
   1. Blast radius caller files, one caller file at a time, last in blast order first (blast order is rank-descending, `server/src/modules/blast/helpers.ts:40-41,67`). The blast summary line stays.
   2. File rows with role `boilerplate` or `docs`, lowest churn (`additions + deletions`) first.
   3. The tail of the PR description: keep the longest prefix that fits; if an empty description still does not fit, drop the description section.

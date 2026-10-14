@@ -97,9 +97,11 @@ Model call
 - AC-13 (P2-4). WHEN a brief is generated, the system shall send exactly one request to the model
   provider, with no re-ask after an invalid reply and no further request for attached documents.
 - AC-14 (P2-5). The system shall keep the whole input of the model call, attached documents included,
-  at or below 8 000 tokens as counted by the server's tokenizer — when it is over, first dropping
-  attached documents whole, last in order first, then reducing the other facts by the priority set in
-  the plan, never failing for size — and shall never include a diff hunk body in it.
+  at or below 8 000 tokens as counted by the server's tokenizer — when it is over, cutting in this
+  order and stopping as soon as it fits: first the attached documents, whole, last in order first;
+  then the stored intent (AC-31); then the other facts by the priority set in the plan; never failing
+  for size — and shall never include a diff hunk body in it. No part of the intent is cut while an
+  attached document remains, and no other fact is cut while any part of the intent remains.
 - AC-15. The system shall give the model these facts: the PR title; the PR description when present; per
   changed file its path, added and removed line counts, Smart Diff role and hunk line ranges as numbers
   only; and, when a blast radius is available, its summary and the file and line of each caller.
@@ -198,8 +200,8 @@ Feedback and access
 - EC-16. Attachments change after the brief was generated → the stored brief and its stored paths are
   not rewritten; the next generation uses the attachments of that moment (AC-21).
 - EC-17. The attached documents alone exceed what is left of the budget → dropped whole, last in order
-  first, down to none (AC-14); the block lists only the documents actually given, or "No specs
-  attached". A risk or a Review focus item naming a document that is not in the PR or its blast radius
+  first, down to none, and the intent is cut only after the last of them (AC-14); the block lists
+  only the documents actually given, or "No specs attached". A risk or a Review focus item naming a document that is not in the PR or its blast radius
   is dropped by AC-10 and AC-11 (AC-35).
 
 ## Non-functional requirements
@@ -287,3 +289,8 @@ above; details that are implementation rather than behaviour moved to the plan n
   Folder does not exist in this fork" no longer holds. The 8 000-token budget and the single model
   request do not change. The status returns to `implemented` when the plan-verifier matrix for the
   touched criteria has no MISSING row.
+- 2026-10-14 — AC-14 and EC-17 reworded: the order of cuts over the 8 000-token budget is stated in
+  the spec, not left to the plan — attached documents whole, last first; then the stored intent; then
+  the other facts. Reason: the spec only named documents first, and the plan's reduction listed the
+  intent as step 0, "before everything else", so the intent read as the first thing cut. The behaviour
+  planned for SPEC-02 already follows this order; status stays `approved`.

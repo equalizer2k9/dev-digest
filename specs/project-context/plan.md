@@ -387,7 +387,7 @@ Test:
   - each document is in its own `<untrusted source="project-doc">` block that starts with `Path: <path>`, in the given order, after the intent section (AC-29, SPEC-01 AC-34);
   - a document text with `</untrusted>` and a path with a newline and `|` stay inside one block; one opening and one closing delimiter per document (EC-11, EC-12);
   - `allowedPaths` and `pathAliases` do not contain a document path, and `groundDraft` drops a risk and a focus item that name it (AC-32, SPEC-01 AC-35, EC-23);
-  - over budget with three documents and a deterministic counter: the third goes first, then the second, then the first; while one document remains no caller, no file row and no intent list has been cut; `tokens ≤ budget` at the end (AC-30, SPEC-01 AC-14);
+  - over budget with three documents and a deterministic counter: the third goes first, then the second, then the first; while one document remains no caller, no file row and no intent list has been cut; once none remains, the intent lists and then the intent section go before any caller or file row; `tokens ≤ budget` at the end (AC-30, SPEC-01 AC-14);
   - documents alone larger than the budget → none remain, the rest of the input is the same as without documents, no throw (EC-21);
   - `documentPaths` lists exactly the documents left in the input (AC-31);
   - with no documents the user message is byte-equal to today's (regression for SPEC-01 AC-15);
@@ -576,7 +576,7 @@ Depends on: T-1
 |---|---|---|
 | AC-5 | T-16 | `PrBriefBlock.test.tsx` › stored paths listed in order; "No specs attached" for `[]` and for a brief without the field; no-intent statement unchanged |
 | AC-13 | T-9 | `brief/service.test.ts` › with documents `llm.calls.length === 1`, request carries `maxRetries: 0` |
-| AC-14 | T-9 | `brief/helpers.test.ts` › whole input ≤ 8 000 with documents; documents dropped whole, last first, before the existing reduction; no patch text; never throws |
+| AC-14 | T-9 | `brief/helpers.test.ts` › whole input ≤ 8 000 with documents; documents dropped whole, last first, then the intent, then the existing reduction; no patch text; never throws |
 | AC-16 | T-1, T-9 | `contracts.test.ts` › `PrBrief` with and without `context_docs`, both `brief.ts` copies byte-identical; `brief.it.test.ts` › a row without the field is still served |
 | AC-32 | T-9 | `brief/service.test.ts` › with documents attached, one request and no `recalculate` / `ensureForReview` call |
 | AC-34 | T-6, T-9 | `project-context/service.test.ts` › `forBrief` order, and missing / unreadable / escaping / too-large documents left out; `brief/helpers.test.ts` › documents as path-stating blocks; `brief/service.test.ts` › `forBrief` failing does not fail the generation |
