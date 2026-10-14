@@ -32,6 +32,10 @@ or delete; cleanup only via `/engineering-insights review root`.
   - Fix: kill the dev client BY PID, `rm -rf client/.next`, restart `./scripts/dev.sh`.
   - Evidence: `scripts/e2e.sh:42` · `scripts/e2e.sh:148`
   - Seen again 2026-10-07: killing only the client ends `dev.sh` but orphans the API (`tsx watch` child) on :3001 — kill it by PID too before restarting.
+- **2026-10-14** · `ERR_PNPM_IGNORED_BUILDS ... Ignored build scripts: esbuild@0.21.5, esbuild@0.28.1` on `pnpm install` in `evals/`
+  - Cause: pnpm 12 ignores `pnpm.onlyBuiltDependencies` in `evals/package.json`; build approval now lives in `allowBuilds` of `pnpm-workspace.yaml`.
+  - Fix: keep `evals/pnpm-workspace.yaml` (`allowBuilds: esbuild: true`) — it is settings for one package, not a workspace; regenerate via `pnpm install --allow-build=esbuild`.
+  - Evidence: pnpm v12.10.1 · `evals/pnpm-workspace.yaml`
 
 ## Session Notes
 <!-- ### YYYY-MM-DD — task: outcome, sections that got entries, what stayed open -->
