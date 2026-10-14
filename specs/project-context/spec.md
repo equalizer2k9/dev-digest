@@ -82,7 +82,9 @@ Non-goals:
 Definitions.
 
 - A **project-context document** of a repository is a file inside its clone whose repository-relative
-  path matches `**/{specs,docs,insights}/**/*.md` and has no `.git` or `node_modules` segment.
+  path matches `**/{specs,docs,insights}/**/*.md` and has no `.git` or `node_modules` segment. When
+  the path is a symbolic link, its resolved target must itself be a project-context document of the
+  same clone.
 - The **tag** of a document is the first segment of its path, from the left, that is `specs`, `docs` or
   `insights`.
 - An **attachment** binds one document — a repository plus a path — to one agent or one skill, at a
@@ -200,8 +202,10 @@ Feedback and lifecycle
 - EC-1. The same document attached to the agent and to one of its skills, or to two skills → given to
   the model once, at its first position (AC-13).
 - EC-2. A path under two roots (`docs/specs/a.md`) → one document, tagged by the leftmost root (`docs`).
-- EC-3. A symbolic link inside a root that points outside the clone → never read (AC-23); one that
-  resolves inside the clone is read like any file.
+- EC-3. A symbolic link inside a root that points outside the clone → never read (AC-23). One whose
+  target inside the clone is itself a project-context document → listed and read like any file. One
+  whose target is any other file of the clone (`.git/config`, `.env`, `src/a.md`) → neither listed nor
+  read, and recorded as `outside_clone` in a run.
 - EC-4. A document changed in the clone between attaching and a run → the run reads the current text;
   the "≈ N tokens" of AC-11 is an estimate for that reason.
 - EC-5. A document deleted, renamed or moved in the repository → skipped as missing (AC-22, AC-25).
@@ -345,3 +349,7 @@ reworded; one row added to its inputs table; its untrusted-inputs note extended;
   `truncated` marker; A-1 to A-15 accepted. Roots override in Settings moved to non-goals (NG5).
   Compressed from 64 to 36 acceptance criteria with no change of behaviour; criteria renumbered AC-1
   to AC-36. Status `draft` → `approved` on the user's instruction of the same day.
+- 2026-10-14 — EC-3 and the definition of a project-context document narrowed after the security
+  review of the implementation: a symbolic link counts only when its resolved target is itself a
+  project-context document of the same clone (a link to `.git/config` exposed the clone token).
+  Status unchanged.
