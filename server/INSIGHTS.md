@@ -44,6 +44,9 @@ or delete; cleanup only via `/engineering-insights review server`.
 - **2026-10-14** · ALWAYS persist a run's trace (`saveRunTrace`) BEFORE its terminal status (`completeAgentRun`) — on success, agent failure and `failAll`.
   - Why: readers (PR timeline, `test/helpers/runs.ts` `waitForPrRuns`) treat `done`/`failed` as "trace readable"; status-first left a window where `getRunTrace` returned `undefined`.
   - Evidence: `src/modules/reviews/run-executor.ts:89,384,410` · regression `run-executor.test.ts` › "the trace is stored before the terminal status" · symptom `TypeError: Cannot read properties of undefined (reading 'log')` in `test/intent.it.test.ts` sentinel test, ~1 in 3 full runs
+- **2026-10-14** · NEVER apply the `zod` skill's `parse-use-safeparse` to a request body — validate with route-level `schema: { body }`; invalid input answers 422.
+  - Why: the generic skill pushed a skill-creator run to `safeParse(req.body)` + hand-made `reply.code(400)`, breaking onion rule 7 and the app's error shape.
+  - Evidence: `src/app.ts:133` (validation → 422) · `test/routes-smoke.test.ts:63` · `docs/hw6/lab/exp1-skill-creator.md`
 
 ## Tool & Library Notes
 <!-- Dependency and tooling quirks, with the version -->
