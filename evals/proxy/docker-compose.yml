@@ -14,7 +14,9 @@ services:
     image: ghcr.io/berriai/litellm:main-stable
     container_name: devdigest-eval-litellm
     ports:
-      - "4000:4000"
+      # Loopback only: the proxy runs without a master_key and spends OPENROUTER_API_KEY, so a
+      # 0.0.0.0 bind would hand the key to anyone on the LAN (Docker port rules bypass ufw).
+      - "127.0.0.1:4000:4000"
     environment:
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:?set OPENROUTER_API_KEY in the environment}
     volumes:
