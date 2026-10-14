@@ -337,7 +337,7 @@ live check у `docs/hw5/plan-verification-pcf.md` §7 (PR #19, реальний 
 | AC-26 | `PB/PrBriefBlock.tsx:67,83,90-96` › `PrBriefBlock.test.tsx:134-143`, `OverviewTab.test.tsx:157-162` | PASS |
 | AC-27 | `PB/PrBriefBlock.tsx:35-55`, `OT/OverviewTab.tsx:65` › `PrBriefBlock.test.tsx:145-153`, `OverviewTab.test.tsx:164-169` | PASS |
 | AC-28 | `PB/PrBriefBlock.tsx:79-88`, `HK/brief.ts:20-29` › `PrBriefBlock.test.tsx:155-164`, `brief.test.ts:79-91`, `OverviewTab.test.tsx:171-186` | PASS |
-| AC-29 | The block's own texts come from `brief` (`PB/PrBriefBlock.tsx:33,181`, `PB/constants.ts:4-8`). But the Intent block that AC-31 places inside the brief (`PB/PrBriefBlock.tsx:38,47,59`) takes its caption and texts from `intent` (`IC/IntentCard.tsx:47`), and its error state is the design-system `ErrorState` with a hardcoded "Retry" (`IC/IntentCard.tsx:66` → `client/src/vendor/ui/primitives/ErrorState.tsx:53-55`). `brief.json` `block.intent` exists but nothing uses it | **PARTIAL (new)** |
+| AC-29 | Re-checked 2026-10-14 against the amended text (spec changelog of that date: the brief's own blocks; the reused IntentCard keeps `intent`, the design-system `ErrorState` keeps "Retry", as in SPEC-02 AC-35). Code: `PB/PrBriefBlock.tsx:33,181` — `useTranslations("brief")` is the only namespace; every text node and text attribute is a `t(...)` call (lines 39-40, 48-51, 60, 70, 76, 81, 84, 91, 100, 102, 105, 115, 118, 120, 134, 136, 156, 187, 207); no JSX literals. The Blast radius caption is a sibling block (`OT/OverviewTab.tsx:85`, AC-4), not one of the brief's own. Not covered by the tests: `PrBriefBlock.test.tsx` compares 16 of the 22 keys with `brief.json`; `title`, `loading`, `generating`, `block.summary`, `inputs.specs` and `severity.medium` are not asserted (`specs/pr-brief/plan.md:378` asks for every label) | PARTIAL (test gap only) |
 | AC-30 | `brief/service.ts:173-177` → `reviews/repository/pull.repo.ts:9-19`, `brief/repository.ts:15-22` › `brief.it.test.ts:212-222`, `service.test.ts:109,402` | PASS |
 | AC-31 | server: `brief/service.ts:95-110`, `helpers.ts:326-335` › `service.test.ts:273-293, 361-382`, `brief.it.test.ts:282-306`, `helpers.test.ts:545-563`; client: `PB/PrBriefBlock.tsx:38,47,59`, `OT/OverviewTab.tsx:51-61,74-75` › `OverviewTab.test.tsx:263-274, 307-334`, `PrBriefBlock.test.tsx:191-205` | PASS |
 | AC-32 | server: only `IntentService.get` (`brief/service.ts:95-110`) › `service.test.ts:317-330, 420-429`, `brief.it.test.ts:298-306`; client: `OT/OverviewTab.tsx:71` › `OverviewTab.test.tsx:216-223`; LIVE 9. The "exactly one request" part carries the AC-13 caveat | PASS |
@@ -351,7 +351,7 @@ live check у `docs/hw5/plan-verification-pcf.md` §7 (PR #19, реальний 
 | | Кількість | AC |
 |---|---|---|
 | PASS | 33 | усі, крім трьох нижче |
-| PARTIAL | 3 | AC-13 (рішення), AC-22 (рішення), AC-29 (нове) |
+| PARTIAL | 3 | AC-13 (рішення), AC-22 (рішення), AC-29 (код відповідає виправленому AC; бракує 6 перевірок підписів у тестах) |
 | MISSING | 0 | — |
 
 Проти §2 і §7:
@@ -360,5 +360,5 @@ live check у `docs/hw5/plan-verification-pcf.md` §7 (PR #19, реальний 
 - **AC-28 (бриф):** перевірено вживу на PR #19.
 
 **Відкрите:**
-- **AC-29.** Підпис і статичні тексти блоку Intent усередині брифу брати з `brief` (`block.intent` уже є), а кнопку повтору в стані помилки підписувати з message-файла. «Retry» живе в компоненті дизайн-системи `ErrorState`, тож потрібно або рендерити помилку без нього, або додати пропс до примітива. Рішення за власником.
+- **AC-29.** Спеку виправлено 2026-10-14: AC стосується лише власних блоків брифу, а `IntentCard` і «Retry» з `ErrorState` лежать поза ним. Повторна перевірка підтвердила, що код відповідає. Відкритим лишається тест: 6 ключів (`title`, `loading`, `generating`, `block.summary`, `inputs.specs`, `severity.medium`) не звіряються з `brief.json`. Закривається одним тестом.
 - **AC-13, AC-22** — без змін, PARTIAL за рішенням власника (`plan.md:460, 462`).

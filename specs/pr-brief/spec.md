@@ -161,8 +161,10 @@ Feedback and access
   "Generate brief"; IF loading fails THEN it shall display an error state distinct from "no brief yet".
 - AC-28. IF a generation fails THEN the system shall display an error message with a way to try again in
   the block, and keep displaying any previously stored brief.
-- AC-29 (P3-6). The system shall take every label and static text of the block from the studio's `brief`
-  message namespace.
+- AC-29 (P3-6). The system shall take every caption, label and static text of the brief's own blocks
+  from the studio's `brief` message namespace. The reused Intent card (AC-31) keeps its own `intent`
+  namespace, and the "Retry" label inside the design-system `ErrorState` is the design system's — the
+  same boundary as SPEC-02 AC-35.
 - AC-30. IF a brief is requested or generated for a pull request outside the caller's workspace THEN the
   system shall respond that the pull request was not found.
 
@@ -294,3 +296,7 @@ above; details that are implementation rather than behaviour moved to the plan n
   the other facts. Reason: the spec only named documents first, and the plan's reduction listed the
   intent as step 0, "before everything else", so the intent read as the first thing cut. The behaviour
   planned for SPEC-02 already follows this order; status stays `approved`.
+- 2026-10-14 — AC-29 narrowed to the brief's own blocks: the reused Intent card (AC-31) keeps its
+  `intent` namespace and the design-system `ErrorState` keeps its "Retry" label, as in SPEC-02 AC-35.
+  Reason: the full re-verification found the Intent card inside the brief, which AC-31 put there, using
+  `intent.json`. Status stays `approved`.
