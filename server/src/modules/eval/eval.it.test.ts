@@ -6,6 +6,7 @@ import * as t from '../../db/schema.js';
 import { buildApp } from '../../app.js';
 import { loadConfig } from '../../platform/config.js';
 import { MockGitHubClient, MockLLMProvider } from '../../adapters/mocks.js';
+import { EvalRepository } from './repository.js';
 import {
   EvalAgentOverview,
   EvalCaseCreated,
@@ -353,6 +354,29 @@ d('eval routes (Postgres)', () => {
     const dash = EvalDashboard.parse((await get('/evals/dashboard')).json());
     expect(dash.agents.map((a) => a.agent_id)).not.toContain(other.agent.id);
     expect(dash.recent_runs.map((r) => r.id)).not.toContain(otherRun!.id);
+  });
+
+  it('AC-32: the concurrent-insert fallback never returns another workspace\'s case', async () => {
+    const mine = await world(wsId);
+    const other = await world(otherWsId);
+    const otherFinding = await other.mkFinding(other.review.id, 'a.ts', 2, 2, 'accepted');
+    const [theirs] = await db()
+      .insert(t.evalCases)
+      .values({
+        workspaceId: otherWsId, ownerKind: 'agent', ownerId: other.agent.id, agentId: other.agent.id,
+        name: 'theirs', sourceFindingId: otherFinding.id,
+      })
+      .returning();
+    const result = await new EvalRepository(db()).createCaseExclusive(
+      {
+        workspaceId: wsId, ownerKind: 'agent', ownerId: mine.agent.id, agentId: mine.agent.id,
+        name: 'mine', sourceFindingId: otherFinding.id,
+      },
+      () => null,
+    );
+    expect(result).toEqual({ kind: 'unavailable' });
+    const rows = await db().select().from(t.evalCases).where(eq(t.evalCases.sourceFindingId, otherFinding.id));
+    expect(rows.map((r) => r.id)).toEqual([theirs!.id]);
   });
 
   it('AC-23: DELETE /agents/:id removes its cases and runs', async () => {

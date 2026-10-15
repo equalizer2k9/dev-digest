@@ -7,7 +7,8 @@ import type { Container } from '../../platform/container.js';
 import { ConfigError } from '../../platform/errors.js';
 import { taskInstruction } from '../_shared/task-line.js';
 import type { AgentRow } from '../../db/rows.js';
-import { MAX_ERROR_CHARS } from './constants.js';
+import { TimeoutError } from '../../platform/resilience.js';
+import { EVAL_CASE_TIMEOUT_MS } from './constants.js';
 import { frozenDiff } from './helpers.js';
 import type { EvalCaseDbRow, EvalRepository, FinishedRunValues } from './repository.js';
 import { EvalRunExecutor } from './run-executor.js';
@@ -17,7 +18,9 @@ const AGENT_PROMPT = 'You are the test agent.';
 const PATCH = '@@ -1,3 +1,4 @@\n a\n+b\n c\n d';
 const AUTHOR = 'zed-the-author';
 
-type Handler = (req: StructuredRequest<Review>) => Review | Error;
+/** Returned by a handler to make that call hang forever. */
+const HANG = Symbol('hang');
+type Handler = (req: StructuredRequest<Review>) => Review | Error | typeof HANG;
 
 /** Records every structured request and answers from per-call handlers. */
 class RecordingLLM extends MockLLMProvider {
@@ -30,6 +33,7 @@ class RecordingLLM extends MockLLMProvider {
     this.requests.push(req as unknown as StructuredRequest<Review>);
     const h = this.handlers[this.requests.length - 1] ?? this.fallback;
     const out = h(req as unknown as StructuredRequest<Review>);
+    if (out === HANG) return new Promise<never>(() => undefined);
     if (out instanceof Error) throw out;
     return {
       data: out as unknown as T,
@@ -115,7 +119,7 @@ const SKILLS: SkillPart[] = [
   { id: 's2', name: 'Skill Two', version: 1, body: 'Skill two body', trusted: false },
 ];
 
-function setup(llm = new RecordingLLM()) {
+function setup(llm = new RecordingLLM(), caseTimeoutMs?: number) {
   const llmFactory = vi.fn(async () => llm);
   const container = {
     llm: llmFactory,
@@ -130,7 +134,7 @@ function setup(llm = new RecordingLLM()) {
     }),
     failRun: vi.fn(async () => true),
   };
-  const executor = new EvalRunExecutor(container, repo as unknown as EvalRepository);
+  const executor = new EvalRunExecutor(container, repo as unknown as EvalRepository, caseTimeoutMs);
   return { llm, llmFactory, repo, finished, executor };
 }
 
@@ -248,7 +252,7 @@ describe('EvalRunExecutor', () => {
     expect(s.llm.requests).toHaveLength(3);
     const v = s.finished[0]!.v;
     expect(v.results.map((r) => r.status)).toEqual(['failed', 'error', 'failed']);
-    expect(v.results[1]!.error).toBe('provider exploded');
+    expect(v.results[1]!.error).toBe('model call failed (Error)');
     expect(v.results[1]!.cost_usd).toBeNull();
     expect(v.hasErrors).toBe(true);
     expect(v.passed).toBe(0);
@@ -256,22 +260,45 @@ describe('EvalRunExecutor', () => {
   });
 
   it.each([
-    ['structured output retries exhausted', 'Structured output failed after 3 attempts'],
-    ['provider timeout', 'Operation timed out after 60000ms'],
-  ])('AC-14: %s on case 2 is one error result', async (_n, msg) => {
-    s.llm.handlers[1] = () => new Error(msg);
+    ['structured output retries exhausted', new Error('Structured output failed after 3 attempts'), 'output failed schema validation (Error)'],
+    ['provider timeout', new TimeoutError(60000), 'timeout'],
+    ['OpenRouter body error', new Error('OpenRouter returned no choices for Review: upstream said sk-or-123'), 'provider returned no choices (Error)'],
+    ['SDK rate limit', Object.assign(new Error('Rate limit for key sk-live-9'), { name: 'RateLimitError', status: 429 }), 'model call failed (RateLimitError, HTTP 429)'],
+  ])('AC-14: %s on case 2 is one error result with a safe reason', async (_n, err, reason) => {
+    s.llm.handlers[1] = () => err;
     await s.executor.execute(RUN, agentRow(), [mkCase('a'), mkCase('b'), mkCase('c')], []);
     const v = s.finished[0]!.v;
     expect(v.results[1]!.status).toBe('error');
-    expect(v.results[1]!.error).toBe(msg);
+    expect(v.results[1]!.error).toBe(reason);
     expect(v.results[2]!.status).not.toBe('error');
     expect(v.hasErrors).toBe(true);
   });
 
-  it('cuts an error reason to MAX_ERROR_CHARS', async () => {
-    s.llm.handlers[0] = () => new Error('x'.repeat(MAX_ERROR_CHARS + 300));
+  it('never stores the provider\'s own error text', async () => {
+    s.llm.handlers[0] = () => new Error('upstream: invalid key sk-or-v1-abcdef at /home/x');
     await s.executor.execute(RUN, agentRow(), [mkCase('a')], []);
-    expect(s.finished[0]!.v.results[0]!.error).toHaveLength(MAX_ERROR_CHARS);
+    const error = s.finished[0]!.v.results[0]!.error!;
+    expect(error).toBe('model call failed (Error)');
+    expect(error).not.toContain('sk-or');
+  });
+
+  it('EC-27: the case deadline is 120 s', () => {
+    expect(EVAL_CASE_TIMEOUT_MS).toBe(120_000);
+  });
+
+  it('EC-27: a hung model call becomes error "timeout" and the run goes on to finish', async () => {
+    const t = setup(new RecordingLLM(), 50);
+    t.llm.handlers[1] = () => HANG;
+    await t.executor.execute(RUN, agentRow(), [mkCase('a'), mkCase('b'), mkCase('c')], []);
+    expect(t.llm.requests).toHaveLength(3);
+    expect(t.repo.failRun).not.toHaveBeenCalled();
+    const v = t.finished[0]!.v;
+    expect(v.results.map((r) => r.status)).toEqual(['failed', 'error', 'failed']);
+    expect(v.results[1]!.error).toBe('timeout');
+    expect(v.results[1]!.cost_usd).toBeNull();
+    expect(v.costUsd).toBeNull();
+    expect(v.hasErrors).toBe(true);
+    expect(v.total).toBe(3);
   });
 
   it('AC-15 / EC-18: a provider that cannot be resolved fails the run before any call', async () => {

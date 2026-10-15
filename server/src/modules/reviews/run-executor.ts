@@ -11,6 +11,7 @@ import { loadDiff } from './diff-loader.js';
 import { randomUUID } from 'node:crypto';
 import { IntentService } from './intent/intent-service.js';
 import { logLlmCall, logPromptAssembly } from '../../platform/prompt-log.js';
+import { errorKind } from '../_shared/error-kind.js';
 
 /** The derived PR intent as the reviewer prompt takes it. */
 type ReviewIntent = NonNullable<Parameters<typeof reviewPullRequest>[0]['intent']>;
@@ -492,9 +493,7 @@ export class ReviewRunExecutor {
     } catch (err) {
       // Never let document loading break a run — degrade to no documents.
       // Class name or code only: a raw message can carry a path or secret (NFR-4).
-      const code = (err as { code?: unknown } | null)?.code;
-      const kind = typeof code === 'string' ? code : ((err as Error | null)?.name ?? 'Error');
-      runLog.info(`context: lookup failed (${kind})`);
+      runLog.info(`context: lookup failed (${errorKind(err)})`);
       return { documents: [], entries: null };
     }
   }

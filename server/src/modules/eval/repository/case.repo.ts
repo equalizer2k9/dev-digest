@@ -8,7 +8,9 @@ export type NewEvalCase = typeof t.evalCases.$inferInsert;
 export type CreateCaseResult =
   | { kind: 'created'; row: EvalCaseDbRow }
   | { kind: 'existing'; row: EvalCaseDbRow }
-  | { kind: 'conflict'; row: EvalCaseDbRow };
+  | { kind: 'conflict'; row: EvalCaseDbRow }
+  /** The finding's case lives in another workspace — never handed out (AC-32). */
+  | { kind: 'unavailable' };
 
 export async function caseBySourceFinding(
   db: Db,
@@ -43,7 +45,11 @@ export function createCaseExclusive(
   decide: (agentCases: EvalCaseDbRow[]) => EvalCaseDbRow | null,
 ): Promise<CreateCaseResult> {
   return db.transaction(async (tx) => {
-    await tx.select({ id: t.agents.id }).from(t.agents).where(eq(t.agents.id, values.agentId)).for('update');
+    await tx
+      .select({ id: t.agents.id })
+      .from(t.agents)
+      .where(and(eq(t.agents.workspaceId, values.workspaceId), eq(t.agents.id, values.agentId)))
+      .for('update');
 
     const agentCases = await tx
       .select()
@@ -67,8 +73,10 @@ export function createCaseExclusive(
     const [existing] = await tx
       .select()
       .from(t.evalCases)
-      .where(eq(t.evalCases.sourceFindingId, values.sourceFindingId));
-    return { kind: 'existing', row: existing! };
+      .where(
+        and(eq(t.evalCases.workspaceId, values.workspaceId), eq(t.evalCases.sourceFindingId, values.sourceFindingId)),
+      );
+    return existing ? { kind: 'existing', row: existing } : { kind: 'unavailable' };
   });
 }
 

@@ -246,6 +246,11 @@ describe('createCaseFromFinding', () => {
     });
   });
 
+  it('AC-32: a case of this finding held by another workspace is a NotFoundError', async () => {
+    s.repo.createCaseExclusive.mockResolvedValueOnce({ kind: 'unavailable' } as never);
+    await expect(s.run()).rejects.toBeInstanceOf(NotFoundError);
+  });
+
   it('AC-32: a finding of another workspace is a NotFoundError and reads nothing else', async () => {
     s.reviewRepo.findingContext.mockResolvedValue(ctx({}, { workspaceId: 'ws-other' }));
     await expect(s.run()).rejects.toBeInstanceOf(NotFoundError);

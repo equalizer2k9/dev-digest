@@ -16,6 +16,12 @@ export const RUN_INTERRUPTED = 'interrupted';
 /** Rows on the dashboard's recent-runs list. */
 export const RECENT_RUNS = 10;
 
+/** A case still waiting for the model after this long becomes `error` "timeout" (EC-27). */
+export const EVAL_CASE_TIMEOUT_MS = 120_000;
+
+/** Stored reason of a case that hit `EVAL_CASE_TIMEOUT_MS`. */
+export const CASE_TIMEOUT = 'timeout';
+
 /** A case's error reason is cut to this many characters before it is stored. */
 export const MAX_ERROR_CHARS = 500;
 

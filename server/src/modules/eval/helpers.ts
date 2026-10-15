@@ -7,8 +7,30 @@ import type {
   EvalRunRecord,
   EvalRunSkill,
 } from '@devdigest/shared';
-import { MAX_DIFF_CELLS } from './constants.js';
+import { TimeoutError } from '../../platform/resilience.js';
+import { errorKind, errorStatus } from '../_shared/error-kind.js';
+import { CASE_TIMEOUT, MAX_DIFF_CELLS } from './constants.js';
 import type { EvalRunDbRow } from './repository.js';
+
+/** Thrown for a stored case that cannot be evaluated; its message is fixed text. */
+export class IncompleteCaseError extends Error {
+  override name = 'IncompleteCaseError';
+}
+
+/**
+ * The reason stored on an `error` case: a fixed phrase plus the error's code or
+ * class and HTTP status — never the provider's own text (as the review Live Log).
+ */
+export function caseErrorReason(err: unknown): string {
+  if (err instanceof TimeoutError) return CASE_TIMEOUT;
+  if (err instanceof IncompleteCaseError) return err.message;
+  const msg = (err as Error | null)?.message ?? '';
+  const status = errorStatus(err);
+  const kind = `${errorKind(err)}${status !== undefined ? `, HTTP ${status}` : ''}`;
+  if (/failed schema validation|structured output failed/i.test(msg)) return `output failed schema validation (${kind})`;
+  if (/returned no choices/i.test(msg)) return `provider returned no choices (${kind})`;
+  return `model call failed (${kind})`;
+}
 
 /** A located zone of one PR; two cases of opposite type must not share a line of it. */
 export interface EvalZone {

@@ -131,6 +131,7 @@ export async function createCaseFromFinding(
       }) ?? null,
   );
 
+  if (result.kind === 'unavailable') throw new NotFoundError('Finding not found');
   if (result.kind === 'conflict') {
     throw new AppError(
       EVAL_CASE_CONFLICT,

@@ -10,7 +10,9 @@ import type { AgentRow } from '../../db/rows.js';
 import { parseUnifiedDiff } from '../../adapters/git/diff-parser.js';
 import { logLlmCall, logPromptAssembly } from '../../platform/prompt-log.js';
 import { taskInstruction } from '../_shared/task-line.js';
-import { MAX_ERROR_CHARS } from './constants.js';
+import { EVAL_CASE_TIMEOUT_MS, MAX_ERROR_CHARS } from './constants.js';
+import { withTimeout } from '../../platform/resilience.js';
+import { caseErrorReason, IncompleteCaseError } from './helpers.js';
 import type { EvalCaseDbRow, EvalRepository, EvalRunDbRow } from './repository.js';
 import { caseStatus, countMatches, runCost, scoreRun } from './scoring.js';
 
@@ -48,6 +50,7 @@ export class EvalRunExecutor {
   constructor(
     private container: Container,
     private repo: EvalRepository,
+    private caseTimeoutMs: number = EVAL_CASE_TIMEOUT_MS,
   ) {}
 
   /** Never throws: a top-level failure is stored as a failed run. */
@@ -128,7 +131,7 @@ export class EvalRunExecutor {
 
     try {
       const meta = EvalFrozenMeta.safeParse(c.inputMeta);
-      if (!exp.success || !meta.success || !c.inputDiff) throw new Error('The stored case is incomplete');
+      if (!exp.success || !meta.success || !c.inputDiff) throw new IncompleteCaseError('The stored case is incomplete');
 
       const verbose = this.container.config?.promptLogVerbose === true;
       const ids = {
@@ -138,7 +141,7 @@ export class EvalRunExecutor {
         provider: agent.provider,
         model: agent.model,
       };
-      const outcome = await reviewPullRequest({
+      const outcome = await withTimeout(reviewPullRequest({
         systemPrompt: agent.systemPrompt,
         model: agent.model,
         strategy: agent.strategy ?? 'single-pass',
@@ -169,7 +172,7 @@ export class EvalRunExecutor {
             durationMs: e.durationMs,
             label: e.label,
           }),
-      });
+      }), this.caseTimeoutMs);
 
       const kept = outcome.review.findings.map((f) => ({
         file: f.file,
@@ -192,7 +195,7 @@ export class EvalRunExecutor {
         error: null,
       };
     } catch (err) {
-      const reason = (err as Error).message ?? String(err);
+      const reason = caseErrorReason(err);
       log?.warn({ event: 'eval_case', status: 'error', reason: cut(reason) }, 'eval case errored');
       return failed(reason);
     }
