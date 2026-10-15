@@ -3,8 +3,12 @@ import type {
   BlastRadiusResponse,
   ConventionCandidate,
   FindingRecord,
+  PrBrief,
   PrFile,
   PrIntentDetail,
+  ProjectContextAttachments,
+  ProjectContextDocument,
+  ProjectContextEffective,
   SkillWithUsage,
 } from "@devdigest/shared";
 
@@ -121,6 +125,23 @@ export const SHOWCASE_BLAST: BlastRadiusResponse = {
   reason: null,
 };
 
+export const SHOWCASE_BRIEF: PrBrief = {
+  summary: "Adds a price formatter and routes item listing through it.",
+  risks: [
+    {
+      kind: "behaviour",
+      title: "Rounding changed for prices",
+      explanation: "formatPrice now rounds half up; callers that compared strings may differ.",
+      severity: "medium",
+      file_refs: ["src/items.ts"],
+    },
+  ],
+  review_focus: [{ file: "src/items.ts", line: 12, reason: "New formatting entry point" }],
+  head_sha: "abc1234",
+  intent: null,
+  history: null,
+};
+
 /** Sample PR intent used by the IntentCard gallery group. */
 export const SHOWCASE_INTENT: PrIntentDetail = {
   pr_id: "00000000-0000-4000-8000-000000000001",
@@ -138,4 +159,28 @@ export const SHOWCASE_INTENT: PrIntentDetail = {
   head_sha: "abc1234",
   generated_at: "2026-10-12T10:00:00.000Z",
   stale: true,
+};
+
+/** Sample project-context listing used by the Project Context gallery group. */
+export const SHOWCASE_CONTEXT_DOCS: ProjectContextDocument[] = [
+  { path: "docs/architecture.md", tag: "docs", tokens: 1240, too_large: false, used_by: 2 },
+  { path: "specs/checkout/spec.md", tag: "specs", tokens: 860, too_large: false, used_by: 1 },
+  { path: "insights/2026-09.md", tag: "insights", tokens: null, too_large: true, used_by: 0 },
+];
+
+export const SHOWCASE_CONTEXT_EFFECTIVE: ProjectContextEffective[] = [
+  { path: "docs/architecture.md", tokens: 1240, skip_reason: null, skill: null },
+  { path: "specs/checkout/spec.md", tokens: 860, skip_reason: null, skill: { id: "sk-demo", name: "test-quality-rubric" } },
+];
+
+export const SHOWCASE_CONTEXT_MARKDOWN =
+  "# Architecture\n\nThe `api/` layer never imports `db/` directly.\n\n- routes call services\n- services call repositories";
+
+/** Static data the AttachmentsEditor group is seeded with — the gallery never calls the API. */
+export const SHOWCASE_CONTEXT_REPO_ID = "repo-demo";
+export const SHOWCASE_CONTEXT_OWNER_ID = "agent-demo";
+export const SHOWCASE_CONTEXT_ATTACHMENTS: ProjectContextAttachments = {
+  repo_id: SHOWCASE_CONTEXT_REPO_ID,
+  attached: ["docs/architecture.md"],
+  effective: SHOWCASE_CONTEXT_EFFECTIVE,
 };

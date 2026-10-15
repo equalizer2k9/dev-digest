@@ -1,6 +1,6 @@
 import type { Container } from '../../platform/container.js';
-import type { Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
-import { reviewPullRequest, countBlockers, type SkillPart } from '@devdigest/reviewer-core';
+import type { ProjectContextEntry, Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
+import { reviewPullRequest, countBlockers, visiblePath, type SkillPart, type SpecPart } from '@devdigest/reviewer-core';
 import { RunLogger } from '../../platform/run-logger.js';
 import * as schema from '../../db/schema.js';
 import type { AgentRow } from '../../db/rows.js';
@@ -84,6 +84,10 @@ export class ReviewRunExecutor {
     // mark the rows failed and persist the buffered log so it survives a reload.
     const failAll = async (msg: string) => {
       for (const { runId, agent } of jobs) {
+        // Trace first: readers take a terminal status to mean the trace is stored.
+        await this.repo
+          .saveRunTrace(runId, this.traceFromBuffer(runId, pull, agent, '0/0 passed'))
+          .catch(() => undefined);
         await this.repo
           .completeAgentRun(runId, {
             status: 'failed',
@@ -95,9 +99,6 @@ export class ReviewRunExecutor {
             grounding: '0/0 passed',
             error: msg,
           })
-          .catch(() => undefined);
-        await this.repo
-          .saveRunTrace(runId, this.traceFromBuffer(runId, pull, agent, '0/0 passed'))
           .catch(() => undefined);
         this.container.runBus.complete(runId);
       }
@@ -241,6 +242,10 @@ export class ReviewRunExecutor {
       // stays byte-identical to a run with no skills at all.
       const skills = await this.resolveSkills(agent.id, runLog);
 
+      // Project context — the agent's effective documents, read once per run. A
+      // lookup failure degrades to a run without the section (EC-17).
+      const projectContext = await this.resolveProjectContext(agent.id, repo, runLog);
+
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
       // the CI runner). The service owns only I/O: repo-intel context resolution
@@ -301,6 +306,11 @@ export class ReviewRunExecutor {
           }),
         // Skills Lab — omitted entirely when the agent has no enabled skill.
         ...(skills.length > 0 ? { skills } : {}),
+        // Project documents — omitted unless one has text, so a run without
+        // documents assembles the same prompt as before.
+        ...(projectContext.documents.some((d) => d.content.trim().length > 0)
+          ? { specs: projectContext.documents }
+          : {}),
         // Token attribution for the skills block. The engine stays dependency-
         // free; the real tokenizer (js-tiktoken cl100k_base) is injected here
         // and degrades to ceil(chars/4) on its own if the BPE ranks fail.
@@ -347,20 +357,7 @@ export class ReviewRunExecutor {
       // the timeline colors on, NOT the model's self-reported verdict.
       const blockers = countBlockers(keptFindings, agent.ciFailOn);
 
-      // ---- Observability: agent_runs + ONE run_traces document --------------
-      await this.repo.completeAgentRun(runId, {
-        status: 'done',
-        durationMs,
-        tokensIn,
-        tokensOut,
-        costUsd,
-        findingsCount: findingRows.length,
-        grounding,
-        score: outcome.review.score,
-        blockers,
-        error: null,
-      });
-
+      // ---- Observability: ONE run_traces document, then agent_runs ----------
       const trace: RunTrace = {
         config: {
           agent: agent.name,
@@ -388,12 +385,27 @@ export class ReviewRunExecutor {
         raw_output: outcome.raw,
         memory_pulled: [],
         specs_read: [],
+        project_context: projectContext.entries,
         // Persisted log = the run's FULL event buffer (incl. shared pre-work:
         // diff load + intent), not just events recorded inside this method.
         log: runLog.logFor(runId),
       };
       runLog.info('Run complete; trace persisted');
       await this.repo.saveRunTrace(runId, trace);
+      // The terminal status goes last: a reader that sees `done` (the PR timeline, the trace
+      // view, a test polling agent_runs) must find the trace already stored.
+      await this.repo.completeAgentRun(runId, {
+        status: 'done',
+        durationMs,
+        tokensIn,
+        tokensOut,
+        costUsd,
+        findingsCount: findingRows.length,
+        grounding,
+        score: outcome.review.score,
+        blockers,
+        error: null,
+      });
       this.container.runBus.complete(runId);
 
       return { review, findings: findingRows, grounding, raw: outcome.review };
@@ -405,6 +417,9 @@ export class ReviewRunExecutor {
       const msg = cancelled ? 'Cancelled by user' : (err as Error).message;
       runLog.error(cancelled ? 'Run cancelled by user' : `Run failed: ${msg}`);
       await this.repo
+        .saveRunTrace(runId, this.traceFromBuffer(runId, pull, agent, '0/0 passed', Date.now() - start))
+        .catch(() => undefined);
+      await this.repo
         .completeAgentRun(runId, {
           status,
           durationMs: Date.now() - start,
@@ -415,9 +430,6 @@ export class ReviewRunExecutor {
           grounding: '0/0 passed',
           error: msg,
         })
-        .catch(() => undefined);
-      await this.repo
-        .saveRunTrace(runId, this.traceFromBuffer(runId, pull, agent, '0/0 passed', Date.now() - start))
         .catch(() => undefined);
       this.container.runBus.complete(runId);
       throw err;
@@ -454,6 +466,37 @@ export class ReviewRunExecutor {
         body: l.skill.body,
         trusted: l.skill.source === 'manual' || l.skill.source === 'extracted',
       }));
+  }
+
+  /**
+   * Load the agent's project documents and write one Live Log line per entry,
+   * BEFORE the model call (so a failed or cancelled run keeps them). Lines carry
+   * the escaped path and a token count or reason — never document text.
+   * `entries` is null when the lookup itself failed (nothing was recorded).
+   */
+  private async resolveProjectContext(
+    agentId: string,
+    repo: typeof schema.repos.$inferSelect,
+    runLog: RunLogger,
+  ): Promise<{ documents: SpecPart[]; entries: ProjectContextEntry[] | null }> {
+    try {
+      const { documents, entries } = await this.container.projectContext.forRun(agentId, repo);
+      for (const e of entries) {
+        runLog.info(
+          e.skip_reason === null
+            ? `context: ${visiblePath(e.path)} — ${e.tokens ?? 0} token(s)`
+            : `context: ${visiblePath(e.path)} — skipped (${e.skip_reason})`,
+        );
+      }
+      return { documents, entries };
+    } catch (err) {
+      // Never let document loading break a run — degrade to no documents.
+      // Class name or code only: a raw message can carry a path or secret (NFR-4).
+      const code = (err as { code?: unknown } | null)?.code;
+      const kind = typeof code === 'string' ? code : ((err as Error | null)?.name ?? 'Error');
+      runLog.info(`context: lookup failed (${kind})`);
+      return { documents: [], entries: null };
+    }
   }
 
   /**

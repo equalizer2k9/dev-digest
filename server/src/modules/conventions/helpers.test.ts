@@ -1,4 +1,5 @@
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { SimpleGitClient } from '../../adapters/git/simple-git.js';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -396,5 +397,38 @@ describe('buildSkillDraft — accepted rows only (spec §6)', () => {
 
     expect(draft.count).toBe(0);
     expect(draft.body).not.toContain('## ');
+  });
+});
+
+describe('selectSamples — committed symlinks never reach the model (NFR-4)', () => {
+  let base: string | undefined;
+  afterEach(async () => {
+    if (base) await rm(base, { recursive: true, force: true });
+    base = undefined;
+  });
+
+  it('a symlink to .git/config or .env is not sampled; one to an acceptable file still is', async () => {
+    base = await mkdtemp(join(tmpdir(), 'conv-symlink-'));
+    const root = join(base, REPO.owner, REPO.name);
+    await mkdir(join(root, '.git'), { recursive: true });
+    await mkdir(join(root, 'src'), { recursive: true });
+    await writeFile(join(root, '.git', 'config'), 'url = https://x:ghp_TOKEN@github.com/a/b');
+    await writeFile(join(root, '.env'), 'API_KEY=ENV-SECRET');
+    await writeFile(join(root, 'src', 'real.ts'), 'export const real = 1;\n');
+    await symlink('../.git/config', join(root, 'src', 'cfg.ts'));
+    await symlink('../.env', join(root, 'src', 'env.ts'));
+    await symlink('real.ts', join(root, 'src', 'ok.ts'));
+    await symlink('.env', join(root, '.eslintrc'));
+    await symlink('.git/config', join(root, 'tsconfig.json'));
+
+    const c = {
+      git: new SimpleGitClient(base),
+      repoIntel: { getConventionSamples: async () => ['src/cfg.ts', 'src/env.ts', 'src/ok.ts'] },
+    } as unknown as Container;
+    const { samples } = await selectSamples(c, REPO);
+
+    expect(samples.map((s) => s.path)).toEqual(['src/ok.ts']);
+    expect(samples[0]!.lines).toEqual(['export const real = 1;', '']);
+    expect(JSON.stringify(samples)).not.toMatch(/ghp_TOKEN|ENV-SECRET/);
   });
 });

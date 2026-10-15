@@ -3,6 +3,7 @@ import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/re
 import { NextIntlClientProvider } from "next-intl";
 import type { Skill, SkillVersion } from "@devdigest/shared";
 import messages from "../../../../../../messages/en/skills.json";
+import contextMessages from "../../../../../../messages/en/context.json";
 import { ToastProvider } from "../../../../../lib/toast";
 
 const SKILL: Skill = {
@@ -37,6 +38,16 @@ vi.mock("../../../../../lib/hooks/skills", () => ({
   useRestoreSkillVersion: () => ({ mutate: restoreMutate, isPending: false }),
 }));
 
+// The Config tab embeds the project-context section; with no active repository
+// it renders its no-clone notice and never reads a hook.
+vi.mock("@/lib/repo-context", () => ({ useActiveRepo: () => ({ repoId: null }) }));
+vi.mock("@/lib/hooks/project-context", () => ({
+  useContextDocuments: () => ({ data: undefined, isLoading: false, isError: false, refetch: vi.fn() }),
+  useContextDocument: () => ({ data: undefined, isLoading: false, isError: false, refetch: vi.fn() }),
+  useContextAttachments: () => ({ data: undefined, isLoading: false, isError: false, refetch: vi.fn() }),
+  useSetContextAttachments: () => ({ mutate: vi.fn(), isPending: false }),
+}));
+
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }) }));
 
 import { SkillDetailView } from "./SkillDetailView";
@@ -49,7 +60,7 @@ afterEach(() => {
 
 function renderView(tab: string, onTab = vi.fn()) {
   render(
-    <NextIntlClientProvider locale="en" messages={{ skills: messages }}>
+    <NextIntlClientProvider locale="en" messages={{ skills: messages, context: contextMessages }}>
       <ToastProvider>
         <SkillDetailView id="sk1" tab={tab} onTab={onTab} />
       </ToastProvider>
@@ -59,6 +70,11 @@ function renderView(tab: string, onTab = vi.fn()) {
 }
 
 describe("SkillDetailView", () => {
+  it("Config carries the Project context to use section", () => {
+    renderView("config");
+    expect(screen.getByText(contextMessages.section.title)).toBeInTheDocument();
+  });
+
   it("offers exactly the three tabs Config, Preview and Versioning", () => {
     renderView("config");
     expect(screen.getByText("Config")).toBeInTheDocument();

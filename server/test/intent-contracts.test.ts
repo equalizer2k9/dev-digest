@@ -38,8 +38,18 @@ describe('S-AC-1 contracts', () => {
     expect(Object.keys(shared.Intent.shape).sort()).toEqual(['in_scope', 'intent', 'out_of_scope']);
   });
 
-  it('S-AC-21: PrBrief still has its four fields, and Intent is exactly intent / in_scope / out_of_scope', () => {
-    expect(Object.keys(shared.PrBrief.shape).sort()).toEqual(['blast', 'history', 'intent', 'risks']);
+  it('S-AC-21: PrBrief keeps the pr-brief shape with a nullable intent, and Intent is exactly intent / in_scope / out_of_scope', () => {
+    // The pr-brief feature owns PrBrief; the intent layer must leave its shape alone.
+    expect(Object.keys(shared.PrBrief.shape).sort()).toEqual([
+      'context_docs',
+      'head_sha',
+      'history',
+      'intent',
+      'review_focus',
+      'risks',
+      'summary',
+    ]);
+    expect(shared.PrBrief.shape.intent.safeParse(null).success).toBe(true);
     expect(Object.keys(shared.Intent.shape).sort()).toEqual(['in_scope', 'intent', 'out_of_scope']);
     expect(shared.Intent.safeParse({ intent: 'x', in_scope: [], out_of_scope: [] }).success).toBe(true);
     // a strict parse of the base shape accepts no extra required field

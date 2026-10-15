@@ -16,6 +16,7 @@ import { useDeleteSkill, useUpdateSkill } from "../../../../../../../lib/hooks/s
 import { useToast } from "../../../../../../../lib/toast";
 import { SKILL_TYPE_VALUES } from "../../../../../../../lib/skill-types";
 import { s } from "../../styles";
+import { SkillContextSection } from "../SkillContextSection";
 
 export function SkillConfigTab({ skill }: { skill: Skill }) {
   const t = useTranslations("skills");
@@ -76,6 +77,8 @@ export function SkillConfigTab({ skill }: { skill: Skill }) {
           {update.isPending ? t("config.saving") : t("config.save")}
         </Button>
       </div>
+
+      <SkillContextSection skill={skill} />
 
       <div style={s.danger}>
         <div style={s.dangerTitle}>{t("config.dangerTitle")}</div>

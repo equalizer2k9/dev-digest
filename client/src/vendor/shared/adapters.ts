@@ -234,8 +234,34 @@ export interface GitClient {
   diffNameOnly(repo: RepoRef, base: string, head: string): Promise<string[]>;
   blame(repo: RepoRef, path: string): Promise<BlameLine[]>;
   log(repo: RepoRef, path?: string): Promise<GitCommit[]>;
-  /** `maxBytes`: reject (`code: 'FILE_TOO_LARGE'`) a bigger file before reading it. */
-  readFile(repo: RepoRef, path: string, maxBytes?: number): Promise<string>;
+  /**
+   * `maxBytes`: reject (`code: 'FILE_TOO_LARGE'`) a bigger file before reading it.
+   * `acceptReal`: given the symlink-resolved path relative to the clone root, return
+   * false to refuse the read (`code: 'PATH_ESCAPE'`) — e.g. a symlink into `.git/`.
+   */
+  readFile(
+    repo: RepoRef,
+    path: string,
+    maxBytes?: number,
+    acceptReal?: (realRel: string) => boolean,
+  ): Promise<string>;
+  /**
+   * Repo-relative paths (`/`-separated) of the working-tree files `accept` takes,
+   * in segment order (depth-first, each directory's entries sorted by name).
+   * Never enters a directory in `skipDirs` or a symlinked one; lists a symlinked
+   * file only when it resolves inside the clone. Stops after `limit` paths or
+   * `maxEntries` visited entries and reports `truncated`. A missing clone rejects
+   * with an `ENOENT`-coded error.
+   */
+  listFiles(
+    repo: RepoRef,
+    opts: {
+      accept(relPath: string): boolean;
+      skipDirs: readonly string[];
+      limit: number;
+      maxEntries: number;
+    },
+  ): Promise<{ paths: string[]; truncated: boolean }>;
   /**
    * Text of `path` as committed at `ref` (`git show <ref>:<path>`), read from the
    * local clone. Rejects when the clone lacks the commit or the path.
@@ -303,3 +329,20 @@ export interface SecretsProvider {
    */
   set?(key: SecretKey, value: string): Promise<void>;
 }
+
+// ---------- Path confinement ----------
+/**
+ * Thrown by `GitClient.readFile` when a path would leave the clone or fails the
+ * caller's `acceptReal` rule. Detect with `isPathEscape`; the message names the
+ * path, so never surface it to a client.
+ */
+export class PathEscapeError extends Error {
+  readonly code = 'PATH_ESCAPE';
+  constructor(rel: string) {
+    super(`path escapes the repository: ${rel}`);
+    this.name = 'PathEscapeError';
+  }
+}
+
+export const isPathEscape = (err: unknown): boolean =>
+  typeof err === 'object' && err !== null && (err as { code?: unknown }).code === 'PATH_ESCAPE';

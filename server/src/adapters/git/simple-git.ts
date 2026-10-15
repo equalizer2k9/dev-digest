@@ -11,7 +11,9 @@ import type {
   GitCommit,
 } from '@devdigest/shared';
 import { parseUnifiedDiff } from './diff-parser.js';
+import { isPathEscape } from '@devdigest/shared';
 import { confinePath } from './confine-path.js';
+import { listFiles } from './list-files.js';
 import { FileTooLargeError } from '../file-too-large.js';
 
 /**
@@ -128,13 +130,34 @@ export class SimpleGitClient implements GitClient {
     }));
   }
 
-  async readFile(repo: RepoRef, path: string, maxBytes?: number): Promise<string> {
-    const real = await confinePath(this.clonePathFor(repo), path);
+  async readFile(
+    repo: RepoRef,
+    path: string,
+    maxBytes?: number,
+    acceptReal?: (realRel: string) => boolean,
+  ): Promise<string> {
+    const real = await confinePath(this.clonePathFor(repo), path, acceptReal);
     if (maxBytes !== undefined) {
       const { size } = await stat(real);
       if (size > maxBytes) throw new FileTooLargeError(path, size, maxBytes);
     }
     return readFile(real, 'utf8');
+  }
+
+  async listFiles(
+    repo: RepoRef,
+    opts: Parameters<GitClient['listFiles']>[1],
+  ): Promise<{ paths: string[]; truncated: boolean }> {
+    const root = this.clonePathFor(repo);
+    return listFiles(root, opts, async (rel) => {
+      try {
+        const real = await confinePath(root, rel, opts.accept);
+        return (await stat(real)).isFile();
+      } catch (err) {
+        if (isPathEscape(err) || (err as { code?: unknown }).code === 'ENOENT') return false;
+        throw err;
+      }
+    });
   }
 
   async readFileAtRef(

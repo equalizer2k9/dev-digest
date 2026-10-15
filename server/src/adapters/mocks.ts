@@ -318,6 +318,13 @@ export class MockGitClient implements GitClient {
     }
     return text;
   }
+  async listFiles(
+    _repo: RepoRef,
+    opts: { accept(relPath: string): boolean; limit: number },
+  ): Promise<{ paths: string[]; truncated: boolean }> {
+    const all = Object.keys(this.opts.files ?? {}).filter((p) => opts.accept(p));
+    return { paths: all.slice(0, opts.limit), truncated: all.length > opts.limit };
+  }
   async readFileAtRef(
     _repo: RepoRef,
     _ref: string,

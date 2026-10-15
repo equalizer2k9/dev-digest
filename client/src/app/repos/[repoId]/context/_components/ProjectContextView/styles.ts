@@ -1,0 +1,56 @@
+import type { CSSProperties } from "react";
+import { CONTENT_MAX_WIDTH, TREE_INDENT } from "./constants";
+
+/** Co-located styles for ProjectContextView. */
+export const s = {
+  page: { padding: "20px 28px 40px", maxWidth: CONTENT_MAX_WIDTH, margin: "0 auto" } satisfies CSSProperties,
+  h1: { fontSize: 22, fontWeight: 700, letterSpacing: "-0.02em" } satisfies CSSProperties,
+  repoName: { color: "var(--accent-text)", fontSize: 13, marginTop: 3 } satisfies CSSProperties,
+  split: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.2fr)",
+    gap: 16,
+    alignItems: "start",
+    marginTop: 18,
+  } satisfies CSSProperties,
+  skeleton: { display: "flex", flexDirection: "column", gap: 8, marginTop: 18 } satisfies CSSProperties,
+  notice: {
+    fontSize: 12,
+    color: "var(--warn)",
+    padding: "6px 10px",
+    borderRadius: 7,
+    border: "1px solid var(--warn)",
+    background: "var(--bg-surface)",
+    marginTop: 12,
+  } satisfies CSSProperties,
+  tree: { listStyle: "none", margin: 0, padding: 0 } satisfies CSSProperties,
+  folder: (depth: number): CSSProperties => ({
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "6px 8px",
+    paddingLeft: 8 + depth * TREE_INDENT,
+    fontSize: 13,
+    fontWeight: 600,
+    color: "var(--text-secondary)",
+  }),
+  docRow: (depth: number, selected: boolean): CSSProperties => ({
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    width: "100%",
+    textAlign: "left",
+    padding: "6px 8px",
+    paddingLeft: 8 + depth * TREE_INDENT,
+    borderRadius: 6,
+    border: "1px solid " + (selected ? "var(--accent)" : "transparent"),
+    background: selected ? "var(--bg-hover)" : "transparent",
+    color: "var(--text-primary)",
+    fontSize: 13,
+    cursor: "pointer",
+  }),
+  docName: { flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } satisfies CSSProperties,
+  meta: { fontSize: 11, color: "var(--text-muted)", flexShrink: 0 } satisfies CSSProperties,
+  mark: { fontSize: 11, color: "var(--warn)", flexShrink: 0 } satisfies CSSProperties,
+  footer: { fontSize: 12, color: "var(--text-muted)", paddingTop: 10 } satisfies CSSProperties,
+} as const;

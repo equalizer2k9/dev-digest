@@ -7,6 +7,7 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import type { PrFile } from "@/lib/types";
+import { type DiffTarget } from "../helpers";
 import { type DiffCommentApi, type DiffFindingsApi } from "../comments";
 import { s } from "../styles";
 import { FileCard } from "../FileCard";
@@ -16,12 +17,15 @@ export function DiffViewer({
   commenting,
   findings,
   findingPaths,
+  target,
 }: {
   files: PrFile[];
   commenting?: DiffCommentApi;
   findings?: DiffFindingsApi;
   /** Paths that get the "has findings" dot. */
   findingPaths?: ReadonlySet<string>;
+  /** File (and line) to open and scroll to. */
+  target?: DiffTarget | null;
 }) {
   const t = useTranslations("shell");
   if (!files || files.length === 0) {
@@ -36,6 +40,7 @@ export function DiffViewer({
           commenting={commenting}
           findings={findings}
           hasFindings={findingPaths?.has(f.path)}
+          target={target && target.path === f.path ? { line: target.line } : undefined}
         />
       ))}
     </div>

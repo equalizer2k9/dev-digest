@@ -14,7 +14,7 @@ import {
   cs,
 } from "../comments";
 import { type Line } from "../helpers";
-import { s, lineRowFor, lineSignFor, findingStripeFor, findingLabelFor } from "../styles";
+import { s, targetHighlight, lineRowFor, lineSignFor, findingStripeFor, findingLabelFor } from "../styles";
 import { CommentThreadView } from "../CommentThreadView";
 import { InlineComposer } from "../InlineComposer";
 
@@ -25,6 +25,7 @@ export function CodeLine({
   commenting,
   findings,
   lineFindings = [],
+  highlighted = false,
 }: {
   ln: Line;
   path: string;
@@ -33,6 +34,8 @@ export function CodeLine({
   findings?: DiffFindingsApi;
   /** Findings anchored to this row. */
   lineFindings?: FindingRecord[];
+  /** This row is the navigation target: marked and tinted for a moment. */
+  highlighted?: boolean;
 }) {
   const t = useTranslations("shell");
   const [hover, setHover] = React.useState(false);
@@ -59,7 +62,12 @@ export function CodeLine({
       onMouseLeave={() => setHover(false)}
     >
       <div
-        style={worst ? { ...lineRowFor(ln.kind), ...findingStripeFor(worst) } : lineRowFor(ln.kind)}
+        style={{
+          ...lineRowFor(ln.kind),
+          ...(worst ? findingStripeFor(worst) : {}),
+          ...(highlighted ? targetHighlight : {}),
+        }}
+        data-target-highlight={highlighted ? "" : undefined}
         data-line-key={ln.newNo != null && ln.kind !== "del" ? `RIGHT:${ln.newNo}` : undefined}
         data-finding-severity={worst ?? undefined}
       >

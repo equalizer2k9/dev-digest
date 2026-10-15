@@ -18,6 +18,10 @@ or delete; cleanup only via `/engineering-insights review server`.
   - Why: `MockGitClient.readFile` answers a MISSING path with `''`, and `capLines('')` returns `['']` (length 1, not 0), so a read-to-probe sample selector turned every candidate config FILENAME into an empty sample under test.
   - Evidence: `src/adapters/mocks.ts:299` (`?? ''`) · fix treats a file with no non-blank line as absent, `src/modules/conventions/helpers.ts:208`
 
+- **2026-10-14** · NEVER move `inFlight` in `intent-service.ts` onto the instance to fix test flakiness — it was not the cause and the move breaks sharing.
+  - Why: keys are DB-generated PR ids (never reused across tests), and `ReviewService` and `ReviewRunExecutor` each build their own `IntentService`, so only a module Map joins a recalculate with a review run.
+  - Evidence: `src/modules/reviews/intent/intent-service.ts:24` · `src/modules/reviews/service.ts:42` · `src/modules/reviews/run-executor.ts:57`
+
 ## Codebase Patterns
 <!-- Undocumented conventions and architectural decisions, with the reason -->
 
@@ -36,6 +40,10 @@ or delete; cleanup only via `/engineering-insights review server`.
 - **2026-09-22** · The "same name + `source = 'extracted'` → update instead of insert" rule is WORKSPACE-scoped, not repo-scoped.
   - Why: two repos scanned in one workspace therefore share a single `repo-conventions` skill and the second scan overwrites the first one's body at `version + 1`, keeping the agent links; the user must rename to keep them apart.
   - Evidence: `src/modules/skills/repository.ts:92` `findByNameAndSource` · `src/modules/conventions/service.ts:224` · asserted in `src/modules/conventions/conventions.it.test.ts` ("re-creating the same extracted skill bumps its version")
+
+- **2026-10-14** · ALWAYS persist a run's trace (`saveRunTrace`) BEFORE its terminal status (`completeAgentRun`) — on success, agent failure and `failAll`.
+  - Why: readers (PR timeline, `test/helpers/runs.ts` `waitForPrRuns`) treat `done`/`failed` as "trace readable"; status-first left a window where `getRunTrace` returned `undefined`.
+  - Evidence: `src/modules/reviews/run-executor.ts:89,384,410` · regression `run-executor.test.ts` › "the trace is stored before the terminal status" · symptom `TypeError: Cannot read properties of undefined (reading 'log')` in `test/intent.it.test.ts` sentinel test, ~1 in 3 full runs
 
 ## Tool & Library Notes
 <!-- Dependency and tooling quirks, with the version -->
@@ -72,6 +80,10 @@ or delete; cleanup only via `/engineering-insights review server`.
 - Done: `src/modules/conventions/` (5 routes) — code-only sample selection, ONE structured model call on the Settings-resolved model, code-side evidence verification with the snippet re-read from the file, rescan merge on the normalized rule with rejected tombstones, accepted rows → an editable draft → an `extracted` skill optionally linked to an agent; 39 unit + 9 integration tests, whole suite 237 green.
 - Added: What Works, What Doesn't Work, Codebase Patterns, Tool & Library Notes.
 - Open: on the §6 update path `evidence_files` keeps its previous value, because the spec scopes the new field to `CreateSkillInput` only.
+
+### 2026-10-14 — Flaky intent sentinel test: root cause
+- Done: trace persisted before terminal status in all three run endings; 3 order tests; intent suite 20/20 shuffled green.
+- Added: What Doesn't Work, Codebase Patterns.
 
 ## Open Questions
 <!-- Unverified hypotheses and unanswered questions; close with a "Resolved" sub-bullet -->

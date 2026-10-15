@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { Gallery } from "../components/showcase";
@@ -67,5 +67,21 @@ describe("showcase: IntentCard variants (C-AC-10)", () => {
     // errors: inline recalc error and load error
     expect(screen.getAllByText(intentMessages.error.paymentRequired).length).toBeGreaterThan(0);
     expect(screen.getAllByText(intentMessages.error.load).length).toBeGreaterThan(0);
+  });
+});
+
+describe("showcase: AttachmentsEditor", () => {
+  it("renders from seeded data without calling the API", () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    render(
+      <div data-theme="dark">
+        <Gallery />
+      </div>,
+    );
+    expect(screen.getByText("Project Context (AttachmentsEditor)")).toBeInTheDocument();
+    // the editor's own picker lists the seeded document with its attach checkbox
+    expect(screen.getAllByRole("checkbox", { name: "Attach docs/architecture.md" }).length).toBeGreaterThanOrEqual(2);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
   });
 });

@@ -40,7 +40,7 @@ Every package has: `README.md` (humans) · `docs/` (deep dives) · `specs/` (fea
 | e2e flows | numbered `NN-<slug>.flow.json` | `04-pr-findings.flow.json` |
 | i18n | one namespace file per feature, camelCase; keys are camelCase dot-paths | `messages/en/prReview.json` → `panel.hideLowConfidence` |
 | Zod contracts | kebab file; schema `const` PascalCase + an inferred type of the same name | `contracts/findings.ts` → `export const Severity` + `export type Severity` |
-| Specs | kebab-case `.md` under `<pkg>/specs/` | `client/specs/findings-severity-counters.md` |
+| Specs | kebab-case `.md` under `<pkg>/specs/`; cross-package feature → root `specs/<feature>/spec.md` + `plan.md` | `client/specs/findings-severity-counters.md` · `specs/pr-brief/spec.md` |
 
 ## Docs — read on trigger, never preload
 

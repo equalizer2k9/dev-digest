@@ -40,8 +40,8 @@ The Overview tab today holds one section — the PR description
 
 ### 1. Placement
 
-`IntentCard` renders on the Overview tab above the Description section, for every PR whose id is
-resolved. `OverviewTab` gains a `prId` prop (the same name `feat/homework-5` uses) and owns the
+`IntentCard` renders on the Overview tab as the Intent block at the top of the PR Brief block (left column, above the Description section), for every PR whose id is
+resolved; it is passed into `PrBriefBlock` as a slot and is the only intent card on the page. `OverviewTab` gains a `prId` prop (the same name `feat/homework-5` uses) and owns the
 data hooks; `IntentCard` is presentational — props in, callbacks out — so it can be shown in the
 showcase and tested without mocks.
 

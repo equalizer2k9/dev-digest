@@ -50,15 +50,23 @@ import { NextIntlClientProvider } from "next-intl";
 import skillMessages from "../../../messages/en/skills.json";
 import conventionMessages from "../../../messages/en/conventions.json";
 import blastMessages from "../../../messages/en/blast.json";
+import briefMessages from "../../../messages/en/brief.json";
 import prReviewMessages from "../../../messages/en/prReview.json";
 import shellMessages from "../../../messages/en/shell.json";
 import intentMessages from "../../../messages/en/intent.json";
+import contextMessages from "../../../messages/en/context.json";
+import { DocPicker } from "../project-context/DocPicker";
+import { DocPreview } from "../project-context/DocPreview";
+import { AttachmentsEditor } from "../project-context/AttachmentsEditor";
+import { contextKeys } from "../../lib/hooks/project-context";
+import { RepoCtx } from "../../lib/repo-context";
 import { IntentCard } from "../../app/repos/[repoId]/pulls/[number]/_components/IntentCard";
 import { ApiError } from "../../lib/api";
 import { FileCard } from "../diff-viewer";
 import { FindingCard } from "../../app/repos/[repoId]/pulls/[number]/_components/FindingCard";
 import { DiffRoleGroup } from "../../app/repos/[repoId]/pulls/[number]/_components/DiffRoleGroup";
 import { BlastRadius } from "../../app/repos/[repoId]/pulls/[number]/_components/BlastRadius";
+import { PrBriefBlock } from "../../app/repos/[repoId]/pulls/[number]/_components/PrBriefBlock";
 import { ConfirmDialog } from "../confirm-dialog";
 import { SkillCard } from "../../app/skills/_components/SkillCard";
 import { SkillPreviewDrawer } from "../../app/skills/_components/SkillPreviewDrawer";
@@ -72,9 +80,16 @@ import {
   SHOWCASE_FINDING,
   SHOWCASE_FINDING_OUTSIDE,
   SHOWCASE_BLAST,
+  SHOWCASE_BRIEF,
   SHOWCASE_INTENT,
   SHOWCASE_SKILL,
   SHOWCASE_CONVENTION,
+  SHOWCASE_CONTEXT_DOCS,
+  SHOWCASE_CONTEXT_EFFECTIVE,
+  SHOWCASE_CONTEXT_MARKDOWN,
+  SHOWCASE_CONTEXT_ATTACHMENTS,
+  SHOWCASE_CONTEXT_REPO_ID,
+  SHOWCASE_CONTEXT_OWNER_ID,
   SHOWCASE_CONVENTION_PENDING,
 } from "./constants";
 
@@ -100,6 +115,27 @@ export function Gallery() {
   // ConventionCard owns its accept/reject/edit mutations, so the gallery needs a
   // query client of its own — nothing here ever reaches the network.
   const [galleryQc] = React.useState(() => new QueryClient());
+  // AttachmentsEditor reads through hooks: a client of its own, seeded and never
+  // stale, so it renders from static data and no request leaves the gallery.
+  const [contextQc] = React.useState(() => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    qc.setQueryData(contextKeys.list(SHOWCASE_CONTEXT_REPO_ID), {
+      has_clone: true,
+      truncated: false,
+      documents: SHOWCASE_CONTEXT_DOCS,
+    });
+    qc.setQueryData(
+      contextKeys.attachments("agent", SHOWCASE_CONTEXT_OWNER_ID, SHOWCASE_CONTEXT_REPO_ID),
+      SHOWCASE_CONTEXT_ATTACHMENTS,
+    );
+    for (const path of ["docs/architecture.md", "specs/checkout/spec.md"]) {
+      qc.setQueryData(contextKeys.document(SHOWCASE_CONTEXT_REPO_ID, path), {
+        path,
+        content: SHOWCASE_CONTEXT_MARKDOWN,
+      });
+    }
+    return qc;
+  });
 
   return (
     <div style={s.gallery}>
@@ -340,6 +376,50 @@ export function Gallery() {
         </NextIntlClientProvider>
       </QueryClientProvider>
 
+      {/* Project Context: the attach list and the read-only preview. Both are
+          presentational and speak the `context` namespace. */}
+      <NextIntlClientProvider locale="en" messages={{ context: contextMessages }}>
+        <Group title="Project Context (DocPicker / DocPreview)">
+          <div style={s.w460}>
+            <DocPicker
+              documents={SHOWCASE_CONTEXT_DOCS}
+              attached={["docs/architecture.md"]}
+              effective={SHOWCASE_CONTEXT_EFFECTIVE}
+              truncated={false}
+              selectedPath="docs/architecture.md"
+              onToggle={() => {}}
+              onMove={() => {}}
+              onSelect={() => {}}
+            />
+          </div>
+          <div style={s.w460}>
+            <DocPreview
+              status="ready"
+              path="docs/architecture.md"
+              content={SHOWCASE_CONTEXT_MARKDOWN}
+              onRetry={() => {}}
+            />
+          </div>
+        </Group>
+        <QueryClientProvider client={contextQc}>
+          <RepoCtx.Provider
+            value={{
+              repoId: SHOWCASE_CONTEXT_REPO_ID,
+              setRepoId: () => {},
+              repos: [],
+              activeRepo: null,
+              reposLoaded: true,
+            }}
+          >
+            <Group title="Project Context (AttachmentsEditor)">
+              <div style={s.w460}>
+                <AttachmentsEditor owner="agent" ownerId={SHOWCASE_CONTEXT_OWNER_ID} />
+              </div>
+            </Group>
+          </RepoCtx.Provider>
+        </QueryClientProvider>
+      </NextIntlClientProvider>
+
       {/* Smart Diff: file card with review findings, and the role group header.
           Both are presentational (the finding card arrives as a render prop). */}
       <NextIntlClientProvider locale="en" messages={{ prReview: prReviewMessages, shell: shellMessages }}>
@@ -394,6 +474,41 @@ export function Gallery() {
               blast={{ ...SHOWCASE_BLAST, degraded: true, reason: "index_partial" }}
               repoFullName={null}
               headSha="abc1234"
+            />
+          </div>
+        </Group>
+      </NextIntlClientProvider>
+
+      {/* PR Brief: presentational, fed a fixture — needs only the intl provider. */}
+      <NextIntlClientProvider locale="en" messages={{ brief: briefMessages, intent: intentMessages }}>
+        <Group title="PR Brief (stored / generating)">
+          <div style={s.w460}>
+            <PrBriefBlock
+              status="ready"
+              brief={SHOWCASE_BRIEF}
+              headSha="def5678"
+              prFilePaths={new Set(["src/items.ts"])}
+              generating={false}
+              generateError={null}
+              onGenerate={() => {}}
+              onRetryLoad={() => {}}
+              onOpenFile={() => {}}
+              intent={<IntentCard intent={SHOWCASE_INTENT} isLoading={false} isError={false} onRetry={() => {}} onRecalculate={() => {}} isRecalculating={false} recalcError={null} />}
+              noIntent={false}
+            />
+          </div>
+          <div style={s.w460}>
+            <PrBriefBlock
+              status="ready"
+              brief={null}
+              headSha="def5678"
+              prFilePaths={new Set()}
+              generating
+              generateError={null}
+              onGenerate={() => {}}
+              onRetryLoad={() => {}}
+              onOpenFile={() => {}}
+              noIntent
             />
           </div>
         </Group>

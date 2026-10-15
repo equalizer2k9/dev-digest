@@ -9,9 +9,12 @@ import {
   vector,
   index,
   uniqueIndex,
+  primaryKey,
 } from 'drizzle-orm/pg-core';
 import { workspaces } from './core';
 import { repos } from './repos';
+import { agents } from './agents';
+import { skills } from './skills';
 
 // ============================================================ Context & codebase
 
@@ -124,3 +127,46 @@ export const onboarding = pgTable('onboarding', {
   json: jsonb('json').notNull(),
   generatedAt: timestamp('generated_at', { withTimezone: true }).defaultNow().notNull(),
 });
+
+/**
+ * Project-context attachments: the ordered documents (repo-relative paths) an
+ * agent or a skill carries for one repository. Only the path is stored — the
+ * text is read from the clone at use. `path` is never indexed (a btree row over
+ * ~2704 bytes is rejected, see above); the service replaces a whole list, so a
+ * path is unique per owner by construction.
+ */
+export const agentContextDocs = pgTable(
+  'agent_context_docs',
+  {
+    agentId: uuid('agent_id')
+      .notNull()
+      .references(() => agents.id, { onDelete: 'cascade' }),
+    repoId: uuid('repo_id')
+      .notNull()
+      .references(() => repos.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull(),
+    path: text('path').notNull(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.agentId, t.repoId, t.position] }),
+    repoIdx: index('agent_context_docs_repo_idx').on(t.repoId),
+  }),
+);
+
+export const skillContextDocs = pgTable(
+  'skill_context_docs',
+  {
+    skillId: uuid('skill_id')
+      .notNull()
+      .references(() => skills.id, { onDelete: 'cascade' }),
+    repoId: uuid('repo_id')
+      .notNull()
+      .references(() => repos.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull(),
+    path: text('path').notNull(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.skillId, t.repoId, t.position] }),
+    repoIdx: index('skill_context_docs_repo_idx').on(t.repoId),
+  }),
+);

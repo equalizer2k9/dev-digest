@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtemp, mkdir, writeFile, symlink, rm, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { isPathEscape } from '@devdigest/shared';
 import { confinePath } from './confine-path.js';
 import { SimpleGitClient } from './simple-git.js';
 
@@ -59,5 +60,15 @@ describe('confinePath / SimpleGitClient.readFile (S-AC-9)', () => {
     await expect(client.readFile(repo, '../leak.md')).rejects.toThrow();
     await expect(client.readFile(repo, '/etc/passwd')).rejects.toThrow();
     await expect(client.readFile(repo, 'evil.md')).rejects.toThrow();
+  });
+
+  it('rejects escapes with a PathEscapeError, and a missing file with something else', async () => {
+    const caught = async (rel: string) => confinePath(root, rel).catch((e: unknown) => e);
+    expect(isPathEscape(await caught(join(outside, 'secret.md')))).toBe(true);
+    expect(isPathEscape(await caught('../outside/secret.md'))).toBe(true);
+    expect(isPathEscape(await caught('link-file.md'))).toBe(true);
+    const missing = await caught('docs/nope.md');
+    expect(missing).toBeInstanceOf(Error);
+    expect(isPathEscape(missing)).toBe(false);
   });
 });

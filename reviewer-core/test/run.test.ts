@@ -270,3 +270,52 @@ describe('reviewPullRequest — skills + countTokens forwarding', () => {
     expect(outcome.assembly.skills_tokens ?? null).toBeNull();
   });
 });
+
+describe('reviewPullRequest — project documents', () => {
+  const clean = { verdict: 'approve', summary: 'ok', score: 90, findings: [] };
+  const specs = [{ path: 'docs/a.md', content: 'DOC-A-TEXT' }];
+  const TWO_FILE_DIFF =
+    'diff --git a/src/config.ts b/src/config.ts\n--- a/src/config.ts\n+++ b/src/config.ts\n' +
+    '@@ -10,3 +10,4 @@\n   port: 3000,\n+  stripeKey: "sk_live_xxx",\n   redisUrl: x,\n' +
+    'diff --git a/src/server.ts b/src/server.ts\n--- a/src/server.ts\n+++ b/src/server.ts\n' +
+    '@@ -1,2 +1,3 @@\n const a = 1;\n+const b = 2;\n const c = 3;';
+
+  function recording(): { llm: LLMProvider; seen: ChatMessage[][] } {
+    const seen: ChatMessage[][] = [];
+    const llm = {
+      id: 'openrouter',
+      async completeStructured<T>(req: StructuredRequest<T>): Promise<StructuredResult<T>> {
+        seen.push(req.messages);
+        return { data: clean as unknown as T, model: req.model, tokensIn: 0, tokensOut: 0, costUsd: 0, raw: '', attempts: 1 };
+      },
+    } as unknown as LLMProvider;
+    return { llm, seen };
+  }
+
+  async function calls(strategy: 'single-pass' | 'map-reduce', withDocs: boolean, rawDiff?: string) {
+    const { llm, seen } = recording();
+    const diff = await new MockGitClient(rawDiff ? { diff: rawDiff } : {}).diff();
+    await reviewPullRequest({
+      systemPrompt: 'sys',
+      model: 'm',
+      diff,
+      llm,
+      strategy,
+      ...(withDocs ? { specs } : {}),
+    });
+    return seen;
+  }
+
+  it('AC-19: single-pass makes the same number of model calls with and without documents', async () => {
+    expect((await calls('single-pass', true)).length).toBe((await calls('single-pass', false)).length);
+  });
+
+  it('EC-8: map-reduce makes the same number of calls and every request holds the section', async () => {
+    const withDocs = await calls('map-reduce', true, TWO_FILE_DIFF);
+    const without = await calls('map-reduce', false, TWO_FILE_DIFF);
+    expect(withDocs).toHaveLength(2);
+    expect(without).toHaveLength(2);
+    for (const msgs of withDocs) expect(msgs[1]!.content).toContain('## Project context');
+    for (const msgs of without) expect(msgs[1]!.content).not.toContain('## Project context');
+  });
+});

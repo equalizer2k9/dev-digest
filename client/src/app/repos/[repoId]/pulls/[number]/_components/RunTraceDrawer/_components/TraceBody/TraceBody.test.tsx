@@ -124,3 +124,58 @@ describe("TraceBody — skills blocks", () => {
     expect(screen.queryByText(/ tokens$/)).not.toBeInTheDocument();
   });
 });
+
+describe("TraceBody — project context record", () => {
+  function renderPlain(t: RunTrace) {
+    return render(
+      <NextIntlClientProvider locale="en" messages={{ runs: messages }}>
+        <TraceBody trace={t} findings={[]} />
+      </NextIntlClientProvider>,
+    );
+  }
+
+  it("shows each entry with its token count or its skip reason text", () => {
+    renderPlain({
+      ...trace({}),
+      project_context: [
+        { path: "docs/a.md", tokens: 1200, skip_reason: null },
+        { path: "docs/missing.md", tokens: null, skip_reason: "missing" },
+        { path: "docs/locked.md", tokens: null, skip_reason: "unreadable" },
+        { path: "../x.md", tokens: null, skip_reason: "outside_clone" },
+        { path: "docs/big.md", tokens: null, skip_reason: "too_large" },
+        { path: "docs/late.md", tokens: 40, skip_reason: "over_budget" },
+      ],
+    });
+    const cfg = messages.trace.config;
+    expect(screen.getByText("docs/a.md")).toBeInTheDocument();
+    expect(screen.getByText("1,200 tokens")).toBeInTheDocument();
+    for (const [path, reason] of [
+      ["docs/missing.md", cfg.specSkipped.missing],
+      ["docs/locked.md", cfg.specSkipped.unreadable],
+      ["../x.md", cfg.specSkipped.outside_clone],
+      ["docs/big.md", cfg.specSkipped.too_large],
+      ["docs/late.md", cfg.specSkipped.over_budget],
+    ] as const) {
+      expect(screen.getByText(path)).toBeInTheDocument();
+      expect(screen.getByText(reason)).toBeInTheDocument();
+    }
+  });
+
+  it("prints a control character in a recorded path as an escape", () => {
+    renderPlain({
+      ...trace({}),
+      project_context: [{ path: "docs/a\u202Eb.md", tokens: 3, skip_reason: null }],
+    });
+    expect(screen.getByText("docs/a\\u{202e}b.md")).toBeInTheDocument();
+  });
+
+  it("without the field and with no specs read it shows none and does not throw", () => {
+    renderPlain(trace({}));
+    expect(screen.getByText(messages.trace.config.none)).toBeInTheDocument();
+  });
+
+  it("without the field it still shows specs_read paths", () => {
+    renderPlain({ ...trace({}), specs_read: ["specs/a.md"] });
+    expect(screen.getByText("specs/a.md")).toBeInTheDocument();
+  });
+});

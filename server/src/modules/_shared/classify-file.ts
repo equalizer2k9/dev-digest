@@ -1,9 +1,9 @@
 import type { SmartDiffRole } from '@devdigest/shared';
-import { FALLBACK_ROLE, MATCH_RULES } from './constants.js';
+import { FALLBACK_ROLE, MATCH_RULES } from './smart-diff-rules.js';
 
 /**
  * Path → Smart Diff role. Pure: the path is the only input, nothing is read
- * from disk, network, clock or container. Patterns live in ./constants.
+ * from disk, network, clock or container. Patterns live in ./smart-diff-rules.
  */
 
 type Matcher = (segments: readonly string[]) => boolean;

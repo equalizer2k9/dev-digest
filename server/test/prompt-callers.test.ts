@@ -21,7 +21,7 @@ const COMMON = {
   system: 'You are a reviewer.',
   skills: SKILLS,
   memory: ['Do not flag try/catch around JSON.parse'],
-  specs: ['# Security baseline\nNo secrets in code.'],
+  specs: [{ path: 'docs/security-baseline.md', content: '# Security baseline\nNo secrets in code.' }],
   diff: '@@ -1 +1 @@\n+stripeKey',
   task: "Review PR #482 'rate limit'",
 } as const;

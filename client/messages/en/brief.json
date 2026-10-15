@@ -3,7 +3,10 @@
     "intent": "Intent",
     "blast": "Blast radius",
     "risks": "Risks",
-    "history": "PR history"
+    "history": "PR history",
+    "summary": "Summary",
+    "riskAreas": "Risk areas",
+    "reviewFocus": "Review focus"
   },
   "noRisks": "No notable risks flagged.",
   "noHistory": "No prior PRs overlap these files.",
@@ -15,5 +18,29 @@
     "blame": "blame",
     "noHistory": "No history available for this line.",
     "noCommits": "No commits found for this line."
+  },
+  "title": "PR Brief",
+  "generate": "Generate brief",
+  "refresh": "Refresh brief",
+  "stale": "This brief describes an older commit.",
+  "noFocus": "Nothing specific to read first.",
+  "inputs": {
+    "noIntent": "No intent available for this PR.",
+    "specs": "Project documents given to the model:",
+    "noSpecs": "No specs attached."
+  },
+  "notInDiff": "File not in this PR's diff",
+  "severity": {
+    "high": "High",
+    "medium": "Medium",
+    "low": "Low"
+  },
+  "loading": "Loading brief…",
+  "generating": "Generating brief…",
+  "error": {
+    "load": "Could not load the brief.",
+    "generate": "The brief could not be generated.",
+    "noFiles": "This pull request has no recorded changed files, so there is nothing to brief.",
+    "retry": "Try again"
   }
 }

@@ -1,12 +1,21 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
+import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { FindingRecord, PrFile, PrReviewComment } from "@devdigest/shared";
 import shellMessages from "../../../../messages/en/shell.json";
 import type { DiffCommentApi, DiffFindingsApi } from "../comments";
 import { FileCard } from "./FileCard";
+import { TARGET_HIGHLIGHT_MS } from "../constants";
 
-afterEach(cleanup);
+const scroll = vi.fn();
+beforeEach(() => {
+  scroll.mockReset();
+  Element.prototype.scrollIntoView = scroll;
+});
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 const PATCH = "@@ -1,2 +1,3 @@\n const a = 1;\n-const b = 2;\n+const b = 3;\n+const c = 4;";
 
@@ -169,5 +178,38 @@ describe("FileCard findings", () => {
   it("without defaultOpen a small file starts open", () => {
     renderCard();
     expect(screen.getByText("const c = 4;")).toBeInTheDocument();
+  });
+});
+
+describe("FileCard target", () => {
+  const row = (n: number) => document.querySelector<HTMLElement>(`[data-line-key="RIGHT:${n}"]`)!;
+
+  it("opens a collapsed card, highlights the line, scrolls to it, then clears the highlight", () => {
+    vi.useFakeTimers();
+    renderCard({ target: { line: 3 }, defaultOpen: false });
+    expect(screen.getByText("const c = 4;")).toBeInTheDocument();
+    expect(row(3)).toHaveAttribute("data-target-highlight");
+    expect(scroll).toHaveBeenCalledTimes(1);
+    expect(scroll.mock.contexts[0]).toBe(row(3));
+    act(() => {
+      vi.advanceTimersByTime(TARGET_HIGHLIGHT_MS);
+    });
+    expect(row(3)).not.toHaveAttribute("data-target-highlight");
+  });
+
+  it("a line that is not rendered, or no line, scrolls the card top and highlights nothing", () => {
+    for (const line of [999, null]) {
+      scroll.mockReset();
+      const { container } = renderCard({ target: { line } });
+      expect(document.querySelector("[data-target-highlight]")).toBeNull();
+      expect(scroll).toHaveBeenCalledTimes(1);
+      expect(scroll.mock.contexts[0]).toBe(container.firstElementChild);
+      cleanup();
+    }
+  });
+
+  it("without a target nothing is scrolled", () => {
+    renderCard();
+    expect(scroll).not.toHaveBeenCalled();
   });
 });

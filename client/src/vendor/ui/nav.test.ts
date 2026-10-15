@@ -5,6 +5,27 @@ const item = NAV.flatMap((g) => g.items).find((i) => i.key === "conventions");
 const skillsLab = NAV.find((g) => g.section === "SKILLS LAB");
 const workspace = NAV.find((g) => g.section === "WORKSPACE");
 
+const contextItem = workspace?.items.find((i) => i.key === "context");
+
+describe("nav — Project Context", () => {
+  it("follows Pull Requests in WORKSPACE", () => {
+    expect(workspace?.items.map((i) => i.key)).toEqual(["pulls", "context"]);
+  });
+
+  it("carries the label and the repo-scoped href, with no g-chord", () => {
+    expect(contextItem).toMatchObject({
+      label: "Project Context",
+      icon: "Folder",
+      href: "/repos/:repoId/context",
+    });
+    expect(contextItem?.gKey).toBeUndefined();
+  });
+
+  it("resolves :repoId against the active repo", () => {
+    expect(resolveHref(contextItem!.href, "repo-42")).toBe("/repos/repo-42/context");
+  });
+});
+
 describe("nav — Conventions", () => {
   it("sits under the SKILLS LAB heading, not WORKSPACE", () => {
     expect(skillsLab?.items.map((i) => i.key)).toContain("conventions");

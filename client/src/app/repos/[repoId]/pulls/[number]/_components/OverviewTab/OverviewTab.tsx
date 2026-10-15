@@ -3,11 +3,14 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { SectionLabel, Skeleton } from "@devdigest/ui";
+import type { PrFile } from "@devdigest/shared";
 import { ApiError } from "@/lib/api";
-import { useIntent, useRecalculateIntent } from "@/lib/hooks";
+import { useIntent, useRecalculateIntent } from "@/lib/hooks/intent";
 import { useBlastRadius } from "@/lib/hooks/blast";
+import { useGenerateBrief, usePrBrief } from "@/lib/hooks/brief";
 import { BlastRadius } from "../BlastRadius";
 import { IntentCard } from "../IntentCard";
+import { PrBriefBlock } from "../PrBriefBlock";
 import { s } from "./styles";
 
 interface OverviewTabProps {
@@ -15,14 +18,24 @@ interface OverviewTabProps {
   prId: string | null;
   repoFullName: string | null;
   headSha: string;
+  files: PrFile[];
+  onOpenFile(path: string, line: number | null): void;
 }
 
-export function OverviewTab({ prBody, prId, repoFullName, headSha }: OverviewTabProps) {
+export function OverviewTab({ prBody, prId, repoFullName, headSha, files, onOpenFile }: OverviewTabProps) {
   const t = useTranslations("blast");
   const tPr = useTranslations("prReview");
   const { data, isPending, isError } = useBlastRadius(prId);
   const intent = useIntent(prId);
   const recalc = useRecalculateIntent(prId);
+  const briefQuery = usePrBrief(prId);
+  const generate = useGenerateBrief(prId);
+  const prFilePaths = React.useMemo(() => new Set(files.map((f) => f.path)), [files]);
+  const generateError = generate.isError
+    ? generate.error instanceof ApiError && generate.error.code === "brief_no_files"
+      ? "noFiles"
+      : "failed"
+    : null;
 
   const blast = isError ? (
     <div role="alert" style={s.error}>{t("error")}</div>
@@ -35,26 +48,47 @@ export function OverviewTab({ prBody, prId, repoFullName, headSha }: OverviewTab
     <BlastRadius blast={data} repoFullName={repoFullName} headSha={headSha} />
   );
 
+  const intentCard = prId ? (
+    <IntentCard
+      intent={intent.data?.intent}
+      isLoading={intent.isLoading}
+      isError={intent.isError}
+      onRetry={() => intent.refetch()}
+      onRecalculate={() => recalc.mutate()}
+      isRecalculating={recalc.isPending}
+      recalcError={recalc.error instanceof ApiError ? recalc.error : recalc.error ? new ApiError("", 0) : null}
+    />
+  ) : null;
+
+  const briefBlock = (
+    <PrBriefBlock
+      status={briefQuery.isPending ? "loading" : briefQuery.isError ? "loadError" : "ready"}
+      brief={briefQuery.data?.brief ?? null}
+      headSha={headSha}
+      prFilePaths={prFilePaths}
+      generating={generate.isPending}
+      generateError={generateError}
+      onGenerate={() => generate.mutate(headSha)}
+      onRetryLoad={() => briefQuery.refetch()}
+      onOpenFile={onOpenFile}
+      intent={intentCard}
+      noIntent={!!prId && (intent.isSuccess || intent.isError) && intent.data?.intent == null}
+    />
+  );
+
   return (
     <>
-      {/* Intent on the left, blast radius on the right — the prototype's two-column Overview. */}
+      {/* PR brief (Intent block on top) on the left, blast radius on the right. */}
       {prId ? (
         <div style={s.columns}>
-          <div style={s.column}>
-            <IntentCard
-              intent={intent.data?.intent}
-              isLoading={intent.isLoading}
-              isError={intent.isError}
-              onRetry={() => intent.refetch()}
-              onRecalculate={() => recalc.mutate()}
-              isRecalculating={recalc.isPending}
-              recalcError={recalc.error instanceof ApiError ? recalc.error : recalc.error ? new ApiError("", 0) : null}
-            />
-          </div>
+          <div style={s.column}>{briefBlock}</div>
           <div style={s.column}>{blast}</div>
         </div>
       ) : (
-        blast
+        <>
+          {blast}
+          {briefBlock}
+        </>
       )}
 
       {prBody && (
