@@ -31,7 +31,7 @@ or the plan to make them pass.
 `<hw>` for the report is the third argument; without it, the `docs/hw<N>/` folder whose
 `requirements.md` the spec was written from. If that is not unambiguous, ask.
 
-## 1. Implement — one implementer per package group
+## 1. Implement — one implementer (or one chain of sessions) per package group
 
 Read the plan's task headings and each task's `Files:` line (not the task bodies) and split the
 tasks into at most two groups:
@@ -51,16 +51,32 @@ before its code, and touch no file outside the group's packages.
 - **Sequential** otherwise: the server group first, the client group after its checks pass.
 - A plan with tasks in one group only → one implementer, as before.
 
+**Sessions.** When the plan splits a group into sessions (named task ranges in its task-order
+section), each session is its own `implementer` launch: a new agent with a clean context and only
+that session's task ids, never a `SendMessage` to an earlier session. All sessions run inside this
+one command; do not hand them to the user as separate runs.
+
+- Within a group, sessions run in plan order. Start the next one only after you have run the
+  previous session's checks green and committed it — the new implementer reads the repo, not the
+  previous conversation.
+- The two groups' chains run in parallel. A session whose tasks have a `Depends on:` in the other
+  group waits until the session holding that task is green and committed.
+- A plan without sessions → one implementer per group, as above.
+
 Wait for the reports.
 
 - A task reported `blocked`, or a deviation that changes what an AC means → stop and ask the user.
   Do not improvise a different design and do not re-plan.
 - An implementer that stopped at its turn limit is resumed once (`SendMessage`: continue from
-  where it stopped). A second stop → show the user what is done and what is not.
+  where it stopped). For a session, launch instead one fresh implementer with the session's
+  unfinished task ids, starting from the repo state. A second stop → show the user what is done
+  and what is not.
 - Run the checks of every touched package yourself (`typecheck` + `test`); do not rely on the
   reports. If they fail, send the failing output back to the implementer of that group once; if
   they still fail, stop and show the user.
-- Commit locally: one commit per group, message per repo convention. Never push.
+- Commit locally: one commit per group (per session when the plan has sessions), message per repo
+  convention. Stage only that group's paths — the other chain may be writing at the same time.
+  Never push.
 
 ## 2. Reviews — architecture, then security
 
@@ -80,6 +96,7 @@ While either review holds a CRITICAL or major finding and fewer than 2 rounds ha
 
 1. Send the implementer of the package the finding is in ONLY the CRITICAL and major findings of
    BOTH reviewers for its files, verbatim, with the plan path. It fixes those and nothing else.
+   When the group ran in sessions, launch a fresh implementer for the fix.
 2. Re-run `typecheck` + `test` of the touched packages yourself.
 3. Commit locally (`fix(<scope>): address review`).
 4. Re-review **the fix, not the feature**: launch again only the reviewer(s) that had a CRITICAL

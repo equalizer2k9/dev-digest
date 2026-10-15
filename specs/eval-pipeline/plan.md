@@ -145,11 +145,13 @@ Not touched:
 
 ### Order, sessions, critical path
 
-- **Server implementer:** T-S1 … T-S10. **Client implementer:** T-C1 … T-C8. **Final step:** T-V1, done by the user and the coordinator.
-- About 45 turns of work on the server and 35 on the client — more than one session's ~35-turn limit. Each group runs as **three** sequential sessions with a hard hand-off: a session ends only when its tasks are green (`typecheck` + their tests), and the next session starts fresh from the repo state (cross-model F-3).
+- **Server group:** T-S1 … T-S10. **Client group:** T-C1 … T-C8. **Final step:** T-V1, done by the user and the coordinator.
+- About 45 turns of work on the server and 35 on the client — too much for one implementer context (the last single run stopped at ~35). Everything runs in **one** `/run-plan`. Each group is a chain of **three sessions**, and a session is one `implementer` launch with a clean context that gets only its own task ids (cross-model F-3). The server and client chains run in parallel.
   - Server A: T-S1 → T-S3 (contracts, schema + migration, pure scoring). Server B: T-S4 → T-S6 (helpers, repository + case creation, executor). Server C: T-S7 → T-S10 (reads, routes, integration tests, `verify:l06`).
   - Client A: T-C1 → T-C3 (contracts, hooks, messages + shared components). Client B: T-C4 → T-C5 (finding-card control, Evals tab cases + run). Client C: T-C6 → T-C8 (metrics + history, Compare, Dashboard).
-  - If a session still runs out of turns, its last unfinished task is split at its test boundary and resumed in a new session — never continued in the same over-long one.
+  - Hand-off: the coordinator starts the next session of a chain only after it has run the previous session's `typecheck` + `test` green and committed them. The next implementer reads the repo, not the previous one's conversation.
+  - Cross-chain waits, from the `Depends on:` lines: Client A starts once Server A is green (T-C1 needs T-S1), and Server C also waits for Client A (T-S10 needs T-C1). No other session waits on the other chain, so Server B runs alongside Client A, and Server C alongside Client B and C.
+  - A session that stops at its turn limit is not continued in the same context. The coordinator launches one fresh implementer for that session's unfinished tasks, starting from the repo state; a second stop goes to the user.
 - **Critical path:** T-S1 → T-S2 → T-S5 → T-S6 → T-S8 → T-S9 → T-S10 → T-V1.
 - **Client path:** T-S1 → T-C1 → T-C2 → T-C5 → T-C6 → T-C7. T-C3 comes before T-C5. T-C4, T-C7 and T-C8 can run in any order once T-C2 and T-C3 are done.
 - T-S10 needs T-C1, because the parity suite is red until the client copy matches.
