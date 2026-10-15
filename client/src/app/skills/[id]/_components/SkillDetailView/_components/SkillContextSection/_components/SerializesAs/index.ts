@@ -1,0 +1,1 @@
+export { SerializesAs } from "./SerializesAs";

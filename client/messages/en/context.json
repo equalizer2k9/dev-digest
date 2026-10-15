@@ -40,10 +40,21 @@
     "tooLarge": "Too large — skipped",
     "overBudget": "Beyond the budget — not sent",
     "footer": "≈ {tokens, number} tokens · injected as untrusted",
+    "budgetWarning": "Over the {budget, number}-token section budget — documents past it are skipped on a run (shown as “over budget” in the trace). Your attachments are kept.",
     "noMatch": "No document matches the filter."
   },
   "section": {
     "title": "Project context to use"
+  },
+  "counter": {
+    "ofListed": "{attached, number} of {listed, number} attached",
+    "attached": "{count, number} attached"
+  },
+  "serializes": {
+    "title": "Serializes as",
+    "empty": "No documents attached — nothing is added to the prompt.",
+    "tokens": "{tokens, number} tokens",
+    "overBudget": "Past the budget"
   },
   "errors": {
     "save": "Couldn’t save the attached documents"
