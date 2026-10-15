@@ -31,10 +31,13 @@ export interface SkillDocs {
   paths: string[];
 }
 
+const TAG_ORDER: ProjectContextTag[] = ['specs', 'docs', 'insights'];
+
 /**
  * An agent's effective documents: its own first (stored order), then each
  * enabled skill's in the given order. A repeated path appears once, at its first
- * position, keeping the `skill` of that position.
+ * position, keeping the `skill` of that position. The result is then ordered by
+ * tag (specs, docs, insights), stable within a tag.
  */
 export function effectiveDocuments(
   own: string[],
@@ -52,7 +55,12 @@ export function effectiveDocuments(
     if (!s.enabled) continue;
     for (const p of s.paths) add(p, { id: s.id, name: s.name });
   }
-  return out;
+  // Stable sort by tag (Array.prototype.sort is stable): order within a tag is unchanged.
+  const rank = (path: string) => {
+    const i = TAG_ORDER.indexOf(documentTag(path) as ProjectContextTag);
+    return i === -1 ? TAG_ORDER.length : i;
+  };
+  return out.sort((a, b) => rank(a.path) - rank(b.path));
 }
 
 /** Does a block of `blockTokens` still fit once `used` tokens are spent? */
