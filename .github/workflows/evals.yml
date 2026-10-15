@@ -190,7 +190,8 @@ jobs:
         working-directory: evals
     env:
       EVAL_BACKEND: openrouter
-      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      # OPENROUTER_API_KEY is given only to the proxy-up step; eval sessions authenticate to the
+      # proxy with the per-job LITELLM_MASTER_KEY (evals/src/runtime/env.ts).
       OPENROUTER_BASE_URL: http://localhost:4000
       EVAL_MODEL: ${{ inputs.agents_model || 'anthropic/claude-haiku-4.5' }}
       EVAL_JUDGE_MODEL: ${{ inputs.judge_model || 'deepseek/deepseek-v4-flash' }}
@@ -214,7 +215,15 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Per-job LiteLLM master key
+        run: |
+          key="sk-$(openssl rand -hex 32)"
+          echo "::add-mask::$key"
+          echo "LITELLM_MASTER_KEY=$key" >> "$GITHUB_ENV"
+
       - name: LiteLLM proxy up
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           docker compose -f proxy/docker-compose.yml up -d
           pnpm proxy:wait
@@ -225,9 +234,13 @@ jobs:
         run: pnpm vitest run "agents/$AGENT/"
 
       - if: failure()
+        env:
+          OPENROUTER_API_KEY: unused   # compose interpolates it; the value is not needed here
         run: docker compose -f proxy/docker-compose.yml logs --tail 100
 
       - if: always()
+        env:
+          OPENROUTER_API_KEY: unused
         run: docker compose -f proxy/docker-compose.yml down
 
       - if: always()
@@ -248,7 +261,8 @@ jobs:
         working-directory: evals
     env:
       EVAL_BACKEND: openrouter
-      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      # OPENROUTER_API_KEY is given only to the proxy-up step; eval sessions authenticate to the
+      # proxy with the per-job LITELLM_MASTER_KEY (evals/src/runtime/env.ts).
       OPENROUTER_BASE_URL: http://localhost:4000
       EVAL_MODEL: ${{ inputs.workflow_model || 'anthropic/claude-haiku-4.5' }}
       # Claude Code's own side calls (title/summary) use its built-in haiku ID, which OpenRouter does
@@ -273,7 +287,15 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Per-job LiteLLM master key
+        run: |
+          key="sk-$(openssl rand -hex 32)"
+          echo "::add-mask::$key"
+          echo "LITELLM_MASTER_KEY=$key" >> "$GITHUB_ENV"
+
       - name: LiteLLM proxy up
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           docker compose -f proxy/docker-compose.yml up -d
           pnpm proxy:wait
@@ -282,9 +304,13 @@ jobs:
         run: pnpm eval:workflow
 
       - if: failure()
+        env:
+          OPENROUTER_API_KEY: unused   # compose interpolates it; the value is not needed here
         run: docker compose -f proxy/docker-compose.yml logs --tail 100
 
       - if: always()
+        env:
+          OPENROUTER_API_KEY: unused
         run: docker compose -f proxy/docker-compose.yml down
 
       - if: always()

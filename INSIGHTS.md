@@ -59,6 +59,7 @@ or delete; cleanup only via `/engineering-insights review root`.
   - Cause: the unpinned `ghcr.io/berriai/litellm:main-stable` image now refuses no-auth mode, which `evals/proxy/litellm.config.yaml` uses on purpose.
   - Fix: not applied yet — pin the image, or set a per-run `LITELLM_MASTER_KEY` and send it as the bearer (`evals/src/runtime/env.ts` sends `OPENROUTER_API_KEY` today).
   - Evidence: CI run 38626992479, jobs `agents` and `workflow`, step `LiteLLM proxy up`
+  - Superseded 2026-10-15: fix applied — image pinned to `v1.105.1@sha256:b7b9e2c3…`, per-run `LITELLM_MASTER_KEY` sent as the bearer by `evals/src/runtime/env.ts`.
 
 ## Session Notes
 <!-- ### YYYY-MM-DD — task: outcome, sections that got entries, what stayed open -->

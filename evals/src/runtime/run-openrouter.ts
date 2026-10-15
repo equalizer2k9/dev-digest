@@ -14,13 +14,14 @@
 import OpenAI from "openai";
 import { EVAL_MODEL } from "../config.js";
 import type { Result, RunOptions } from "./run-claude.js";
+import { openRouterAuth } from "./env.js";
 
 const BASE_URL = (process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1").replace(/\/$/, "");
 
 /** Run one content-only turn against an OpenAI-compatible endpoint and shape it as a Result. */
 export async function runOpenRouter(prompt: string, opts: RunOptions = {}): Promise<Result> {
-  const key = process.env.OPENROUTER_API_KEY;
-  if (!key) throw new Error("EVAL_BACKEND=openrouter but OPENROUTER_API_KEY is not set");
+  // Direct: the OpenRouter key. Through the LiteLLM proxy: its master key (src/runtime/env.ts).
+  const { token } = openRouterAuth();
 
   // Match run-claude's no-tools contract so the injected artifact behaves the same in both runtimes.
   const directive =
@@ -28,7 +29,7 @@ export async function runOpenRouter(prompt: string, opts: RunOptions = {}): Prom
     "Answer directly and completely from the information given in the prompt.";
   const system = (opts.systemPrompt ?? "") + directive;
 
-  const client = new OpenAI({ apiKey: key, baseURL: BASE_URL, timeout: 90_000, maxRetries: 2 });
+  const client = new OpenAI({ apiKey: token, baseURL: BASE_URL, timeout: 90_000, maxRetries: 2 });
 
   const started = Date.now();
   let text = "";
