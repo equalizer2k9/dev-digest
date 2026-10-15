@@ -46,3 +46,6 @@ docs/hw5/.video-raw/
 
 # skill-creator run workspaces (evals.json lives in .claude/skills/<skill>/evals/)
 .claude/skills/*-workspace/
+# HW6 demo media — recorded locally, not committed
+docs/hw6/.demo-frames/
+docs/hw6/.video-raw/
