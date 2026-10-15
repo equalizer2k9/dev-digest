@@ -850,3 +850,20 @@ Changed after the reviews, by the user's decision:
 - A case's stored error reason is now a fixed phrase plus the error's code or class and its HTTP status,
   never the provider's own text. It uses the shared `server/src/modules/_shared/error-kind.ts`, which the
   review run's Live Log now uses as well.
+
+After the final verification (2026-10-15):
+
+- **AC-37 — the boundary test reads `evals/` as text.** `server/test/eval-boundary.test.ts` walks `evals/` and
+  searches it for the eval module's names. That is how the plan proves the `evals/` side of AC-37 (T-S10,
+  cross-model F-8). The spec's first sentence forbids a feature test from reading `evals/`, so the verifier marks
+  AC-37 PARTIAL. It stays: a grep in a test is the cheapest standing proof of the second sentence.
+- **T-S9 — the AC-42 twin appends a line.** The v1→v2 prompt change adds a line and replaces nothing, so the test
+  asserts only an `add` diff line, not `remove` + `add`.
+- **Two server fixes found while recording the demo:**
+  - a running run stores `total` = the number of cases, so the status line says "Running 10 cases…" (`cfdfb03`);
+  - `createCaseExclusive` returns `unavailable` when the finding's case lives in another workspace, and the route
+    answers 404 (`515c0b8`).
+- **AC-32 — Compare with the same foreign id twice** answered 422; the workspace lookup now runs first (`90d4f63`).
+- **AC-44 is not shown on real runs.** In six attempts v3 hit the only `must_not_flag` zone once, and only in an
+  unrecorded trial. The recorded take compares v1 ↔ v3 with precision Δ 0, by the user's decision. AC-42, the
+  deterministic twin, passes.
