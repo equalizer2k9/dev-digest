@@ -25,10 +25,16 @@
       "precision": "Precision",
       "citation": "Citation",
       "pass": "Pass",
-      "cost": "Cost"
+      "cost": "Cost",
+      "status": "Status",
+      "agent": "Agent",
+      "version": "Version",
+      "cases": "Cases"
     },
     "pass": "pass",
-    "fail": "fail"
+    "fail": "fail",
+    "agentsTitle": "Agents with eval sets",
+    "empty": "No agent has an eval set yet. Turn an accepted or dismissed finding into an eval case."
   },
   "caseEditor": {
     "newCase": "New eval case",
@@ -63,7 +69,7 @@
     "casesHeading": "Eval cases",
     "newCase": "New case",
     "loadingCases": "Loading cases…",
-    "emptyCases": "No eval cases yet. Create one to assert this agent's expected findings on a sample diff.",
+    "emptyCases": "No eval cases yet. Use \"Turn into eval case\" on an accepted or dismissed finding to add one.",
     "neverRun": "never run",
     "passed": "passed",
     "failed": "failed",
@@ -80,5 +86,64 @@
     "crumbEvals": "Evals",
     "crumbNewCase": "New case",
     "crumbEvalCase": "Eval case"
-  }
+  },
+  "na": "n/a",
+  "passedCount": "{passed}/{total} passed",
+  "type": {
+    "mustFind": "Must find",
+    "mustNotFlag": "Must not flag"
+  },
+  "status": {
+    "running": "Running",
+    "completed": "Completed",
+    "failed": "Failed",
+    "passed": "Passed",
+    "error": "Error",
+    "neverRun": "Never run"
+  },
+  "hasErrors": "Some cases errored",
+  "statusLine": {
+    "running": "Running {count, plural, one {# case} other {# cases}}…",
+    "failed": "Run failed: {error}"
+  },
+  "history": {
+    "title": "Run history",
+    "empty": "No runs yet. Run the eval to see metrics here.",
+    "compareSelected": "Compare selected",
+    "selectHint": "Select two completed runs to compare"
+  },
+  "compare": {
+    "title": "Compare runs",
+    "earlier": "Earlier",
+    "later": "Later",
+    "delta": "Change",
+    "changedCases": "Changed cases",
+    "addedCases": "Added cases",
+    "removedCases": "Removed cases",
+    "noChanges": "No case changed between these runs.",
+    "back": "Back to evals"
+  },
+  "turnInto": {
+    "label": "Turn into eval case",
+    "hint": "Add this finding to the agent's eval set",
+    "success": "Added to {agent}'s eval set",
+    "exists": "Already in {agent}'s eval set",
+    "view": "View eval cases",
+    "errors": {
+      "eval_case_undecided": "Accept or dismiss the finding first.",
+      "eval_case_no_agent": "The agent that produced this finding no longer exists.",
+      "eval_case_no_patch": "This finding's file has no diff to freeze.",
+      "eval_case_no_hunk": "This finding is not inside a changed hunk.",
+      "eval_case_conflict": "This case clashes with the existing case \"{name}\".",
+      "generic": "Could not create the eval case."
+    }
+  },
+  "deleteConfirm": {
+    "title": "Delete eval case",
+    "body": "Delete \"{name}\"? This cannot be undone.",
+    "confirm": "Delete",
+    "cancel": "Cancel"
+  },
+  "loadError": "Could not load eval data.",
+  "retry": "Retry"
 }

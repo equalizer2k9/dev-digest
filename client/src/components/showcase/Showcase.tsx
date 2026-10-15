@@ -71,6 +71,9 @@ import { ConfirmDialog } from "../confirm-dialog";
 import { SkillCard } from "../../app/skills/_components/SkillCard";
 import { SkillPreviewDrawer } from "../../app/skills/_components/SkillPreviewDrawer";
 import { ConventionCard } from "../../app/repos/[repoId]/conventions/_components/ConventionCard";
+import evalMessages from "../../../messages/en/eval.json";
+import { EvalMetrics } from "../eval/EvalMetrics";
+import { EvalRunTable } from "../eval/EvalRunTable";
 import { s } from "./styles";
 import {
   SEVERITIES,
@@ -83,6 +86,7 @@ import {
   SHOWCASE_BRIEF,
   SHOWCASE_INTENT,
   SHOWCASE_SKILL,
+  SHOWCASE_EVAL_RUNS,
   SHOWCASE_CONVENTION,
   SHOWCASE_CONTEXT_DOCS,
   SHOWCASE_CONTEXT_EFFECTIVE,
@@ -531,6 +535,17 @@ export function Gallery() {
           </div>
           <div style={s.w460}>
             <IntentCard intent={undefined} isLoading={false} isError={true} onRetry={() => {}} onRecalculate={() => {}} isRecalculating={false} recalcError={null} />
+          </div>
+        </Group>
+      </NextIntlClientProvider>
+
+      {/* Eval pipeline: shared metrics tiles and run table. Presentational, `eval` namespace. */}
+      <NextIntlClientProvider locale="en" messages={{ eval: evalMessages }}>
+        <Group title="Evals (EvalMetrics / EvalRunTable)">
+          <EvalMetrics run={SHOWCASE_EVAL_RUNS[0]!} />
+          <EvalMetrics run={SHOWCASE_EVAL_RUNS[1]!} />
+          <div style={s.w460}>
+            <EvalRunTable runs={SHOWCASE_EVAL_RUNS} showAgent selectable selected={["er-1"]} onToggle={() => {}} />
           </div>
         </Group>
       </NextIntlClientProvider>
