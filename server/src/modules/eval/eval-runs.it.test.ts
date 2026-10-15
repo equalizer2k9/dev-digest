@@ -169,7 +169,7 @@ d('eval runs (Postgres)', () => {
     const res = await call('POST', `/agents/${f.agentId}/evals/runs`);
     expect(res.statusCode).toBe(202);
     const started = EvalRunRecord.parse(res.json());
-    expect(started).toMatchObject({ status: 'running', agent_version: 1, model: 'stub-model', total: 0 });
+    expect(started).toMatchObject({ status: 'running', agent_version: 1, model: 'stub-model', total: 3 });
     const done = await waitForRun(f.agentId, started.id);
     expect(done.status).toBe('completed');
     expect(done).toMatchObject({ total: 3, passed: 1 });

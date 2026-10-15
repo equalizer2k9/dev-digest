@@ -62,6 +62,7 @@ export class EvalService {
       provider: agent.provider,
       model: agent.model,
       skills: skills.map((s) => ({ name: s.name, version: s.version })),
+      total: cases.length,
     });
     if (!run) throw new AppError(EVAL_RUN_IN_PROGRESS, 'A run of this agent is already in progress', 409);
 

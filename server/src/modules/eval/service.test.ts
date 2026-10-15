@@ -117,7 +117,8 @@ describe('EvalService.startRun', () => {
       recall: null,
       finished_at: null,
       passed: 0,
-      total: 0,
+      // The running run already carries its case count, so the status line can say "Running 2 cases…".
+      total: 2,
     });
     expect(s.llm).not.toHaveBeenCalled();
     const [run, agent, cases, skills] = executor.execute.mock.calls[0]!;

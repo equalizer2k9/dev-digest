@@ -13,6 +13,8 @@ export interface NewRunningRun {
   provider: string;
   model: string;
   skills: EvalRunSkill[];
+  /** Cases the run evaluates, known at the start (the status line shows it). */
+  total: number;
 }
 
 export interface FinishedRunValues {
