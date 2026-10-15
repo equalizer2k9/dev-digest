@@ -47,8 +47,8 @@ Non-goals:
 - NG7. Any database schema change: every CI table already exists; a need for one stops the work.
 - NG8. Setting the required check or the repository secret from the studio: the user does both on
   GitHub (D11, D20).
-- NG9. Changing the agent runner's behaviour: it is only touched for build fixes (D16); its known
-  weaknesses are recorded as residual risks (Security).
+- NG9. Changing the agent runner's behaviour beyond build fixes (D16) and the untrusted PR title
+  (AC-13); its other known weaknesses are recorded as residual risks (Security).
 - NG10. Part A (Multi-Agent Review): the multi-agent picker, run page, grouping, disagreements,
   estimates, the multi-agent list, and its schema change.
 - NG11. Installing more than one agent into the same repository (A-6).
@@ -85,12 +85,15 @@ Definitions.
 Bundle (D13, D16)
 - AC-1 (D13). WHEN the bundle of an agent is generated with an available runner build, the system
   shall return exactly these files: `.devdigest/agents/<agent slug>.yaml`, one
-  `.devdigest/skills/<skill slug>.md` per skill linked to the agent holding that skill's text, one
+  `.devdigest/skills/<skill slug>.md` per **enabled** skill linked to the agent, in link order —
+  the same set a local review sends (`run-executor.ts`, `.filter((l) => l.skill.enabled)`) — holding
+  that skill's text, one
   `.devdigest/runner/<file name>` per file of the runner build with identical contents, and
   `.github/workflows/devdigest-review.yml`; only the workflow shall be marked editable.
-- AC-2 (D13). The system shall generate the agent manifest so that the YAML, parsed and validated by
-  the same shared agent manifest contract the runner uses, yields the agent's name, provider, model,
-  system prompt, skill slugs in link order and its "Fail CI on" value; IF that validation fails THEN
+- AC-2 (D13). The system shall generate the agent manifest as real YAML (not JSON), with the system
+  prompt as a literal block scalar (`|`), so that the YAML, parsed the way the runner parses it and
+  validated by the same shared agent manifest contract the runner uses, yields the agent's name,
+  provider, model, system prompt, enabled skill slugs in link order and its "Fail CI on" value; IF that validation fails THEN
   the export shall be rejected and nothing shall be written to GitHub.
 - AC-3 (D13). IF the runner build is missing or contains no `index.js` THEN a preview or install
   request shall be answered with a conflict (HTTP 409) whose message contains
@@ -106,7 +109,11 @@ Workflow (D15)
   `devdigest-result.json` as artifact `devdigest-result` with `if: always()` and 7 days of retention.
 - AC-5 (D15, Security). The generated workflow shall: check out
   `${{ github.event.pull_request.base.sha }}` with `persist-credentials: false`; contain no
-  `pull_request_target`; reference every action by a full 40-character commit SHA; for a pull request
+  `pull_request_target`; reference every action by a full 40-character commit SHA with the tag in a
+  trailing comment — exactly `actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1`,
+  `actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0`,
+  `actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2` (verified with
+  `git ls-remote`, 2026-10-16); for a pull request
   whose head repository differs from `github.repository`, skip checkout and runner and emit a notice;
   when `.devdigest/runner/index.js` is absent on the checked-out base, emit a notice and end the job
   successfully without running the runner; reference no secret other than `OPENROUTER_API_KEY` and the
@@ -146,11 +153,17 @@ Display (D18)
   CI runs of the caller's workspace (of that agent only, when given), newest first, each with
   repository, pull request number, agent, status, findings count, cost, duration, run time and run URL.
 
+Runner (D16, Security)
+- AC-13 (Безпека B). WHEN the agent runner builds the review request for a pull request, the engine's
+  task line shall be exactly `Review PR #<number>` with no pull-request title, and the title shall
+  reach the model only inside the untrusted pull-request block together with the description
+  (`<untrusted source="pr-description">`).
+
 ## Edge cases
 
 - EC-1. Runner not built in the studio's checkout → AC-3; the wizard shows the hint on the Preview
   step and does not allow Install.
-- EC-2. Agent with no linked skills → no `.devdigest/skills/` files; the manifest's skill list is
+- EC-2. Agent with no enabled linked skills (none linked, or all switched off) → no `.devdigest/skills/` files; the manifest's skill list is
   empty (AC-1, AC-2).
 - EC-3. Two skills with the same slug → the second gets a numeric suffix so paths stay unique (A-1).
 - EC-4. Agent or skill name with no letter or digit → a fixed fallback slug (A-1).
@@ -225,7 +238,7 @@ feature does not change them.
 
 | Input | Used by | Tag | Source |
 |---|---|---|---|
-| Agent name, provider, model, system prompt, "Fail CI on", linked skills in order | AC-1, AC-2, NFR-3 | `[reused: agents and their skill links]` | `server/src/db/schema/agents.ts` |
+| Agent name, provider, model, system prompt, "Fail CI on", enabled linked skills in order | AC-1, AC-2, NFR-3 | `[reused: agents and their skill links]` | `server/src/db/schema/agents.ts` |
 | Skill texts | AC-1 | `[reused: skills of the agent]` | studio skills |
 | Agent and skill slugs | AC-1, AC-2 | `[deterministic: from names, A-1]` | — |
 | Agent manifest contract | AC-2, runner | `[reused: shared agent manifest contract]` | `server/src/vendor/shared/contracts/eval-ci.ts` |
@@ -270,19 +283,21 @@ feature does not change them.
   pull request the user reviews (AC-6, AC-7).
 - S-6. A token without workflow permission yields a clear error and no partial installation record
   (AC-8). Ingest needs only Actions: read (D19).
-- Residual risks (out of scope; the runner is touched only for build fixes, NG9):
+- S-7. The pull-request title is attacker-controlled (any PR author sets it) and could steer the model
+  into muting findings and passing the gate; it is therefore only ever placed inside the untrusted
+  pull-request block, never in the task line (AC-13).
+- Residual risks (out of scope, NG9):
   - R-1. The runner's diff parsing treats `+++ ` / `--- ` lines as file headers even inside a hunk, and
     strips ignored paths (`.devdigest/`, `.github/workflows/`) by a loose header pattern, so a crafted
-    pull request could hide changes from the reviewer.
+    pull request could hide changes from the reviewer. Stays residual: the parser fix is outside this
+    homework; recorded as one line in PR B's description and in `agent-runner/insights/INSIGHTS.md`.
   - R-2. The runner joins manifest skill slugs into a file path without validation. Mitigated: the
     manifest and skills are read from the base commit (S-4), and studio-generated slugs contain only
-    lower-case letters, digits and hyphens (A-1).
+    lower-case letters, digits and hyphens (A-1). Stays residual: the slug comes from the manifest of
+    the base commit, so a PR author cannot change it (D15).
   - R-3. A workflow edited in Preview is committed as is (A-5) and may drop any S-4 property; the
     install pull request is the user's review point.
-  - R-4. `agent-runner/src/run.ts` puts the PR title into the engine's `task` line unwrapped, while
-    the PR body goes through `<untrusted source="pr-description">`; a crafted title is a prompt
-    injection path into the review. Out of scope here (runner touched only for build fixes); fix
-    candidate: fixed `task` literal and the title inside the wrapped description.
+  - R-4. Closed by AC-13 (was: the PR title reached the engine's `task` line unwrapped).
 
 ## Open questions
 
@@ -331,10 +346,18 @@ settle is recorded below as an assumption, to be overridden by the user if wrong
 | D13 file set, all runner build files, manifest validated by same contract, 409 + build hint, no `memory.jsonl` | AC-1, AC-2, AC-3, NG5 |
 | D14 branch `devdigest/ci`, PR "Add DevDigest CI review" with description, reuse open PR + same URL, one installation per agent + repo, never write to base | AC-6, AC-7, S-5, A-6 |
 | D15 workflow pure function and every listed property | AC-4, AC-5, S-4 |
-| D16 runner provenance, skill mapping, build | Inputs and provenance, NFR-11, NG9 |
+| D16 runner provenance, skill mapping, build | Inputs and provenance, NFR-11, NG9, AC-13 |
 | D17 pull-based ingest, dedupe by run URL, artifact validation, pr/agent match, `agent_runs` ci + `ci_runs`, skip with log, GitHub down → message and old rows kept, new GitHub client reads + mocks | AC-9, AC-10, AC-11, NFR-5, NFR-7, NG2, NG4 |
 | D18 `/ci-runs` page and agent CI tab with "Fail CI on", history, "Add to CI" | AC-12, NFR-3, NFR-4 |
 | D19 token `workflow` scope / Workflows: write error; Actions: read for ingest | AC-8, AC-11, S-6 |
 | D20 required check set by the user; hint on Configure | NFR-2, NG8 |
-| Безпека B: secret never read or stored; Preview shows only the reference; no secrets in artifact, logs, trace; PR text untrusted | S-1, S-2, S-3, AC-4, AC-5, Untrusted inputs |
+| Безпека B: secret never read or stored; Preview shows only the reference; no secrets in artifact, logs, trace; PR text untrusted | S-1, S-2, S-3, S-7, AC-4, AC-5, AC-13, Untrusted inputs |
 | No schema change | NG7, NFR-8 |
+
+## Changelog
+
+- 2026-10-16. Before `/run-plan`, by the user: AC-1 and AC-2 export only the agent's enabled skills,
+  the same set as a local review; AC-2 makes the manifest real YAML with `system_prompt` as a `|`
+  block, because a human reviews the `devdigest/ci` PR; AC-5 names the three verified action SHAs;
+  new AC-13 and S-7 fix R-4 (PR title only inside the untrusted block); R-1 and R-2 stay residual,
+  with reasons.
