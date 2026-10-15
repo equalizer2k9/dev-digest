@@ -29,7 +29,7 @@ an adapter at the edge. See [server/AGENTS.md](../../../server/AGENTS.md) and
   src/platform/container.ts        composition root — the ONLY place adapters are constructed
 ```
 
-Dependencies point **inward**. A service depends on the interfaces (`GitHubClient`, `GitClient`,
+Every dependency points **inward**. A service depends on the interfaces (`GitHubClient`, `GitClient`,
 `LLMProvider`, `CodeIndex`, `Embedder`, `SecretsProvider`, `AuthProvider` from `@devdigest/shared`)
 resolved off the `Container`, never on a concrete adapter class. `repository.ts` imports no
 `fastify`; `service.ts` imports no `FastifyRequest`/`FastifyReply`.

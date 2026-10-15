@@ -1,6 +1,6 @@
 # DevDigest
 
-Local-first AI pull-request review. Six standalone packages — **no workspace**: each has its
+Local-first AI review of pull requests. Six standalone packages — **no workspace**: each has its
 own `package.json` + lockfile; cross-package code is shared via tsconfig path aliases.
 
 ## Packages — read `<pkg>/AGENTS.md` before working in a package
