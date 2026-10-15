@@ -15,7 +15,26 @@
 # OpenRouter, so you never edit this file to try a new model — e.g. EVAL_MODEL=deepseek/deepseek-chat
 # arrives here as "deepseek/deepseek-chat" and is dispatched as "openrouter/deepseek/deepseek-chat".
 
+# SUBAGENT ALIASES
+# A repo subagent with `model: sonnet` / `opus` / `haiku` (.claude/agents/*.md) makes the SDK send a
+# bare Anthropic name ("claude-sonnet-5", "claude-opus-4-8"). Through the wildcard it became
+# "openrouter/claude-sonnet-5", which OpenRouter rejects (400 "not a valid model ID"), so every
+# dispatched subagent errored in CI. The exact names below win over the wildcard and map the aliases
+# to the real OpenRouter slugs (dots, not dashes, in the version).
+
 model_list:
+  - model_name: "claude-sonnet-5"
+    litellm_params:
+      model: "openrouter/anthropic/claude-sonnet-5"
+      api_key: os.environ/OPENROUTER_API_KEY
+  - model_name: "claude-opus-4-8"
+    litellm_params:
+      model: "openrouter/anthropic/claude-opus-4.8"
+      api_key: os.environ/OPENROUTER_API_KEY
+  - model_name: "claude-haiku-4-5"
+    litellm_params:
+      model: "openrouter/anthropic/claude-haiku-4.5"
+      api_key: os.environ/OPENROUTER_API_KEY
   - model_name: "*"
     litellm_params:
       model: "openrouter/*"
