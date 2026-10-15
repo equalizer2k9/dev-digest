@@ -55,6 +55,48 @@ describe('effectiveDocuments', () => {
     ]);
   });
 
+  it('AC-40: orders by tag — specs, then docs, then insights', () => {
+    const out = effectiveDocuments(['insights/i.md', 'docs/d.md', 'specs/s.md'], []);
+    expect(out.map((d) => d.path)).toEqual(['specs/s.md', 'docs/d.md', 'insights/i.md']);
+  });
+
+  it('AC-40: keeps the attachment order within a tag (own, then skills)', () => {
+    const out = effectiveDocuments(
+      ['docs/z.md', 'insights/b.md', 'docs/a.md'],
+      [skill('s1', ['specs/y.md', 'docs/m.md', 'insights/a.md']), skill('s2', ['specs/x.md'])],
+    );
+    expect(out.map((d) => d.path)).toEqual([
+      'specs/y.md',
+      'specs/x.md',
+      'docs/z.md',
+      'docs/a.md',
+      'docs/m.md',
+      'insights/b.md',
+      'insights/a.md',
+    ]);
+  });
+
+  it('AC-40: a repeat across tags-sorted lists still appears once, with the skill of its first position', () => {
+    const out = effectiveDocuments(['insights/i.md'], [skill('s1', ['insights/i.md', 'specs/s.md'])]);
+    expect(out).toEqual([
+      { path: 'specs/s.md', skill: { id: 's1', name: 'n-s1' } },
+      { path: 'insights/i.md', skill: null },
+    ]);
+  });
+
+  it('EC-24: moving a document above one of another tag does not change the prompt order', () => {
+    const before = effectiveDocuments(['specs/s.md', 'docs/d.md', 'insights/i.md'], []);
+    const moved = effectiveDocuments(['insights/i.md', 'specs/s.md', 'docs/d.md'], []);
+    const movedAgain = effectiveDocuments(['docs/d.md', 'insights/i.md', 'specs/s.md'], []);
+    expect(moved).toEqual(before);
+    expect(movedAgain).toEqual(before);
+  });
+
+  it('EC-24: a move within a tag does change the prompt order', () => {
+    const out = effectiveDocuments(['docs/b.md', 'docs/a.md'], []);
+    expect(out.map((d) => d.path)).toEqual(['docs/b.md', 'docs/a.md']);
+  });
+
   it('a disabled skill adds nothing', () => {
     expect(effectiveDocuments([], [skill('s1', ['docs/x.md'], false)])).toEqual([]);
   });
