@@ -110,12 +110,12 @@ export class EvalService {
   /** Compare two completed runs of one agent. */
   async compare(workspaceId: string, aId: string, bId: string): Promise<EvalCompare> {
     const invalid = (message: string) => new AppError(EVAL_COMPARE_INVALID, message, 422);
-    if (aId === bId) throw invalid('Pick two different runs');
-
+    // Workspace scope first: a foreign id is "not found" even when given twice (AC-32).
     const found = await this.repo.runsByIds(workspaceId, [aId, bId]);
     const a = found.find((r) => r.run.id === aId);
     const b = found.find((r) => r.run.id === bId);
     if (!a || !b) throw new NotFoundError('Eval run not found');
+    if (aId === bId) throw invalid('Pick two different runs');
     if (a.run.status !== 'completed' || b.run.status !== 'completed') {
       throw invalid('Only completed runs can be compared');
     }

@@ -267,7 +267,13 @@ describe('EvalService.compare', () => {
     expect(repo.runsByIds).toHaveBeenCalledWith(WS, ['a', 'b']);
   });
 
-  it('a === b is a 422 eval_compare_invalid', async () => {
+  it('AC-32: the same foreign id twice is a NotFoundError, not a 422', async () => {
+    repo.runsByIds.mockResolvedValue([]);
+    await expect(s.service.compare(WS, 'x', 'x')).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it('a === b (own run) is a 422 eval_compare_invalid', async () => {
+    repo.runsByIds.mockResolvedValue([withAgent(runRow('a'))]);
     const err = (await s.service.compare(WS, 'a', 'a').catch((e) => e)) as AppError;
     expect(err.code).toBe('eval_compare_invalid');
     expect(err.statusCode).toBe(422);
