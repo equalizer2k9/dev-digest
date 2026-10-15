@@ -368,6 +368,14 @@ AGENTS.md до `docs/agent-prompts/README.md` спрацював 1/2 (у пор�
 - Значення матриці (імена тек з PR) передаються в `run:` через `env`, не підставляються напряму; `pull_request_target` не використовується.
 - Конфіг перевірено `actionlint`.
 
+**Прогони по днях:**
+
+| Дата | Прогін | Що сталося |
+|---|---|---|
+| 14.10 | PR, [38621288357](https://github.com/equalizer2k9/dev-digest/actions/runs/38621288357) | секрету ще нема → модельні jobs пропущено з рядком у лозі |
+| 14.10 | PR, [38626992479](https://github.com/equalizer2k9/dev-digest/actions/runs/38626992479) | `skills` ✓; `agents` і `workflow` — LiteLLM не стартував без master key |
+| 15.10 | PR — не створився; ручний — відхилено | після фіксу проксі GitHub не запускає Actions у цьому репо (нижче); доказ фіксу — локальний прогін з оточенням CI |
+
 **Тестовий PR** [#20](https://github.com/equalizer2k9/dev-digest/pull/20) (`test/hw6-evals-ci` → `feat/homework-6`,
 не мерджити): нейтральні правки в `onion-architecture/SKILL.md`, `architecture-reviewer.md`,
 `zod/SKILL.md`, `AGENTS.md`.
@@ -421,3 +429,47 @@ Neither general_settings.master_key nor the LITELLM_MASTER_KEY environment varia
 
 Активність самого CI-ключа на OpenRouter не перевіряли: ключ є лише в Actions-секретах, локально
 його нема.
+
+### 15.10 — фікс проксі; Actions вимкнено на боці GitHub; локальний прогін з оточенням CI
+
+**Фікс проксі** (`dac7913`):
+- образ закріплено: `ghcr.io/berriai/litellm:v1.105.1@sha256:b7b9e2c3…` — той самий digest, що на 15.10 у `main-stable`;
+- проксі вимагає `LITELLM_MASTER_KEY`: випадковий на кожен job у CI (`openssl rand`, `::add-mask::`) і на кожен
+  `proxy:up` локально;
+- через проксі і SDK, і суддя автентифікуються master key; `OPENROUTER_API_KEY` має лише контейнер
+  проксі, а в CI — лише крок `LiteLLM proxy up`.
+
+**Actions вимкнено на боці GitHub (15.10.2026).**
+- **PR-прогонів нема.** Після merge-оновлення гілки (`cffa6b8`), закриття/відкриття PR і порожнього
+  коміту (`853794d`) жоден прогін не з'явився, і check-suite для цих комітів теж нема.
+- **Push GitHub бачив.** Гілка (`git ls-remote`) і голова PR (`headRefOid`) — обидві `853794d`.
+  Гіпотеза «PR лишився на старому коміті» не підтвердилась: не запустились саме Actions.
+- **Ручний запуск відхилено.** `gh workflow run evals.yml --ref test/hw6-evals-ci` →
+  `HTTP 422: Actions has been disabled for this repository`. Водночас
+  `GET /repos/equalizer2k9/dev-digest/actions/permissions` віддає `{"enabled": true}`. Отже, Actions
+  вимкнено на рівні платформи GitHub, а не налаштуванням репо.
+
+**Локальний прогін з оточенням як у CI** — доказ фіксу проксі:
+- окремий worktree на `372133e`;
+- `pnpm install --frozen-lockfile`;
+- `proxy:up` з master key;
+- `EVAL_BACKEND=openrouter`, `OPENROUTER_BASE_URL` → проксі;
+- модель задачі `anthropic/claude-haiku-4.5`, суддя `deepseek/deepseek-v4-flash`;
+- `OPENROUTER_API_KEY` у процесі евалів не задано;
+- по 1 прогону `agents/architecture-reviewer` і `eval:workflow`, далі `proxy:down`.
+
+| Job | Результат | Тривалість | Кейси |
+|---|---|---|---|
+| agents (architecture-reviewer) | 2/3 | 203 с | А1 route → DB ✓ (3/3 практик, 18 ходів); А2 vendor/shared ✓ (2/3 — рядок не в форматі `file:line \| …`, поріг 0,6 пройдено); А3 чистий рефакторинг ✗ (1/2 — «називає перевірені файли» з повним шляхом, відомий недолік кейсу) |
+| workflow | 3/5 | 253 с | contrast ✓ (у репо прочитано `docs/agent-prompts/README.md`, у порожній теці — ні); activation + ✓ (`Skill(engineering-insights)`); activation − ✓; dispatch ✗ — запущено `researcher` і `Explore`, не `architecture-reviewer`; trace ✗ — `server/AGENTS.md` не прочитано, модель одразу пішла в код |
+
+Падіння ті самі, що й у wf-1 на підписці (експеримент 4), тож причина в harness, а не в проксі:
+- опис агента не покриває рев'ю плану;
+- правило про `<pkg>/AGENTS.md` сховане в заголовку таблиці.
+
+Проксі з master key обслужив усі сесії, обидва типи викликів (Anthropic `/v1/messages` від SDK,
+OpenAI `/chat/completions` від судді).
+
+**Вартість** — з активності локального ключа OpenRouter (`GET /api/v1/key`, поле `usage`):
+до прогону $0,1642, після — $0,6244. Тобто **≈ $0,46** за agents + workflow: 3 + 6 сесій haiku 4.5 і
+судді deepseek.
