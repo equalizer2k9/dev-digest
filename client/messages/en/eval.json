@@ -34,7 +34,8 @@
     "pass": "pass",
     "fail": "fail",
     "agentsTitle": "Agents with eval sets",
-    "empty": "No agent has an eval set yet. Turn an accepted or dismissed finding into an eval case."
+    "empty": "No agent has an eval set yet. Turn an accepted or dismissed finding into an eval case.",
+    "disabled": "disabled"
   },
   "caseEditor": {
     "newCase": "New eval case",
@@ -121,7 +122,23 @@
     "addedCases": "Added cases",
     "removedCases": "Removed cases",
     "noChanges": "No case changed between these runs.",
-    "back": "Back to evals"
+    "back": "Back to evals",
+    "cost": "COST",
+    "version": "Version {version}",
+    "model": "Model",
+    "skills": "Skills",
+    "noSkills": "No skills",
+    "statusChange": "{earlier} → {later}",
+    "promptTitle": "Prompt diff",
+    "promptUnchanged": "The prompt is unchanged between these runs.",
+    "promptUnavailable": "The prompt text is unavailable for {versions, plural, one {version} other {versions}} {list}.",
+    "skillsTitle": "Skill changes",
+    "onlyEarlier": "Only in the earlier run",
+    "onlyLater": "Only in the later run",
+    "reordered": "The skill order changed.",
+    "noSkillChanges": "The skill set is the same.",
+    "missingIds": "Pick two runs to compare from an agent's Evals tab.",
+    "loadError": "Could not load the comparison."
   },
   "turnInto": {
     "label": "Turn into eval case",

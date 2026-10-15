@@ -18,6 +18,8 @@ vi.mock("../../../../../lib/hooks/skills", () => ({
   useSetAgentSkills: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+
 vi.mock("../../../../../lib/hooks/evals", () => ({
   useEvalOverview: () => ({
     data: { agent_id: "ag1", agent_name: "Security Reviewer", cases: [], runs: [] },

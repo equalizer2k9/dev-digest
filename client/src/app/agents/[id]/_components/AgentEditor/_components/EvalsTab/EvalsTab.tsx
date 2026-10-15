@@ -3,12 +3,15 @@
 "use client";
 
 import React from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Badge, Button, ErrorState, Skeleton } from "@devdigest/ui";
 import type { Agent, EvalCaseRow } from "@devdigest/shared";
 import { ConfirmDialog } from "../../../../../../../components/confirm-dialog/ConfirmDialog";
 import { useDeleteEvalCase, useEvalOverview, useRunEval } from "../../../../../../../lib/hooks/evals";
-import { caseLocation, statusLineRun } from "./helpers";
+import { EvalMetrics } from "../../../../../../../components/eval/EvalMetrics";
+import { EvalRunTable } from "../../../../../../../components/eval/EvalRunTable";
+import { caseLocation, latestCompleted, statusLineRun } from "./helpers";
 import { CASE_STATUS_COLORS, s } from "./styles";
 
 export function EvalsTab({ agent }: { agent: Agent }) {
@@ -19,6 +22,8 @@ export function EvalsTab({ agent }: { agent: Agent }) {
   const [pendingDelete, setPendingDelete] = React.useState<EvalCaseRow | null>(null);
   const [runError, setRunError] = React.useState(false);
   const [deleteError, setDeleteError] = React.useState(false);
+  const [picked, setPicked] = React.useState<string[]>([]);
+  const router = useRouter();
 
   if (isLoading) {
     return (
@@ -39,6 +44,16 @@ export function EvalsTab({ agent }: { agent: Agent }) {
   const { cases, runs } = data;
   const running = runs.some((r) => r.status === "running");
   const line = statusLineRun(runs);
+  const latest = latestCompleted(runs);
+  // Derived, not effect-synced: a picked run that left the list (or is no longer completed) drops out.
+  const selected = picked.filter((id) => runs.some((r) => r.id === id && r.status === "completed"));
+  const toggle = (id: string) =>
+    setPicked(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]);
+  const compare = () => {
+    // Earlier run first: `runs` is newest first, so the older one has the higher index.
+    const [a, b] = runs.filter((r) => selected.includes(r.id)).reverse();
+    if (a && b) router.push(`/eval/compare?a=${a.id}&b=${b.id}`);
+  };
 
   const start = () => {
     setRunError(false);
@@ -103,6 +118,27 @@ export function EvalsTab({ agent }: { agent: Agent }) {
           );
         })
       )}
+
+      {latest && (
+        <section style={s.section}>
+          <h2 style={s.h2}>{t("evalsTab.metricsTitle")}</h2>
+          <EvalMetrics run={latest} />
+        </section>
+      )}
+
+      <section style={s.section}>
+        <div style={s.header}>
+          <h2 style={s.h2}>{t("history.title")}</h2>
+          <Button kind="secondary" size="sm" disabled={selected.length !== 2} onClick={compare}>
+            {t("history.compareSelected")}
+          </Button>
+        </div>
+        {runs.length === 0 ? (
+          <div style={s.empty}>{t("history.empty")}</div>
+        ) : (
+          <EvalRunTable runs={runs} selectable selected={selected} onToggle={toggle} />
+        )}
+      </section>
 
       {pendingDelete && (
         <ConfirmDialog
