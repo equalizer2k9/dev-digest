@@ -1,10 +1,12 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
+import { and, eq } from 'drizzle-orm';
 import { CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { NotFoundError } from '../../platform/errors.js';
+import * as t from '../../db/schema.js';
 import { AgentsService } from './service.js';
 
 /** `/providers/:id` addresses a provider by name, not a uuid. */
@@ -81,6 +83,17 @@ export default async function agentsRoutes(appBase: FastifyInstance) {
     const agent = await service.get(workspaceId, req.params.id);
     if (!agent) throw new NotFoundError('Agent not found');
     return agent;
+  });
+
+  /** GET /agents/:id/name → just the name, for the editor breadcrumb. */
+  app.get('/agents/:id/name', { schema: { params: IdParams } }, async (req) => {
+    const { workspaceId } = await getContext(app.container, req);
+    const [row] = await app.container.db
+      .select({ name: t.agents.name })
+      .from(t.agents)
+      .where(and(eq(t.agents.id, req.params.id), eq(t.agents.workspaceId, workspaceId)));
+    if (!row) throw new NotFoundError('Agent not found');
+    return row;
   });
 
   app.post('/agents', { schema: { body: CreateAgentBody } }, async (req, reply) => {
