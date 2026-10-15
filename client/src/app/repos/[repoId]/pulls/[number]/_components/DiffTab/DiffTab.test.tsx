@@ -4,6 +4,7 @@ import { NextIntlClientProvider } from "next-intl";
 import type { FindingRecord, PrFile, PrReviewComment, ReviewRecord, SmartDiff } from "@devdigest/shared";
 import prReviewMessages from "../../../../../../../../messages/en/prReview.json";
 import shellMessages from "../../../../../../../../messages/en/shell.json";
+import evalMessages from "../../../../../../../../messages/en/eval.json";
 
 const mutate = vi.fn();
 const state: {
@@ -18,6 +19,9 @@ vi.mock("@/lib/hooks/reviews", () => ({
   useFindingAction: () => ({ mutate, isPending: false }),
   usePrComments: () => ({ data: state.comments }),
   useCreatePrComment: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
+vi.mock("@/lib/hooks/evals", () => ({
+  useCreateEvalCase: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 import { DiffTab } from "./DiffTab";
@@ -105,7 +109,7 @@ const review = (
 
 function renderTab(target?: { path: string; line: number | null }) {
   return render(
-    <NextIntlClientProvider locale="en" messages={{ prReview: prReviewMessages, shell: shellMessages }}>
+    <NextIntlClientProvider locale="en" messages={{ prReview: prReviewMessages, shell: shellMessages, eval: evalMessages }}>
       <DiffTab
         prId="pr1"
         filesCount={FILES.length}
@@ -225,6 +229,11 @@ describe("DiffTab findings", () => {
     expect(document.querySelectorAll("[data-finding-dot]")).toHaveLength(1);
     // only the core group has a file with findings
     expect(document.querySelectorAll("[data-findings-count]")).toHaveLength(1);
+  });
+
+  it("renders the Turn into eval case control on the finding card", () => {
+    renderTab();
+    expect(screen.getByRole("button", { name: "Turn into eval case" })).toBeInTheDocument();
   });
 
   it("Accept calls mutate with findingId, action and prId", () => {

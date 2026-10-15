@@ -31,6 +31,7 @@ export function FindingCard({
   pending,
   repoFullName,
   headSha,
+  extraAction,
 }: {
   f: FindingRecord;
   focused?: boolean;
@@ -39,6 +40,8 @@ export function FindingCard({
   pending?: boolean;
   repoFullName?: string | null;
   headSha?: string | null;
+  /** Rendered after Dismiss in the expanded actions row (e.g. "Turn into eval case"). */
+  extraAction?: React.ReactNode;
 }) {
   const t = useTranslations("prReview");
   const [expanded, setExpanded] = React.useState(defaultExpanded ?? false);
@@ -109,6 +112,7 @@ export function FindingCard({
             >
               {t("finding.dismiss")}
             </Button>
+            {extraAction}
           </div>
         </div>
       )}

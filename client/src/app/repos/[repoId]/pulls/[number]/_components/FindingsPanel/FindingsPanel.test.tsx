@@ -3,9 +3,13 @@ import { render, screen, cleanup, fireEvent, within } from "@testing-library/rea
 import { NextIntlClientProvider } from "next-intl";
 import type { FindingRecord } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/prReview.json";
+import evalMessages from "../../../../../../../../messages/en/eval.json";
 
 vi.mock("../../../../../../../lib/hooks/reviews", () => ({
   useFindingAction: () => ({ mutate: vi.fn(), isPending: false }),
+}));
+vi.mock("../../../../../../../lib/hooks/evals", () => ({
+  useCreateEvalCase: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 import { FindingsPanel } from "./FindingsPanel";
@@ -49,7 +53,7 @@ const MIXED: FindingRecord[] = [
 
 function renderWithIntl(ui: React.ReactElement) {
   return render(
-    <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
+    <NextIntlClientProvider locale="en" messages={{ prReview: messages, eval: evalMessages }}>
       {ui}
     </NextIntlClientProvider>,
   );
@@ -75,6 +79,14 @@ describe("FindingsPanel (smoke)", () => {
     renderWithIntl(<FindingsPanel findings={FINDINGS} prId="pr1" />);
     expect(screen.getByText("Hide low confidence")).toBeInTheDocument();
     expect(screen.getByText("Hardcoded secret")).toBeInTheDocument();
+  });
+
+  it("every card renders the Turn into eval case control", () => {
+    renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
+    // only the first card starts expanded; open the rest
+    fireEvent.click(screen.getByText("Unhandled rejection"));
+    fireEvent.click(screen.getByText("Missing timeout"));
+    expect(screen.getAllByRole("button", { name: "Turn into eval case" })).toHaveLength(MIXED.length);
   });
 
   it("shows the empty state when nothing matches", () => {

@@ -57,4 +57,13 @@ describe("FindingCard (smoke, both themes)", () => {
     fireEvent.click(screen.getByText("Dismiss"));
     expect(onAction).toHaveBeenCalledWith("dismiss");
   });
+
+  it("renders extraAction in the actions row next to Accept and Dismiss", () => {
+    renderWithIntl(
+      <FindingCard f={FINDING} defaultExpanded onAction={() => {}} extraAction={<button>Extra thing</button>} />,
+    );
+    const row = screen.getByText("Dismiss").closest("button")!.parentElement!;
+    expect(row).toContainElement(screen.getByText("Accept"));
+    expect(row).toContainElement(screen.getByText("Extra thing"));
+  });
 });

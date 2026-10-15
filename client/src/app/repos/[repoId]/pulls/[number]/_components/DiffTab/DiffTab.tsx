@@ -15,6 +15,7 @@ import { notify } from "@/lib/toast";
 import { latestFindingsPerAgent } from "@/lib/findings";
 import type { PrFile } from "@devdigest/shared";
 import { FindingCard } from "../FindingCard";
+import { EvalCaseButton } from "../EvalCaseButton";
 import { DiffRoleGroup } from "../DiffRoleGroup";
 import { ROLE_META } from "./constants";
 import { countFilesWithFindings, groupFiles, pathsWithFindings } from "./helpers";
@@ -86,6 +87,7 @@ export function DiffTab({ prId, filesCount, files, canComment, repoFullName, hea
         defaultExpanded
         repoFullName={repoFullName}
         headSha={headSha}
+        extraAction={<EvalCaseButton finding={f} />}
         pending={action.isPending}
         onAction={(act) => action.mutate({ findingId: f.id, action: act, prId: prId ?? undefined })}
       />

@@ -144,6 +144,8 @@
     "confirm": "Delete",
     "cancel": "Cancel"
   },
+  "deleteFailed": "Could not delete the eval case.",
+  "runFailed": "Could not start the eval run.",
   "loadError": "Could not load eval data.",
   "retry": "Retry"
 }

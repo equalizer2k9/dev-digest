@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { Toggle, EmptyState, Chip, Icon, SEV, type Severity } from "@devdigest/ui";
 import type { FindingRecord } from "@devdigest/shared";
 import { FindingCard } from "../FindingCard";
+import { EvalCaseButton } from "../EvalCaseButton";
 import { useFindingAction } from "../../../../../../../lib/hooks/reviews";
 import { FILTER_SEVERITIES, KEY_TO_ACTION } from "./constants";
 import { severityCounts, visibleFindings } from "./helpers";
@@ -125,6 +126,7 @@ export function FindingsPanel({
               pending={action.isPending}
               repoFullName={repoFullName}
               headSha={headSha}
+              extraAction={<EvalCaseButton finding={f} />}
               onAction={(act) => action.mutate({ findingId: f.id, action: act, prId })}
             />
           ))
