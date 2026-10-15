@@ -515,19 +515,20 @@ haiku 4.5: $1 / $5 за 1M токенів, кеш-читання $0,10, кеш-�
 
 Це оцінка за usage: облік кеш-читання в SDK завищений (див. експеримент 3), тож реальна сума, найімовірніше, нижча.
 
-### 15.10 — PR #22: subagent aliases through the proxy
+### 15.10 — PR #22: аліаси сабагентів через проксі
 
-On PR [#22](https://github.com/equalizer2k9/dev-digest/pull/22) the `workflow` job of run
-[38795890116](https://github.com/equalizer2k9/dev-digest/actions/runs/38795890116) failed 3/5 (dispatch, trace, activation +).
-The proxy log shows a cause that is not the model:
-- a repo subagent with `model: sonnet` / `opus` makes the SDK send the bare name `claude-sonnet-5` / `claude-opus-4-8`;
-- the wildcard route turned it into `openrouter/claude-sonnet-5`, and OpenRouter answered `400 … is not a valid model ID`;
-- so every dispatched subagent errored, including the `trace` case, which ended in ERROR.
+На PR [#22](https://github.com/equalizer2k9/dev-digest/pull/22) job `workflow` прогону
+[38795890116](https://github.com/equalizer2k9/dev-digest/actions/runs/38795890116) впав 3/5 (dispatch, trace, activation +).
+Лог проксі показує причину, що не залежить від моделі:
+- сабагент репо з `model: sonnet` / `opus` змушує SDK слати голу назву `claude-sonnet-5` / `claude-opus-4-8`;
+- wildcard-маршрут перетворював її на `openrouter/claude-sonnet-5`, а OpenRouter відповідав `400 … is not a valid model ID`;
+- тож кожен запущений сабагент падав, зокрема кейс `trace`, що закінчився ERROR.
 
-**Fix:** explicit routes in `evals/proxy/litellm.config.yaml`, ahead of the wildcard:
+**Фікс:** явні маршрути в `evals/proxy/litellm.config.yaml`, перед wildcard:
 - `claude-sonnet-5` → `anthropic/claude-sonnet-5`;
 - `claude-opus-4-8` → `anthropic/claude-opus-4.8`;
 - `claude-haiku-4-5` → `anthropic/claude-haiku-4.5`.
 
-The subagents run on their real models, so dispatch cases in CI cost more. Checked locally through the proxy: all three
-answer `message`. Locally, port 4000 may be taken by another app; `LITELLM_PORT=4011 pnpm proxy:up` works around it.
+Сабагенти тепер працюють на своїх справжніх моделях, тож кейси dispatch у CI дорожчі. Перевірено локально через
+проксі: усі три відповідають `message`. Локально порт 4000 може бути зайнятий іншою програмою — обхід:
+`LITELLM_PORT=4011 pnpm proxy:up`.
