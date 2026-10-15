@@ -1,6 +1,6 @@
 # DevDigest
 
-Local-first AI pull-request review. Six standalone packages — **no workspace**: each has its
+Local-first AI pull-request review. Seven standalone packages — **no workspace**: each has its
 own `package.json` + lockfile; cross-package code is shared via tsconfig path aliases.
 
 ## Packages — read `<pkg>/AGENTS.md` before working in a package
@@ -13,15 +13,15 @@ own `package.json` + lockfile; cross-package code is shared via tsconfig path al
 | [e2e/](e2e/AGENTS.md) | Deterministic browser flows (agent-browser) | npm | — |
 | [devdigest-mcp/](devdigest-mcp/AGENTS.md) | stdio MCP server: 5 tools over the API, HTTP only | npm | — |
 | [evals/](evals/README.md) | Harness evals: skills, subagents, AGENTS.md (vitest + Claude Agent SDK) | pnpm | — |
+| [agent-runner/](agent-runner/CLAUDE.md) | CI runner: reviewer-core bundled by ncc into `dist/`, shipped in the export PR | pnpm | — |
 
-Every package has: `README.md` (humans) · `docs/` (deep dives) · `specs/` (feature specs) ·
-`INSIGHTS.md` (insight log, append-only). In `e2e/`, `specs/` holds the flow JSON instead; `evals/` has only `README.md` + `docs/`.
+Every package has: `README.md` (humans) · `docs/` (deep dives) · `specs/` (feature specs) · `INSIGHTS.md` (insight log, append-only). In `e2e/`, `specs/` holds the flow JSON instead; `evals/` has only `README.md` + `docs/`.
 
 ## Commands
 
 - Full stack from zero: `./scripts/dev.sh` (`--no-seed` · `--no-client` · `--db-only`)
 - Hermetic browser e2e: `./scripts/e2e.sh`
-- Checks, run inside the package: `typecheck` (every package) · `test` — `pnpm` in server + client,
+- Checks, run inside the package: `typecheck` (every package) · `test` — `pnpm` in server + client + agent-runner,
   `npm` in reviewer-core + e2e + devdigest-mcp. There is NO linter in this repo; typecheck + tests are the gate.
 - DB: `pnpm db:generate` (new migration) · `db:migrate` · `db:seed`, all in `server/`
 - Prereqs: Node ≥22 · pnpm ≥10 · Docker (only Postgres runs in Docker; API + web run on host)
@@ -70,7 +70,7 @@ Every package has: `README.md` (humans) · `docs/` (deep dives) · `specs/` (fea
   `migrations/meta/_journal.json` or a `*_snapshot.json`: they are drizzle-kit output and a manual
   edit has already corrupted the journal once (`2006964`). Schema change → edit `db/schema/*.ts`,
   then `pnpm db:generate` and commit the generated files unchanged.
-- **Lock files** — `client/pnpm-lock.yaml`, `server/pnpm-lock.yaml`, `evals/pnpm-lock.yaml` (pnpm),
+- **Lock files** — `client/pnpm-lock.yaml`, `server/pnpm-lock.yaml`, `evals/pnpm-lock.yaml`, `agent-runner/pnpm-lock.yaml` (pnpm),
   `reviewer-core/package-lock.json`, `e2e/package-lock.json`, `devdigest-mcp/package-lock.json` (npm),
   `skills-lock.json`. Never edit or delete one to fix an install; change dependencies only by running
   that package's own package manager, and never swap a package's PM.
