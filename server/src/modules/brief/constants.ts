@@ -34,7 +34,7 @@ export const MAX_FOCUS = 5;
 export const BRIEF_SCHEMA_NAME = 'pr_brief';
 export const MODEL_TEMPERATURE = 0;
 export const MODEL_MAX_TOKENS = 4_000;
-export const BRIEF_TIMEOUT_MS = 60_000;
+export const BRIEF_TIMEOUT_MS = 20_000;
 export const MODEL_MAX_RETRIES = 0;
 
 /** Error code of the "no recorded changed files" refusal (HTTP 409). */
