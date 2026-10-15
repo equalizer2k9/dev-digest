@@ -1,7 +1,9 @@
 /* DevDigest — homework #5 demo screencast (PR Brief + Project Context Folder).
  *
  * Drives the live studio (:3000 / :3001) through the PR Brief of test PR #16, the
- * Project Context page and an agent's Context tab, the stored review of test PR #19
+ * Project Context page and an agent's Context tab (with the mentor-review additions: the
+ * "N of M attached" counter, the over-budget warning and a skill's "Serializes as" block —
+ * ticked on camera on an agent and a skill that start empty, and unticked again), the stored review of test PR #19
  * whose finding cites an attached document, then the homework PR on GitHub, and
  * writes
  *   docs/hw5/hw5-demo.mp4        H.264, 1440x900, silent (git-ignored)
@@ -50,6 +52,11 @@ const INVARIANT_PR = 19;
 const MAIN_PR = 17;
 const BRANCH = "feat/homework-5";
 const AGENT = "General Reviewer";
+/* Mentor review (SPEC-02 AC-37..AC-40): an agent with nothing attached and a skill, both left as found. */
+const BUDGET_AGENT = "Test Quality Reviewer";
+const BIG_DOCS = ["reviewer-core/docs/architecture.md", "client/specs/pages.md"]; // ≈ 10.5k tokens together
+const SKILL = "edge-cases";
+const SKILL_DOCS = ["docs/architecture/invariants.md", "client/specs/findings-column.md"]; // docs ticked first, specs second
 const DOC = "docs/architecture/invariants.md";
 const GITHUB_DOCS = [
   { path: "specs/pr-brief/spec.md", text: "Acceptance criteria" },
@@ -115,6 +122,14 @@ async function preflight() {
   const cites = (reviews.items ?? reviews).some((r) => (r.findings ?? []).some((f) => (f.rationale ?? "").includes(DOC)));
   if (!cites) die(`PR #${INVARIANT_PR} has no stored finding citing ${DOC} — this take never runs a review`);
 
+  const budgetAgent = (await api("/agents")).find((a) => a.name === BUDGET_AGENT);
+  const skill = (await api("/skills")).find((x) => x.name === SKILL);
+  if (!budgetAgent || !skill) die(`agent "${BUDGET_AGENT}" or skill "${SKILL}" not found`);
+  for (const [kind, id] of [["agents", budgetAgent.id], ["skills", skill.id]]) {
+    const c = await api(`/${kind}/${id}/context?repo_id=${repo.id}`);
+    if (c.attached.length) die(`${kind}/${id} must start with no attached documents (has ${c.attached.length})`);
+  }
+
   const fm = (await api("/settings")).feature_models?.risk_brief;
   console.log(`✓ #${BRIEF_PR} ${blast.summary} · intent stored · Risk Brief ${fm?.provider}/${fm?.model} · #${INVARIANT_PR} finding cites ${DOC}`);
   const base = `${CLIENT}/repos/${repo.id}`;
@@ -125,6 +140,8 @@ async function preflight() {
     invUrl: `${base}/pulls/${INVARIANT_PR}`,
     contextUrl: `${base}/context`,
     agentUrl: `${CLIENT}/agents/${agent.id}?tab=context`,
+    budgetAgentUrl: `${CLIENT}/agents/${budgetAgent.id}?tab=context`,
+    skillUrl: `${CLIENT}/skills/${skill.id}`,
   };
 }
 
@@ -180,7 +197,7 @@ async function record(ctx) {
   const wp = await warm.newPage();
   await wp.goto(ctx.briefUrl, { waitUntil: "networkidle" });
   await wp.getByRole("button", { name: "Generate brief" }).waitFor({ timeout: 30_000 }).catch(() => die(`no "Generate brief" button on ${ctx.briefUrl}`));
-  for (const u of [`${ctx.briefUrl}?tab=diff`, ctx.contextUrl, ctx.agentUrl, ctx.invUrl]) await wp.goto(u, { waitUntil: "networkidle" });
+  for (const u of [`${ctx.briefUrl}?tab=diff`, ctx.contextUrl, ctx.agentUrl, ctx.budgetAgentUrl, ctx.skillUrl, ctx.invUrl]) await wp.goto(u, { waitUntil: "networkidle" });
   for (const u of [mainPr, ...GITHUB_DOCS.map((d) => github(d.path))]) await wp.goto(u, { waitUntil: "domcontentloaded" });
   await warm.close();
 
@@ -304,6 +321,50 @@ async function record(ctx) {
     facts.footer = (await footer.innerText()).trim();
     await still("c3-agent-context-tokens");
     await page.waitForTimeout(HOLD);
+
+    /* ---- c'. mentor review: counter, budget warning, Serializes as ---------- */
+    const counter = page.getByText(/^\d+ of \d+ attached$/).first();
+    await glideTo(page, counter, "attached counter", 0, 0);
+    facts.counter = (await counter.innerText()).trim();
+    await still("c4-agent-counter");
+    await page.waitForTimeout(HOLD);
+
+    scene("c'", "mentor review: counter, budget warning, Serializes as");
+    const tick = async (path) => {
+      await clickAt(page, page.getByRole("checkbox", { name: `Attach ${path}` }), `tick ${path}`);
+      await page.waitForTimeout(BEAT);
+    };
+    await page.goto(ctx.budgetAgentUrl, { waitUntil: "domcontentloaded" });
+    await page.getByText(/^0 of \d+ attached$/).first().waitFor({ timeout: 15_000 }).catch(() => die(`${BUDGET_AGENT} does not start at "0 of N attached"`));
+    await page.waitForLoadState("networkidle");
+    for (const d of BIG_DOCS) await tick(d);
+    const warning = page.getByText(/Over the [\d,]+-token section budget/).first();
+    await warning.waitFor({ timeout: 10_000 }).catch(() => die("no budget warning after ticking ≈ 10.5k tokens"));
+    await glideTo(page, page.getByText(/^2 of \d+ attached$/).first(), "counter 2 of N");
+    await still("c5-counter-two-attached");
+    await page.waitForTimeout(STEP);
+    await glideTo(page, warning, "budget warning");
+    await still("c6-budget-warning");
+    await page.waitForTimeout(HOLD + BEAT);
+    await page.getByText(/^2 of \d+ attached$/).first().evaluate((el) => el.scrollIntoView({ behavior: "smooth", block: "center" }));
+    await page.waitForTimeout(800);
+    for (const d of BIG_DOCS) await tick(d); // untick: the agent is left as found
+    await page.getByText(/^0 of \d+ attached$/).first().waitFor({ timeout: 10_000 }).catch(() => die(`${BUDGET_AGENT} was not restored`));
+
+    await page.goto(ctx.skillUrl, { waitUntil: "domcontentloaded" });
+    const skillCounter = page.getByText(/^0 attached$/).first();
+    await skillCounter.waitFor({ timeout: 15_000 }).catch(() => die(`skill ${SKILL} does not start at "0 attached"`));
+    await page.waitForLoadState("networkidle");
+    await glideTo(page, skillCounter, "skill counter");
+    await page.waitForTimeout(BEAT);
+    for (const d of SKILL_DOCS) await tick(d);
+    const serializes = page.getByText("Serializes as", { exact: true }).first();
+    await glideTo(page, serializes, "Serializes as", 0, 80);
+    await still("c7-serializes-as");
+    await page.waitForTimeout(HOLD + BEAT);
+    for (const d of SKILL_DOCS) await tick(d); // untick: the skill is left as found
+    await page.getByText(/^0 attached$/).first().waitFor({ timeout: 10_000 }).catch(() => die(`skill ${SKILL} was not restored`));
+    await page.waitForTimeout(BEAT);
 
     /* ---- d. PR #19 → Agent runs: the stored finding cites the document --- */
     scene("d", `PR #${INVARIANT_PR}: the finding cites ${DOC}`);
