@@ -80,4 +80,10 @@ describe("ContextTab", () => {
     renderTab();
     expect(screen.getByText(messages.picker.footer.replace("{tokens, number}", "150"))).toBeInTheDocument();
   });
+
+  it("AC-37: shows \"N of M attached\" — effective documents of the documents listed", () => {
+    renderTab();
+    const text = messages.counter.ofListed.replace("{attached, number}", "2").replace("{listed, number}", "3");
+    expect(screen.getByTestId("doc-counter")).toHaveTextContent(text);
+  });
 });

@@ -93,6 +93,12 @@ export function AttachmentsEditor({ owner, ownerId }: AttachmentsEditorProps) {
     return <EmptyState icon="Folder" title={t("empty.title")} body={t("empty.body")} />;
   }
 
+  // Agent: effective documents of M listed; skill: its own attachments.
+  const counter =
+    owner === "agent"
+      ? t("counter.ofListed", { attached: attachments.data.effective.length, listed: documents.length })
+      : t("counter.attached", { count: order.length });
+
   const status = previewStatus(selected, documents, doc);
 
   return (
@@ -102,6 +108,7 @@ export function AttachmentsEditor({ owner, ownerId }: AttachmentsEditorProps) {
         attached={order}
         effective={attachments.data.effective}
         truncated={list.data.truncated}
+        counter={counter}
         selectedPath={selected}
         onToggle={toggle}
         onMove={move}

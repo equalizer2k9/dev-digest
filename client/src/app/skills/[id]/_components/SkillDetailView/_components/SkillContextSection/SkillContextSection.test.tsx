@@ -9,6 +9,7 @@ import { ToastProvider } from "../../../../../../../lib/toast";
 const hooks = vi.hoisted(() => ({
   useContextAttachments: vi.fn(),
   useSetContextAttachments: vi.fn(),
+  attached: [] as string[],
 }));
 vi.mock("@/lib/repo-context", () => ({ useActiveRepo: () => ({ repoId: "r1" }) }));
 vi.mock("@/lib/hooks/project-context", () => ({
@@ -16,7 +17,10 @@ vi.mock("@/lib/hooks/project-context", () => ({
     data: {
       has_clone: true,
       truncated: false,
-      documents: [{ path: "docs/a.md", tag: "docs", tokens: 10, too_large: false, used_by: 0 }],
+      documents: [
+        { path: "docs/a.md", tag: "docs", tokens: 10, too_large: false, used_by: 0 },
+        { path: "specs/s.md", tag: "specs", tokens: 20, too_large: false, used_by: 0 },
+      ],
     },
     isLoading: false,
     isError: false,
@@ -26,7 +30,7 @@ vi.mock("@/lib/hooks/project-context", () => ({
   useContextAttachments: (...a: unknown[]) => {
     hooks.useContextAttachments(...a);
     return {
-      data: { repo_id: "r1", attached: [], effective: [] },
+      data: { repo_id: "r1", attached: hooks.attached, effective: [] },
       isLoading: false,
       isError: false,
       refetch: vi.fn(),
@@ -40,7 +44,19 @@ vi.mock("@/lib/hooks/project-context", () => ({
 
 import { SkillContextSection } from "./SkillContextSection";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  hooks.attached = [];
+});
+
+const renderSection = () =>
+  render(
+    <NextIntlClientProvider locale="en" messages={{ context: messages }}>
+      <ToastProvider>
+        <SkillContextSection skill={{ id: "sk1", name: "Rubric" } as Skill} />
+      </ToastProvider>
+    </NextIntlClientProvider>,
+  );
 
 describe("SkillContextSection", () => {
   it("shows its heading and the same list, wired to the skill", () => {
@@ -56,5 +72,33 @@ describe("SkillContextSection", () => {
     expect(screen.getByText("docs/a.md")).toBeInTheDocument();
     expect(hooks.useContextAttachments).toHaveBeenCalledWith("skill", "sk1", "r1");
     expect(hooks.useSetContextAttachments).toHaveBeenCalledWith("skill", "sk1", "r1");
+  });
+
+  it("AC-38: shows \"N attached\" for the skill's attachments", () => {
+    hooks.attached = ["docs/a.md", "specs/s.md"];
+    renderSection();
+    expect(screen.getByTestId("doc-counter")).toHaveTextContent(messages.counter.attached.replace("{count, number}", "2"));
+  });
+
+  it("AC-38: shows the counter with zero attached", () => {
+    renderSection();
+    expect(screen.getByTestId("doc-counter")).toHaveTextContent(messages.counter.attached.replace("{count, number}", "0"));
+  });
+
+  it("AC-40: shows the Serializes as block with the attached documents, specs before docs", () => {
+    hooks.attached = ["docs/a.md", "specs/s.md"];
+    renderSection();
+    const block = screen.getByTestId("serializes-as");
+    expect(block).toHaveTextContent(messages.serializes.title);
+    const groups = block.querySelectorAll('[data-testid^="serializes-group-"]');
+    expect([...groups].map((g) => g.getAttribute("data-testid"))).toEqual([
+      "serializes-group-specs",
+      "serializes-group-docs",
+    ]);
+  });
+
+  it("AC-40: with nothing attached the block shows its empty text", () => {
+    renderSection();
+    expect(screen.getByText(messages.serializes.empty)).toBeInTheDocument();
   });
 });

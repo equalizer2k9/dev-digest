@@ -12,6 +12,7 @@ import type {
   ProjectContextSkipReason,
 } from "@devdigest/shared";
 import { visiblePath } from "@/lib/visible-path";
+import { SECTION_TOKEN_BUDGET } from "./constants";
 import { buildRows, filterRows, sumTokens } from "./helpers";
 import { s } from "./styles";
 
@@ -20,6 +21,8 @@ export interface DocPickerProps {
   attached: string[];
   effective: ProjectContextEffective[];
   truncated: boolean;
+  /** Optional counter line shown above the list (e.g. "2 of 5 attached"). */
+  counter?: string;
   selectedPath: string | null;
   onToggle: (path: string, on: boolean) => void;
   onMove: (path: string, delta: -1 | 1) => void;
@@ -40,6 +43,7 @@ export function DocPicker({
   attached,
   effective,
   truncated,
+  counter,
   selectedPath,
   onToggle,
   onMove,
@@ -53,9 +57,16 @@ export function DocPicker({
     [documents, attached, effective],
   );
   const rows = filterRows(allRows, query);
+  const totalTokens = sumTokens(effective);
+  const overBudget = totalTokens > SECTION_TOKEN_BUDGET;
 
   return (
     <div style={s.wrap}>
+      {counter && (
+        <div style={s.counter} className="tnum" data-testid="doc-counter">
+          {counter}
+        </div>
+      )}
       <div style={s.search}>
         <Icon.Search size={13} style={s.searchIcon} />
         <input
@@ -115,8 +126,13 @@ export function DocPicker({
       </ul>
 
       <div style={s.footer} className="tnum">
-        {t("picker.footer", { tokens: sumTokens(effective) })}
+        {t("picker.footer", { tokens: totalTokens })}
       </div>
+      {overBudget && (
+        <div style={s.notice} role="status" data-testid="doc-budget-warning">
+          {t("picker.budgetWarning", { budget: SECTION_TOKEN_BUDGET })}
+        </div>
+      )}
     </div>
   );
 }

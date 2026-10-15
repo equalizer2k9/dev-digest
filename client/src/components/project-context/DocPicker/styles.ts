@@ -21,6 +21,7 @@ export const s = {
     outline: "none",
     color: "var(--text-primary)",
   } satisfies CSSProperties,
+  counter: { fontSize: 12, color: "var(--text-muted)" } satisfies CSSProperties,
   notice: {
     fontSize: 12,
     color: "var(--warn)",

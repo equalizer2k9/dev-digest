@@ -92,7 +92,9 @@ Definitions.
 - The **effective documents** of an agent for a repository are its own attachments for that repository
   in their stored order, followed by the attachments of each enabled skill linked to the agent, in the
   agent's skill order and each skill's own order; a path appears once, at its first position. A
-  disabled skill contributes none.
+  disabled skill contributes none. The list is then ordered by tag — every `specs` document first,
+  then `docs`, then `insights` — keeping the order above within each tag. This is the order in which
+  the documents enter the prompt (amended 2026-10-15, AC-40).
 - The **active repository** is the one the studio's repository switcher has selected.
 - The **document limit** is 20 000 characters per document. The **section budget** is 8 000 tokens, by
   the server's tokenizer, for all documents of one `## Project context` section together.
@@ -133,6 +135,22 @@ Attaching
   never the document's text.
 - AC-13 (L-1). The system shall use, wherever an agent's documents are needed, exactly its effective
   documents as defined above.
+
+Counters, budget warning and prompt order (after the HW5 mentor review, 2026-10-15)
+- AC-37. The system shall display in the Context tab a counter "N of M attached", N being the number of
+  the agent's effective documents for the active repository and M the number of project-context
+  documents listed for that repository.
+- AC-38. The system shall display in the skill's "Project context to use" section a counter
+  "N attached", N being the number of the skill's attachments for the active repository.
+- AC-39. WHILE the sum of the token counts of the documents in a list — the agent's effective documents
+  in the Context tab, the skill's attachments in its section — is over the section budget, the system
+  shall display in that list's footer a warning that the documents past the budget will be skipped, as
+  the run trace reports them "over budget" (AC-24, AC-25). The system shall not block or undo an
+  attachment because of the budget.
+- AC-40. The system shall display in the skill's "Project context to use" section a read-only block
+  "Serializes as" that lists the skill's attached documents for the active repository grouped under
+  their tags in the order `specs`, `docs`, `insights` — the order in which they enter the prompt — each
+  with its path and token count, and marks each document that falls past the section budget.
 
 Validation and access
 - AC-14 (L-5). IF an attach request names a path that is not a project-context document of the named
@@ -247,6 +265,11 @@ Feedback and lifecycle
 - EC-23. Brief: a risk or a Review focus item names an attached document that is not in the PR or its
   blast radius → dropped by SPEC-01 AC-10 and AC-11 (AC-32).
 
+- EC-24. A document is moved above one of another tag in a list → the stored order changes, the
+  prompt order does not: the prompt orders by tag first (definition of effective documents, AC-40).
+- EC-25. The documents in a list are over the section budget → the list footer warns (AC-39), every
+  attachment stays stored, and a run skips the documents past the budget as before (AC-24).
+
 ## Non-functional requirements
 
 - NFR-1. Cost: project context adds zero model requests to a review run and to a brief generation
@@ -353,3 +376,10 @@ reworded; one row added to its inputs table; its untrusted-inputs note extended;
   review of the implementation: a symbolic link counts only when its resolved target is itself a
   project-context document of the same clone (a link to `.git/config` exposed the clone token).
   Status unchanged.
+- 2026-10-15 — AC-37 to AC-40 and EC-24, EC-25 added after the HW5 mentor review: a counter "N of M
+  attached" in the agent's Context tab and "N attached" in the skill section; a footer warning when a
+  list is over the 8 000-token section budget, without blocking the choice; a "Serializes as" block in
+  the skill section. The effective documents are now ordered by tag (specs, docs, insights), keeping the
+  attachment order within a tag, so that the prompt, the trace and the brief follow the order the block
+  shows. Status stays `approved`; it returns to `implemented` after the plan-verifier matrix for the
+  touched criteria.

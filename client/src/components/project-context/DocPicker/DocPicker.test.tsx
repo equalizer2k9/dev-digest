@@ -166,4 +166,66 @@ describe("DocPicker", () => {
     const list = screen.getByRole("list");
     expect(within(list).getByText("docs/a\\u{202e}b.md")).toBeInTheDocument();
   });
+
+  describe("counter and budget warning", () => {
+    const budgetWarning = (budget: string) => messages.picker.budgetWarning.replace("{budget, number}", budget);
+    const over = (tokens: number[]) => ({
+      attached: tokens.map((_, i) => `docs/d${i}.md`),
+      documents: tokens.map((t, i) => doc(`docs/d${i}.md`, { tokens: t })),
+      effective: tokens.map((t, i) => eff(`docs/d${i}.md`, { tokens: t })),
+    });
+
+    it("AC-37: shows the counter text it is given in the counter slot", () => {
+      const text = messages.counter.ofListed.replace("{attached, number}", "2").replace("{listed, number}", "5");
+      setup({ counter: text });
+      expect(screen.getByTestId("doc-counter")).toHaveTextContent(text);
+    });
+
+    it("AC-37: no counter slot without a counter", () => {
+      setup();
+      expect(screen.queryByTestId("doc-counter")).not.toBeInTheDocument();
+    });
+
+    it("AC-39: no warning at exactly 8 000 tokens", () => {
+      setup(over([5000, 3000]));
+      expect(screen.queryByText(budgetWarning("8,000"))).not.toBeInTheDocument();
+      expect(screen.queryByTestId("doc-budget-warning")).not.toBeInTheDocument();
+    });
+
+    it("AC-39: no warning below 8 000 tokens", () => {
+      setup(over([10]));
+      expect(screen.queryByTestId("doc-budget-warning")).not.toBeInTheDocument();
+    });
+
+    it("AC-39: warning shown at 8 001 tokens, with the budget from the messages", () => {
+      setup(over([5000, 3001]));
+      expect(screen.getByText(budgetWarning("8,000"))).toBeInTheDocument();
+    });
+
+    it("AC-39: the warning sits in the footer, after the token line", () => {
+      setup(over([9000]));
+      const footer = screen.getByText(messages.picker.footer.replace("{tokens, number}", "9,000"));
+      const warning = screen.getByText(budgetWarning("8,000"));
+      expect(footer.compareDocumentPosition(warning) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it("AC-39 / EC-25: over budget, ticking and unticking still call onToggle", () => {
+      const { onToggle } = setup({
+        ...over([9000]),
+        documents: [doc("docs/d0.md", { tokens: 9000 }), doc("docs/new.md")],
+      });
+      fireEvent.click(screen.getByRole("checkbox", { name: attachLabel("docs/new.md") }));
+      expect(onToggle).toHaveBeenCalledWith("docs/new.md", true);
+      fireEvent.click(screen.getByRole("checkbox", { name: attachLabel("docs/d0.md") }));
+      expect(onToggle).toHaveBeenCalledWith("docs/d0.md", false);
+    });
+
+    it("EC-25: over budget, every attachment stays checked and the warning is shown", () => {
+      setup(over([5000, 5000, 5000]));
+      expect(screen.getByText(budgetWarning("8,000"))).toBeInTheDocument();
+      for (const i of [0, 1, 2]) {
+        expect(screen.getByRole("checkbox", { name: attachLabel(`docs/d${i}.md`) })).toBeChecked();
+      }
+    });
+  });
 });

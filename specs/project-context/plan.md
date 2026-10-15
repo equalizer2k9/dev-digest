@@ -652,3 +652,38 @@ F-1, F-2, F-3 and F-5 are folded into this plan, F-4 is not.
 | F-2 | D-8 (budget on the rendered section), T-3 (`renderProjectDocument`, `PROJECT_CONTEXT_HEADING` exported), T-4 (`withinBudget`), T-6 boundary test |
 | F-3 | "Routes" (preview failure mapping), T-7 tests |
 | F-5 | D-1, "Review run", T-8 (`specs_read` stays empty) |
+
+## Addendum 2026-10-15 — HW5 mentor review (AC-37 … AC-40)
+
+Same branch (`feat/homework-5`), two tasks, server before client. Tests come from `test-writer`, from the
+criteria, after the implementer.
+
+### T-17 — Effective documents ordered by tag (server)
+- **AC:** definition of effective documents, AC-40 (prompt order), EC-24.
+- **Files:** `server/src/modules/project-context/helpers.ts` (`effectiveDocuments`: after the dedupe, a stable
+  sort by `documentTag` in the order specs → docs → insights). Every consumer already goes through it: review
+  prompt, trace, brief, "Used by", the effective list.
+- **Done when:** existing project-context, review and brief tests pass with the new order (update only the
+  tests that pinned the old mixed order). `reviewer-core/` is not touched.
+
+### T-18 — Counters, budget warning and "Serializes as" (client)
+- **AC:** AC-37, AC-38, AC-39, AC-40, EC-25; NFR texts from `client/messages/en/context.json`, design-system
+  components only (`@devdigest/ui`).
+- **Files:** `client/src/components/project-context/DocPicker/` (counter slot, footer warning when
+  `sumTokens(effective) > 8000` — the budget as a constant in that component's `constants.ts`),
+  `client/src/app/agents/[id]/_components/AgentEditor/_components/ContextTab/` ("N of M attached"),
+  `client/src/app/skills/[id]/_components/SkillDetailView/_components/SkillContextSection/` ("N attached"
+  and a new `SerializesAs` component: tag groups specs/docs/insights, path + tokens, over-budget mark),
+  `client/messages/en/context.json`.
+- **Done when:** client typecheck, tests and build pass; no hard-coded label.
+
+### Traceability (addendum)
+
+| AC | task | test (file › case) |
+|---|---|---|
+| AC-37 | T-18 | ContextTab › counter "N of M attached" |
+| AC-38 | T-18 | SkillContextSection › counter "N attached" |
+| AC-39 | T-18 | DocPicker › warning only above 8 000 tokens; attaching still works |
+| AC-40 | T-17, T-18 | `helpers.test.ts` › effective order by tag, stable within a tag; SerializesAs › groups in order, path + tokens, over-budget mark |
+| EC-24 | T-17 | `helpers.test.ts` › moving across tags keeps prompt order |
+| EC-25 | T-18 | DocPicker › over budget: warning shown, attachments unchanged |

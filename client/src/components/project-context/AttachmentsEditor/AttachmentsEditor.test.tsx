@@ -149,6 +149,37 @@ describe("AttachmentsEditor", () => {
     expect(screen.getByText(messages.preview.tooLarge)).toBeInTheDocument();
   });
 
+  it("AC-37: an agent sees \"N of M attached\" counting effective documents, skill ones included", () => {
+    state.attachments = {
+      data: {
+        repo_id: "r1",
+        attached: ["docs/a.md"],
+        effective: [
+          { path: "docs/a.md", tokens: 5, skip_reason: null, skill: null },
+          { path: "docs/b.md", tokens: 5, skip_reason: null, skill: { id: "s1", name: "Rubric" } },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    };
+    renderEditor("agent");
+    const text = messages.counter.ofListed.replace("{attached, number}", "2").replace("{listed, number}", "3");
+    expect(screen.getByTestId("doc-counter")).toHaveTextContent(text);
+  });
+
+  it("AC-38: a skill sees \"N attached\" counting its own attachments", () => {
+    renderEditor("skill");
+    expect(screen.getByTestId("doc-counter")).toHaveTextContent(messages.counter.attached.replace("{count, number}", "2"));
+    expect(screen.getByTestId("doc-counter").textContent).not.toContain(" of ");
+  });
+
+  it("AC-38: the skill counter follows an untick", () => {
+    renderEditor("skill");
+    fireEvent.click(screen.getByRole("checkbox", { name: attachLabel("docs/a.md") }));
+    expect(screen.getByTestId("doc-counter")).toHaveTextContent(messages.counter.attached.replace("{count, number}", "1"));
+  });
+
   describe("states", () => {
     it("no active repository shows the no-clone notice", () => {
       state.repoId = null;
