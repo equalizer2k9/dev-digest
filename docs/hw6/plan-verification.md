@@ -9,7 +9,7 @@
 | Requirements | [`docs/hw6/requirements.md`](requirements.md), part 2 |
 | Branch | `feat/homework-6` |
 | Base | `45e5a17` (docs(hw6): PR #21 labels and the decoy round) |
-| Head | `9f3e60a` (feature `dc23e42`; post-review fixes `3cdd519` … `9f3e60a`, §7) |
+| Head | `ff27967` (feature `dc23e42`; post-review fixes §7; demo and final verification §8) |
 
 Commits of the run (local, not pushed):
 
@@ -63,28 +63,33 @@ are cited and the worse status is kept. Paths are relative to `server/` (S) or `
 | AC-29 | T-S7, T-S9, T-C8 | `service.test.ts` › agents with cases, disabled included; `eval-runs.it.test.ts` › dashboard row; `nav.test.ts` › SKILLS LAB `eval`; `EvalDashboardView.test.tsx` › rows, "never run", click; manual: sidebar entry | `dc23e42` `707e376` | S `run.repo.ts:143-178`; S `service.ts:151-166`; C `vendor/ui/nav.ts:42`; C `app/eval/page.tsx:4-6`; C `…/EvalDashboardView/EvalDashboardView.tsx:22,55-83` | PASS — runtime: `docs/hw6/ac29-eval-dashboard.png` ("Eval Dashboard" under SKILLS LAB, highlighted on `/eval`, page opens with its empty state) |
 | AC-30 | T-S7, T-S9, T-C3, T-C8 | `service.test.ts` › ≤10 newest; `eval-runs.it.test.ts` › order; `EvalDashboardView.test.tsx` › recent runs with agent name | `dc23e42` `4d4b110` `707e376` | S `run.repo.ts:128-136`; S `eval/constants.ts:17`; C `EvalDashboardView.tsx:89-96`; C `EvalRunTable.tsx:30,69` | PASS |
 | AC-31 | T-S1, T-C1, T-S8 | `eval-contracts.test.ts` › shapes, region parity, divergence ≤ baseline; `eval.it.test.ts` › bodies parse | `f9e0700` `4d4b110` `dc23e42` | S `vendor/shared/contracts/knowledge.ts:58-111`; S `vendor/shared/contracts/eval-ci.ts:3,32-199`; S `test/eval-contracts.test.ts:53-159,226-249`; C `vendor/shared/contracts/knowledge.ts:49-112`; C `vendor/shared/contracts/eval-ci.ts:15-203` | PASS |
-| AC-32 | T-S5, T-S6, T-S7, T-S8 | `cases.test.ts` / `service.test.ts` › `NotFoundError`; `eval.it.test.ts` › every route 404, nothing changed | `b6b5c3d` `dc23e42` `515c0b8` | S `cases.ts:47-48,134`; S `service.ts:41-42,83-84,104-106,114-117`; S `case.repo.ts:21,30,46-50,74-79` (lock and fallback scoped by workspace; test `eval.it.test.ts:359`); S `run.repo.ts:113,123,133,153` | PASS |
+| AC-32 | T-S5, T-S6, T-S7, T-S8 | `cases.test.ts` / `service.test.ts` › `NotFoundError`; `eval.it.test.ts` › every route 404, nothing changed | `b6b5c3d` `dc23e42` `515c0b8` `90d4f63` | S `cases.ts:47-48,134`; S `service.ts:41-42,83-84,104-106,114-117`; S `case.repo.ts:21,30,46-50,74-79` (lock and fallback scoped by workspace; test `eval.it.test.ts:359`); S `run.repo.ts:113,123,133,153`; S `service.ts:111-118` — workspace lookup before the same-id guard, so `compare?a=X&b=X` with a foreign X is 404 (final verifier found the 422; fixed `90d4f63`, test `service.test.ts` › "the same foreign id twice is a NotFoundError") | PASS |
 | AC-33 | T-S6 | `run-executor.test.ts` › diff, title, description each in own untrusted block; `INJECTION_GUARD` | `b6b5c3d` | S `run-executor.ts:145,149-150` | PASS |
 | AC-34 | T-S6, T-S9 | `run-executor.test.ts` › 3 cases → 3 calls; `eval-runs.it.test.ts` › 3 calls end to end | `b6b5c3d` `dc23e42` | S `run-executor.ts:75-77` | PASS |
 | AC-35 | T-S3 | `scoring.test.ts` › type-only imports; 100-case scoring leaves `calls` empty | `f9e0700` | S `scoring.ts:1-7` | PASS |
 | AC-36 | T-S5, T-S8, T-C2, T-C5 | `cases.test.ts` › `llm` never called; `eval.it.test.ts` › reads + case create/delete → 0 calls; `evals.test.ts` › GET only; `EvalsTab.test.tsx` › no mutation on mount | `b6b5c3d` `dc23e42` `4d4b110` `7a9b74d` | S `routes.ts:33-57,70-82`; C `evals.ts:17-24,67-80`; C `EvalCaseButton.tsx:25` | PASS |
-| AC-37 | T-S10 | `eval-boundary.test.ts` › no feature file names `evals/`; manual grep of `evals/` empty | `dc23e42` | S `test/eval-boundary.test.ts:62-93`; verifier's grep of `evals/` for `modules/eval\|eval_cases\|eval_runs\|/evals/(runs\|compare\|dashboard)`: empty | PASS |
+| AC-37 | T-S10 | `eval-boundary.test.ts` › no feature file names `evals/`; manual grep of `evals/` empty | `dc23e42` | S `test/eval-boundary.test.ts:62-93`; verifier's grep of `evals/` for `modules/eval\|eval_cases\|eval_runs\|/evals/(runs\|compare\|dashboard)`: empty. Final verifier: `test/eval-boundary.test.ts:84-93` reads files under `evals/`, which AC-37's first sentence forbids; kept by plan decision (Deviations) | PARTIAL |
 | AC-38 | T-S7, T-C2, T-C8 | `service.test.ts` › dashboard reads only eval tables; `evals.test.ts` › only eval endpoints; `EvalDashboardView.test.tsx` › payload only; manual: no harness eval names | `dc23e42` `4d4b110` `707e376` | S `run.repo.ts:143-178`; S `service.ts:82-166`; C `evals.ts:20,30,42,56,70,78`; C `EvalDashboardView.tsx:35-97` | PASS |
 | AC-39 | T-S10 | `pnpm verify:l06` runs the four suites; integration skips without Docker; no API keys | `dc23e42` | S `package.json:12`; S `eval.it.test.ts:16-17`; S `eval-runs.it.test.ts:18-19`; S `test/helpers/pg.ts:23-33`. Verifier: PARTIAL, needs runtime check. **Runtime (coordinator):** no network + Docker unreachable + keys unset → exit 0, 52 passed / 22 skipped; keys unset + Docker up → exit 0, 74 passed | PASS (runtime) |
 | AC-40 | T-S10, T-V1 | `pnpm verify:l06` exit 0 on the final commit | `dc23e42` | S `package.json:12`. Verifier: PARTIAL, needs runtime check. **Runtime (coordinator):** at `dc23e42`, exit 0, 5 files / 74 tests passed | PASS (runtime) |
-| AC-41 | T-V1 | manual: ≥ 8 cases, both types | — | — (no code item) | needs manual check (T-V1 not done) |
+| AC-41 | T-V1 | manual: ≥ 8 cases, both types | demo take (§8) | observed: General Reviewer set = 10 cases, 9 `must_find` + 1 `must_not_flag` (`4d9c1787`, `pulls/routes.ts:91`) | PASS |
 | AC-42 | T-S9 | `eval-runs.it.test.ts` › prompt-dependent stub: v1→v2 recall delta > 0 + prompt diff; v2→v3 precision delta < 0, B passed → failed | `dc23e42` | S `eval-runs.it.test.ts:257-295` | PASS |
-| AC-43 | T-V1 (twin: AC-42) | manual: Compare v1 ↔ v2, positive recall delta + prompt diff; screenshot | — | — (no code item) | needs manual check (T-V1 not done) |
-| AC-44 | T-V1 (twin: AC-42) | manual: Compare v2 ↔ v3, negative precision delta, `must_not_flag` passed → failed | — | — (no code item) | needs manual check (T-V1 not done) |
+| AC-43 | T-V1 (twin: AC-42) | manual: Compare v1 ↔ v2, positive recall delta + prompt diff; screenshot | demo take (§8) | observed: Compare v1 ↔ v2 recall +11 pp, prompt diff with the added INV-1 line — `docs/hw6/compare-v1-v2.png` | PASS |
+| AC-44 | T-V1 (twin: AC-42) | manual: Compare v2 ↔ v3, negative precision delta, `must_not_flag` passed → failed | demo take (§8) | observed: no real run showed a negative precision delta; the take compares v1 ↔ v3 (precision 0 pp, `must_not_flag` stayed passed) — `docs/hw6/compare-v1-v3.png` | MISSING |
 
-**Counts:** PASS 42 · PARTIAL 0 · MISSING 0 · manual, not done 3 (AC-41, AC-43, AC-44).
+**Counts (final, §8):** PASS 43 · PARTIAL 1 (AC-37) · MISSING 1 (AC-44).
 
 ## 3. Open rows
 
-- **AC-41, AC-43, AC-44 — manual (T-V1).** Label ≥ 8 findings of both types for the demo agent, then
-  run v1 / v2 / v3 and take Compare screenshots (spec "Demo v1 / v2 / v3").
+- **AC-44 — MISSING.** No real run showed a negative precision delta. The v3 prompt's noise hit the only
+  `must_not_flag` zone (`pulls/routes.ts:91`) once in six attempts, and only in an unrecorded trial. The
+  recorded take compares v1 ↔ v3 with precision Δ 0 pp, by the user's decision. To close it: a set with more
+  `must_not_flag` cases whose zones v1 never touches, or a spec change to AC-44. AC-42, the deterministic
+  twin, passes.
+- **AC-37 — PARTIAL.** The boundary test reads `evals/` as text, which the plan chose (T-S10, cross-model
+  F-8) and the spec's first sentence forbids. Recorded under Deviations in the plan.
 
-AC-1, AC-13 and AC-29 were closed after the first report (§7).
+The spec stays `approved`: it has a MISSING row.
 
 ## 4. Reviews
 
@@ -222,3 +227,39 @@ Checks after the fixes (coordinator):
 | `pnpm build` (client) | exit 0; `/eval`, `/eval/compare` prerendered |
 
 Not seen red first: the EC-27 hung-call test and the AC-13 tests were written with or after their code.
+
+## 8. Demo and final verification (2026-10-15)
+
+**Demo** (`docs/hw6/record-hw6.mjs`, 142.9 s, 1440×900). General Reviewer, `openrouter / deepseek/deepseek-v4-flash`, set of 10 cases (9 `must_find`, 1 `must_not_flag`).
+
+| Run | Agent version | Recall | Precision | Citation | N/M | Cost | Time |
+|---|---|---|---|---|---|---|---|
+| Calibration (8 cases, before the take) | v1 | 88% | 100% | 100% | 7/8 | $0.0046 | 5 min 19 s |
+| v1 | v16 | 67% | 100% | 95% | 7/10 | $0.0039 | 6 min 6 s |
+| v2 = v1 + INV-1 rule | v17 | 78% | 100% | 100% | 8/10 | $0.0042 | 6 min 33 s |
+| v3 = v1 + "flag everything, at least three findings per file" | v18 | 78% | 100% | 100% | 8/10 | $0.0053 | 8 min 44 s |
+
+- **Compare v1 ↔ v2:** recall +11 pp. The INV-1 case went failed → passed. Noise also flipped two cases: missing `await` failed → passed and SQL injection passed → failed.
+- **Compare v1 ↔ v3:** precision 0 pp; the `must_not_flag` case stayed passed.
+- **After the take:** the prompt was restored to v1 (agent v19).
+- **Takes:** six, five of them stopped:
+  - take 1 — the server bug fixed in `cfdfb03`;
+  - takes 2 and 3 — no precision delta;
+  - take 4 — no recall delta (INV-1 flipped, but noise flipped another case back);
+  - take 5 — a script bug in the v2b branch.
+- **Noise:** the same v1 prompt gave recall from 56% to 89% across takes, which is why deltas need repeated runs.
+
+**Final verification** — two `plan-verifier`s, server ∥ client, at `62f974f`:
+- Client: 27 / 0 / 0.
+- Server: 42 / 2 / 1 (AC/EC rows, EC-27 included). Its gaps:
+  - AC-32 — fixed (`90d4f63`);
+  - AC-37 — kept, see Deviations;
+  - AC-44 — open;
+  - T-S9 — the twin's prompt edit appends rather than replaces; recorded under Deviations.
+
+**Checks at `90d4f63`:**
+
+| Package | Result |
+|---|---|
+| server | typecheck pass; `pnpm test` 70 files / 832 passed; `pnpm verify:l06` 76 passed, exit 0 |
+| client | typecheck pass; `pnpm test` 66 files / 544 passed; `pnpm build` exit 0 (at `73e5d42`, no client change since) |
