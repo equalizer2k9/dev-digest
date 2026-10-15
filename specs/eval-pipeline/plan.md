@@ -824,3 +824,29 @@ layout), F-6 (forged-delimiter test), F-7 (retry-exhaustion and timeout tests), 
 boundary test), F-9 (log assertion at the default level). Partly accepted: F-2 (suite mapping made
 explicit; the boundary test stays out of `verify:l06`). Not accepted: F-5 (the sidebar takes literal
 labels from `vendor/ui/nav.ts` for every entry; the command palette already resolves `nav.eval`).
+
+## Deviations (after `/run-plan`, 2026-10-15)
+
+Review findings left as they are, by the user's decision:
+
+- **`parseUnifiedDiff` is imported from the git adapter folder.** `server/src/modules/eval/run-executor.ts`
+  and `cases.ts` import it from `adapters/git/diff-parser.ts`, as the review module does. It is a pure
+  function and breaks no onion rule. Moving it to a shared helper is left for a refactor that covers both
+  modules. Source: architecture review, SUGGESTION.
+- **The client re-checks "completed" for the dashboard's `latest`.**
+  `client/src/app/eval/_components/EvalDashboardView/EvalDashboardView.tsx:56` repeats the server's rule
+  (`run.repo.ts`, `status = 'completed'`). It is a harmless guard and stays. Source: architecture review,
+  INFO.
+- **A "disabled" badge on Eval Dashboard rows.** No task asked for it. It stays, because a disabled agent
+  can be evaluated (AC-16) and the dashboard lists disabled agents (AC-29); the badge tells the two kinds
+  apart. Source: client plan-verifier, unplanned change.
+
+Changed after the reviews, by the user's decision:
+
+- `turnInto.hint` was removed from `client/messages/en/eval.json`, because nothing used it. The disabled
+  control's hint is `turnInto.errors.eval_case_undecided`.
+- EC-27 (per-case deadline `EVAL_CASE_TIMEOUT_MS`, 120 s) was added to the spec. The executor wraps each
+  case in the platform `withTimeout`. `reviewer-core/` is unchanged.
+- A case's stored error reason is now a fixed phrase plus the error's code or class and its HTTP status,
+  never the provider's own text. It uses the shared `server/src/modules/_shared/error-kind.ts`, which the
+  review run's Live Log now uses as well.
