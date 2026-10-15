@@ -445,6 +445,12 @@ Done by hand on the demo agent once its set holds 8 or more cases:
   finding (dismissed) against "rename without alias" (accepted) at
   `server/src/vendor/shared/contracts/platform.ts:189-190`. Whichever case comes second is refused
   by AC-45. Same-type findings on the same lines stay separate cases (EC-4).
+- EC-27. **A model call hangs.** A case that has not finished within `EVAL_CASE_TIMEOUT_MS` (120 s,
+  in the eval module's `constants.ts`) gets status `error` with the reason "timeout", and the run
+  goes on to the next case (AC-14). It counts like every `error` case (OQ-1): it is left out of the
+  three metrics, counts in M as not passed (AC-18, AC-19), and its cost is unknown, so the run cost
+  is "—" (AC-22). Without this deadline a hung call would keep the run `running` forever, and the
+  one-running-run rule (AC-13) would block every later run of the agent until the API restarts.
 
 ## Non-functional requirements
 
@@ -645,3 +651,11 @@ Further protections:
 None. The user answered OQ-1 to OQ-16 of the draft on 2026-10-15, and the coordinator relayed the
 answers. They are folded into AC-1 to AC-44, EC-1 to EC-25, NFR-10 to NFR-15 and NG13. The user's
 revision of the same day added AC-45, EC-26 and NFR-16 and changed AC-5, AC-22 and EC-7.
+
+## Changelog
+
+- 2026-10-15 — EC-27 added: a per-case deadline, `EVAL_CASE_TIMEOUT_MS` = 120 s. A case still
+  waiting for the model after it becomes `error` with the reason "timeout", and the run goes on.
+  Reason: the OpenRouter client has no request timeout, so a hung call stalled the run forever and,
+  through AC-13, blocked the agent's next runs until an API restart. No acceptance criterion changes;
+  AC-14 already lists a timeout among case failures. `reviewer-core/` stays unchanged (NG8).
