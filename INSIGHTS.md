@@ -21,6 +21,16 @@ or delete; cleanup only via `/engineering-insights review root`.
   - Why: `c6af1e4` reset main's tree to starter commit `66727c8` while leaving the three student merges in the log, so reverted implementations remain reachable.
   - Evidence: `7641b48` (severity counters), `97b6edc` (PR-list FINDINGS column), `0953fdc` (timeline severity chips) · full state on branch `integration/all-features` (`376ac49`)
 
+- **2026-10-15** · Project Context documents are ALWAYS read from the clone's working tree (default branch), NEVER from the PR head commit.
+  - Why: a PR author could otherwise rewrite the very rules (`docs/`, `specs/`) the reviewer judges that PR by; a PR changing a document still sees the old one (SPEC-02 AC-17, EC-6).
+  - Evidence: `server/src/modules/project-context/service.ts:74` (`container.git.readFile` on the clone) · `specs/project-context/spec.md` AC-17
+- **2026-10-15** · Inject attached documents only through `wrapUntrusted` (one block per document, path stated) under a separate 8 000-token `## Project context` budget.
+  - Why: documents are repo text anyone can commit; the trusted document rule says they cannot lower or remove findings, and the own budget keeps them from crowding the diff — past it a document is dropped whole and traced "over budget".
+  - Evidence: `reviewer-core/src/prompt.ts:46-57,79` · `server/src/modules/project-context/constants.ts:24` (`SECTION_TOKEN_BUDGET`) · SPEC-02 AC-18, AC-21, AC-24, AC-25
+- **2026-10-15** · Read a symlinked clone file ONLY when its resolved target is itself an allowed document of the same clone — use the shared rule, never a plain `realpath` inside-clone check.
+  - Why: a committed `docs/x.md → ../.git/config` passed the inside-clone check and leaked the clone's GitHub token through preview, prompt, brief and trace (CRITICAL, HW5 security review).
+  - Evidence: `server/src/modules/_shared/symlink-rule.ts` · fix `7a51b10`, shared by project-context, intent and conventions in `b044bfd`
+
 ## Tool & Library Notes
 <!-- Dependency and tooling quirks, with the version -->
 
@@ -47,6 +57,10 @@ or delete; cleanup only via `/engineering-insights review root`.
 
 ### 2026-09-20 — severity counters on the findings panel
 - Done: implemented fresh in `client/` after surfacing that a reverted reference commit existed; user chose not to restore it.
+- Added: Codebase Patterns.
+
+### 2026-10-15 — Project Context decisions after HW5 mentor review
+- Done: recorded why documents come from the clone, how they are injected, and the symlink rule.
 - Added: Codebase Patterns.
 
 ## Open Questions
