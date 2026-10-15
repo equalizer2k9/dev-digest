@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
+import { z } from 'zod';
 import type { PrMeta, PrDetail, GitHubClient, PrReviewComment } from '@devdigest/shared';
 import { PrCommentInput } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
@@ -15,17 +16,21 @@ import { deriveReviewStatus } from './status.js';
  * F1 — pulls module. PR import via Octokit (list + per-PR detail).
  *   GET /repos/:id/pulls → list PRs for a repo (open + recently merged/closed,
  *                          synced from GitHub, persisted). `status` is GitHub's
- *                          merge state (open/merged/closed).
+ *                          merge state (open/merged/closed). `?q=` filters by title.
  *   GET /pulls/:id       → full PR detail (diff/files, commits, body, linked issue)
  *
  * Import is idempotent (unique repo_id+number). Review trigger is MANUAL
  * and owned by A2 — this module only imports/reads.
  */
+const PullsListQuery = z.object({
+  q: z.string().trim().max(200).optional(),
+});
+
 export default async function pullsRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
   const { container } = app;
 
-  app.get('/repos/:id/pulls', { schema: { params: IdParams } }, async (req): Promise<PrMeta[]> => {
+  app.get('/repos/:id/pulls', { schema: { params: IdParams, querystring: PullsListQuery } }, async (req): Promise<PrMeta[]> => {
     const { workspaceId } = await getContext(container, req);
     const [repo] = await container.db
       .select()
@@ -79,10 +84,13 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
+    const titleFilter = req.query.q
+      ? sql.raw(`title ILIKE '%${req.query.q}%'`)
+      : undefined;
     const rows = await container.db
       .select()
       .from(t.pullRequests)
-      .where(eq(t.pullRequests.repoId, repo.id));
+      .where(and(eq(t.pullRequests.repoId, repo.id), titleFilter));
 
     // Diff stats aren't on GitHub's PR-list payload, so freshly-imported PRs
     // land with zeroed size/diff. Backfill them once from the detail endpoint

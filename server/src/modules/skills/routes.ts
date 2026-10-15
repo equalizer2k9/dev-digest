@@ -26,6 +26,11 @@ import { SkillsService } from './service.js';
  *   POST   /skills/import                 → Skill (201)
  */
 
+/** `GET /skills?type=` — optional filter by skill type. */
+const ListSkillsQuery = z.object({
+  type: SkillType.optional(),
+});
+
 /** `/skills/:id/versions/:version` — id is a uuid, version a positive integer. */
 const VersionParams = z.object({
   id: z.string().uuid(),
@@ -103,7 +108,9 @@ export default async function skillsRoutes(appBase: FastifyInstance) {
 
   app.get('/skills', async (req) => {
     const { workspaceId } = await getContext(app.container, req);
-    return service.list(workspaceId);
+    const { type } = ListSkillsQuery.parse(req.query) as { type?: SkillType };
+    const skills = await service.list(workspaceId);
+    return type ? skills.filter((s) => s.type === type) : skills;
   });
 
   // Static segments win over `/skills/:id` in find-my-way, so the import routes

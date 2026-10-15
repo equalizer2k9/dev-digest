@@ -1,3 +1,4 @@
+import { rm } from 'node:fs/promises';
 import type { Container } from '../../platform/container.js';
 import { type Repo } from '@devdigest/shared';
 import { NotFoundError } from '../../platform/errors.js';
@@ -137,8 +138,13 @@ export class RepoService {
     return { status: 'refreshing' };
   }
 
+  /** Delete the repo and its local clone. */
   async remove(workspaceId: string, id: string): Promise<void> {
-    const ok = await this.repo.remove(workspaceId, id);
-    if (!ok) throw new NotFoundError('Repo not found');
+    const repo = await this.repo.getById(workspaceId, id);
+    if (!repo) throw new NotFoundError('Repo not found');
+    await this.repo.remove(workspaceId, id);
+    if (repo.clonePath) {
+      rm(repo.clonePath, { recursive: true });
+    }
   }
 }

@@ -49,14 +49,21 @@ export default async function settingsRoutes(appBase: FastifyInstance) {
   app.put('/settings', { schema: { body: SettingsUpdate } }, async (req) => {
     const { workspaceId, userId } = await getContext(container, req);
     const body = req.body;
-    for (const [key, value] of Object.entries(body)) {
-      await container.db
-        .insert(t.settings)
-        .values({ workspaceId, userId, key, value })
-        .onConflictDoUpdate({
-          target: [t.settings.workspaceId, t.settings.userId, t.settings.key],
-          set: { value },
-        });
+    try {
+      await container.db.transaction(async (tx) => {
+        for (const [key, value] of Object.entries(body)) {
+          await tx
+            .insert(t.settings)
+            .values({ workspaceId, userId, key, value })
+            .onConflictDoUpdate({
+              target: [t.settings.workspaceId, t.settings.userId, t.settings.key],
+              set: { value },
+            });
+        }
+      });
+    } catch (err) {
+      app.log.error({ err, workspaceId, keys: Object.keys(body) }, 'settings update failed');
+      throw err;
     }
     const rows = await container.db
       .select()

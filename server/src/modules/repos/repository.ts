@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 
@@ -25,7 +25,12 @@ export class RepoRepository {
     const [row] = await this.db
       .select()
       .from(t.repos)
-      .where(and(eq(t.repos.workspaceId, workspaceId), eq(t.repos.fullName, fullName)));
+      .where(
+        and(
+          eq(t.repos.workspaceId, workspaceId),
+          sql`lower(${t.repos.fullName}) = lower(${fullName})`,
+        ),
+      );
     return row;
   }
 

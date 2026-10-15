@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
+import { z } from 'zod';
 import { PrIntentResponse, RunRequest, SmartDiffResponse } from '@devdigest/shared';
 import type { RunEvent } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
@@ -19,6 +20,12 @@ import { ReviewService } from './service.js';
  *   POST   /findings/:id/(accept|dismiss)              → finding actions
  */
 const FINDING_ACTIONS = ['accept', 'dismiss'] as const;
+
+const RunsPageQuery = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+});
+
 export default async function reviewsRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
   const { container } = app;
@@ -100,11 +107,18 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
     return service.activeRuns(workspaceId, req.params.id);
   });
 
-  // ---- All runs for a PR (any status; the run history, incl. failures) -----
-  app.get('/pulls/:id/runs', { schema: { params: IdParams } }, async (req) => {
-    const { workspaceId } = await getContext(container, req);
-    return service.listRuns(workspaceId, req.params.id);
-  });
+  // ---- Runs for a PR, one page at a time (any status; incl. failures) -----
+  app.get(
+    '/pulls/:id/runs',
+    { schema: { params: IdParams, querystring: RunsPageQuery } },
+    async (req) => {
+      const { workspaceId } = await getContext(container, req);
+      const { page, pageSize } = req.query;
+      const runs = await service.listRuns(workspaceId, req.params.id);
+      const start = page * pageSize;
+      return runs.slice(start, start + pageSize);
+    },
+  );
 
   // ---- Delete one run from the history (+ its trace) ----------------------
   app.delete('/runs/:id', { schema: { params: IdParams } }, async (req) => {
