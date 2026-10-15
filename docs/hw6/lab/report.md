@@ -375,6 +375,7 @@ AGENTS.md до `docs/agent-prompts/README.md` спрацював 1/2 (у пор�
 | 14.10 | PR, [38621288357](https://github.com/equalizer2k9/dev-digest/actions/runs/38621288357) | секрету ще нема → модельні jobs пропущено з рядком у лозі |
 | 14.10 | PR, [38626992479](https://github.com/equalizer2k9/dev-digest/actions/runs/38626992479) | `skills` ✓; `agents` і `workflow` — LiteLLM не стартував без master key |
 | 15.10 | PR — не створився; ручний — відхилено | після фіксу проксі GitHub не запускає Actions у цьому репо (нижче); доказ фіксу — локальний прогін з оточенням CI |
+| 15.10 | ручний, [38735365850](https://github.com/equalizer2k9/dev-digest/actions/runs/38735365850) | Actions знову увімкнено → проксі стартував, усі модельні jobs дійшли до кейсів (нижче) |
 
 **Тестовий PR** [#20](https://github.com/equalizer2k9/dev-digest/pull/20) (`test/hw6-evals-ci` → `feat/homework-6`,
 не мерджити): нейтральні правки в `onion-architecture/SKILL.md`, `architecture-reviewer.md`,
@@ -473,3 +474,43 @@ OpenAI `/chat/completions` від судді).
 **Вартість** — з активності локального ключа OpenRouter (`GET /api/v1/key`, поле `usage`):
 до прогону $0,1642, після — $0,6244. Тобто **≈ $0,46** за agents + workflow: 3 + 6 сесій haiku 4.5 і
 судді deepseek.
+
+### 15.10 — прогін CI після повторного ввімкнення Actions
+
+Коли Actions увімкнули знову, `evals.yml` запущено вручну (`workflow_dispatch`) на `test/hw6-evals-ci`
+(`853794d`, з фіксом проксі) — прогін
+[38735365850](https://github.com/equalizer2k9/dev-digest/actions/runs/38735365850). Ручний запуск, а не
+PR, бо PR-події за цей день так і не дали прогону. На ручному запуску workflow вважає зміненими всі
+артефакти, але набір модельних jobs той самий: onion-architecture, architecture-reviewer, workflow.
+
+| Job | Результат | Тривалість | Кейси |
+|---|---|---|---|
+| `changes` | ✓ | 5 с | |
+| `quality` | ✓ (гейт) | 22 с | |
+| `skills (onion-architecture)` | ✓ | 266 с | 3/3, 8/8 практик PASS (`deepseek/deepseek-v4-flash`) |
+| `agents (architecture-reviewer)` | ✗ (звіт) | 159 с | А1 ✓, А2 ✓ (3/3); А3 ✗ — фінальна відповідь агента порожня (4 ходи), тож patternMatch-гейт: «missing concrete evidence» |
+| `workflow` | ✗ (звіт) | 188 с | ✓ activation −. ✗ dispatch: запущено `researcher` (ліміт ходів). ✗ contrast: treatment за 1 хід відповів «Прочитайте `docs/agent-prompts/README.md`» — маршрут з AGENTS.md знайдено, але файл не відкрито. ✗ trace: одразу код, `server/AGENTS.md` не прочитано. ✗ activation +: 1 хід без виклику Skill |
+
+Підсумок прогону — success: модельні jobs звітні.
+
+Проксі з master key цього разу стартував і обслужив усі сесії, тож фікс підтверджено вже в CI.
+
+Причини падінь — з логів, без правок під зелений:
+- **dispatch і trace — harness**, як у wf-1 і в локальному прогоні: опис агента не покриває рев'ю
+  плану; правило про `<pkg>/AGENTS.md` сховане в заголовку таблиці.
+- **contrast і activation + — модель.** У CI вона частіше відповідає за 1 хід без інструментів:
+  потрібну відповідь називає, але файл не відкриває і скіл не викликає. Локально з тим самим
+  оточенням обидва кейси пройшли, тож у CI це коливання.
+- **А3 — модель:** порожня фінальна відповідь.
+
+**Вартість** — з usage в артефактах (`records.jsonl`: задача + суддя) за цінами OpenRouter.
+haiku 4.5: $1 / $5 за 1M токенів, кеш-читання $0,10, кеш-запис $1,25; deepseek v4 flash: $0,091 / $0,182.
+
+| Job | Вхід (з кешем) / вихід | Вартість |
+|---|---|---|
+| agents | 266 539 (з них 219 539 кеш-читання) / 4 992 | ≈ $0,105 |
+| workflow | 215 388 (з них 144 605 кеш-читання) / 7 183 | ≈ $0,134 |
+| skills | 7 126 / 13 975 | ≈ $0,006 |
+| **Разом** | | **≈ $0,24** |
+
+Це оцінка за usage: облік кеш-читання в SDK завищений (див. експеримент 3), тож реальна сума, найімовірніше, нижча.
