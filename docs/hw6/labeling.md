@@ -114,3 +114,48 @@
 | 44 | `3c6e25d2-6919-451d-b44f-adfeae2586f4` | accept |
 | 45 | `1e4e8db5-c2e4-4e93-bf31-edc510f52901` | accept |
 | 46 | `df1f6b95-168b-4387-a3cc-4eb8c6fa2138` | dismiss |
+
+## PR #21 — тестовий PR для General Reviewer
+
+[#21](https://github.com/equalizer2k9/dev-digest/pull/21) («do not merge») містить 3 справжні дефекти й правильні зміни-приманки, кожна у своєму файлі. Ціль — дати агенту, який майже не шумить, місця для `must_not_flag`. General Reviewer (`deepseek/deepseek-v4-flash`) прогнано чотири рази, по два на кожен head.
+
+### Розмітка (застосовано, head `f5669db9`)
+
+| # | id (first 8 chars) | PR | file:line | title | proposal | why |
+|---|---|---|---|---|---|---|
+| 47 | `51d3d859` | #21 | `server/src/modules/pulls/routes.ts:87-88` | SQL injection via raw interpolation of `?q=` parameter in PR list query | **accept** | True: `?q=` reaches `sql.raw` unescaped at line 88. |
+| 48 | `23542960` | #21 | `server/src/modules/pulls/routes.ts:87-88` | SQL injection via raw interpolation of user input in ILIKE filter | **accept** | Same defect, a duplicate on the same lines. |
+| 49 | `7cef667c` | #21 | `server/src/modules/repos/service.ts:145` | Missing `await` on `rm()` when deleting local clone on repo removal | **accept** | True; cites 145, while the `rm` call is on 147. |
+| 50 | `e098b869` | #21 | `server/src/modules/repos/service.ts:144-145` | Missing `await` on `rm()` causes unhandled rejection and incomplete file deletion | **accept** | True: without `force`, a missing clone rejects with ENOENT and nothing catches it; same offset from line 147. |
+| 51 | `48c18aaf` | #21 | `server/src/modules/reviews/routes.ts:113` | Off-by-one error in pagination start index for run history | **accept** | True defect, but line 113 is the route schema; the defect is on 117. Not turned into a case. |
+| 52 | `7d0569c9` | #21 | `server/src/modules/reviews/routes.ts:117` | Off-by-one error in pagination start index causes first page to skip first 20 items | **accept** | True, exact line: `page * pageSize` with `page ≥ 1`. The only source of the off-by-one case. |
+
+Full ids: `51d3d859-c531-4ae8-a74a-504f480456a6` · `23542960-1544-4829-b45f-3b4c007b4f8d` · `7cef667c-0e46-439a-818e-cb4b139f66d3` · `e098b869-0b51-4621-a338-d7009d1d0adc` · `48c18aaf-cb18-40c2-906c-4729c6823bee` · `7d0569c9-ade7-46a2-bd9d-7a1bde46bca3`.
+
+### Раунд приманок (head `7c93af09`)
+
+Перша версія мала третю приманку — `.parse` у handler із приведенням типу. Її прибрано: `server/CLAUDE.md` забороняє `Schema.parse(req.body)` у handler, тож знахідка на ній була б частково правдивою.
+
+| Приманка | Файл:рядок | Чому код правильний |
+|---|---|---|
+| `sql` з інтерполяцією | `server/src/modules/repos/repository.ts:31` | Drizzle передає `${fullName}` як параметр запиту; імена на GitHub не залежать від регістру. |
+| широкий catch з повторним throw | `server/src/modules/settings/routes.ts:52-66` | Логує й кидає ту саму помилку далі; транзакція відкочується. |
+| рядок, схожий на токен | `server/src/modules/repos/helpers.test.ts:4` | `ghp_test…` — фікстура юніт-тесту, а не справжній ключ. |
+| `Math.random()` у затримці | `server/src/platform/job-backoff.ts:8` | Jitter розносить у часі повтори фонових джоб; випадковість тут не для безпеки. |
+| послідовні `await` у циклі | `server/src/modules/_shared/post-review-comments.ts:16-17` | Паралельні запити, що створюють контент, GitHub карає вторинним rate limit; порядок коментарів зберігається. |
+
+Результат: 4 прогони дали 12 знахідок, усі на трьох дефектах. Жодної знахідки на п'яти приманках. Шість нових знахідок другого раунду — дублі на тих самих рядках, пропозиція для всіх **accept**; поки не розмічено:
+
+| id (first 8 chars) | file:line | title | proposal |
+|---|---|---|---|
+| `35edd272` | `server/src/modules/pulls/routes.ts:87-88` | SQL injection via raw string interpolation in title filter | accept |
+| `32ede58c` | `server/src/modules/pulls/routes.ts:87-88` | SQL injection in PR title filter via `sql.raw` with unsanitized user input | accept |
+| `cc7b77bc` | `server/src/modules/repos/service.ts:145` | Missing `await` on `rm()` call when deleting local clone | accept |
+| `a7c43a56` | `server/src/modules/repos/service.ts:145` | Missing `await` on `rm()` when deleting local clone on repo removal | accept |
+| `b1dbbf78` | `server/src/modules/reviews/routes.ts:117` | Off-by-one error in run history pagination: first page is skipped | accept |
+| `f98c9bbb` | `server/src/modules/reviews/routes.ts:118` | Off-by-one in run-history pagination: first page skips first `pageSize` items | accept |
+
+### Висновок
+
+- **Агент на DeepSeek майже не шумить, тому даних для `must_not_flag` мало.** За 4 прогони — 0 хибних знахідок на 5 приманках, а у всіх рев'ю General Reviewer відхилено лише 2 знахідки. Це висновок про агента, а не про набір. Зупиняємось на одному `must_not_flag` (#6 `pulls/routes.ts:341-343`), нових раундів не робимо.
+- **Зона `repos/service.ts:144-145` не покриває рядок 147, де стоїть `rm()`.** Збіг рахується лише за файлом і рядками (NFR-16): прогін із точною цитатою 147 стане промахом для цього кейсу, а прогін із цитатою 145 — влучанням. Усі чотири прогони цитували 144–145.
