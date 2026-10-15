@@ -8,6 +8,8 @@
 #   scripts/litellm-proxy.sh wait    # block until the running proxy is healthy (CI helper)
 #
 # The OpenRouter key is taken from $OPENROUTER_API_KEY, or read from ~/.devdigest/secrets.json.
+# The proxy's master key is $LITELLM_MASTER_KEY; when unset, `up` generates a random one and keeps it
+# in proxy/.master-key (0600, git-ignored) for the eval process to export.
 
 set -euo pipefail
 
@@ -15,6 +17,7 @@ PROXY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../proxy" && pwd)"
 COMPOSE=(docker compose -f "$PROXY_DIR/docker-compose.yml")
 PORT="${LITELLM_PORT:-4000}"
 URL="http://localhost:${PORT}"
+MASTER_KEY_FILE="$PROXY_DIR/.master-key"
 
 load_key() {
   if [[ -z "${OPENROUTER_API_KEY:-}" ]]; then
@@ -28,6 +31,14 @@ load_key() {
     exit 1
   fi
   export OPENROUTER_API_KEY
+}
+
+load_master_key() {
+  if [[ -z "${LITELLM_MASTER_KEY:-}" ]]; then
+    LITELLM_MASTER_KEY="sk-$(openssl rand -hex 32)"
+    (umask 077 && printf '%s' "$LITELLM_MASTER_KEY" > "$MASTER_KEY_FILE")
+  fi
+  export LITELLM_MASTER_KEY
 }
 
 wait_healthy() {
@@ -47,15 +58,16 @@ wait_healthy() {
 case "${1:-up}" in
   up)
     load_key
+    load_master_key
     "${COMPOSE[@]}" up -d
     wait_healthy
     cat >&2 <<EOF
 
-Proxy ready. To route every eval tier through it:
+Proxy ready. To route every eval tier through it (the OpenRouter key stays in the container):
 
   export EVAL_BACKEND=openrouter
   export OPENROUTER_BASE_URL=${URL}
-  export OPENROUTER_API_KEY=<your key>   # also used by the proxy container
+  export LITELLM_MASTER_KEY="\$(cat ${MASTER_KEY_FILE})"   # unless you set it yourself
   export EVAL_MODEL=google/gemini-2.5-flash        # cheap model that survives the tool tiers
   export EVAL_JUDGE_MODEL=google/gemini-2.5-flash
   pnpm eval:workflow
@@ -64,8 +76,10 @@ Stop it with: scripts/litellm-proxy.sh down
 EOF
     ;;
   down)
-    # compose interpolates the env block even on `down`, so the var must be present (value unused).
-    OPENROUTER_API_KEY="${OPENROUTER_API_KEY:-unused}" "${COMPOSE[@]}" down
+    # compose interpolates the env block even on `down`, so the vars must be present (values unused).
+    OPENROUTER_API_KEY="${OPENROUTER_API_KEY:-unused}" LITELLM_MASTER_KEY="${LITELLM_MASTER_KEY:-unused}" \
+      "${COMPOSE[@]}" down
+    rm -f "$MASTER_KEY_FILE"
     ;;
   wait)
     wait_healthy

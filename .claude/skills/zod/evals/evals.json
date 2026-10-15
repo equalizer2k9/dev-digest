@@ -19,16 +19,16 @@
     },
     {
       "id": 2,
-      "name": "route-body-validation-400",
-      "prompt": "Додаю роут POST /findings/:id/eval-case — з картки знахідки створює eval-кейс. Тіло: { expectation: 'must_find' | 'must_not_flag', note?: рядок до 500 символів }. Зроби валідацію тіла через Zod так, щоб невалідне тіло отримувало 400 з поясненням, і додай тест на це.",
-      "expected_output": "Route-level `schema: { body }` with the Zod type provider (no parse in the handler), enum + max(500) body schema, an app.inject test for an invalid body, and awareness that this app maps validation errors to 422 in server/src/app.ts.",
+      "name": "route-body-validation-repo-convention",
+      "prompt": "Додаю роут POST /findings/:id/eval-case — з картки знахідки створює eval-кейс. Тіло: { expectation: 'must_find' | 'must_not_flag', note?: рядок до 500 символів }. Зроби валідацію тіла через Zod так, щоб на невалідне тіло API відповідало помилкою валідації з поясненням — так, як у нас заведено, — і додай тест на це.",
+      "expected_output": "Route-level `schema: { body }` with the Zod type provider (no parse in the handler), enum + max(500) body schema; an invalid body is answered with 422 by the app's global error handler (server/src/app.ts), and an app.inject test asserts 422.",
       "files": [],
       "expectations": [
         "The body is validated at the route level (`schema: { body: ... }` with the Zod type provider), not with .parse()/.safeParse() inside the handler",
         "The body schema uses z.enum(['must_find', 'must_not_flag']) for expectation and an optional z.string().max(500) for note",
-        "The output notices that this app's global error handler answers request-validation failures with 422 (server/src/app.ts) and handles the 400 requirement explicitly instead of silently assuming 400",
-        "A test sends an invalid body via app.inject and asserts the response status code",
-        "The status code asserted in the test is the one the code would actually return given server/src/app.ts"
+        "An invalid body is answered with HTTP 422 by the app's global error handler (server/src/app.ts) in its standard { error: { code: 'validation_error', ... } } shape — no hand-made 400 response in the route",
+        "A test sends an invalid body via app.inject and asserts statusCode 422",
+        "Code, tests and notes agree on 422 for an invalid body — nothing claims the route returns 400"
       ]
     }
   ]

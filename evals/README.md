@@ -126,9 +126,9 @@ inside `evals/` and needs no code changes to use.
 
 | File | Role |
 |------|------|
-| `proxy/litellm.config.yaml` | LiteLLM config: a wildcard route forwarding any `EVAL_MODEL` slug to OpenRouter, in no-auth mode |
+| `proxy/litellm.config.yaml` | LiteLLM config: a wildcard route forwarding any `EVAL_MODEL` slug to OpenRouter; every request needs the master key (`LITELLM_MASTER_KEY`) |
 | `proxy/docker-compose.yml` | Runs `ghcr.io/berriai/litellm` on `:4000`, both wire formats on one port |
-| `scripts/litellm-proxy.sh` | `up` / `down` / `wait` wrapper (reads `OPENROUTER_API_KEY` from env, else `~/.devdigest/secrets.json`) |
+| `scripts/litellm-proxy.sh` | `up` / `down` / `wait` wrapper (reads `OPENROUTER_API_KEY` from env, else `~/.devdigest/secrets.json`; generates `LITELLM_MASTER_KEY` into `proxy/.master-key` when unset) |
 | `src/runtime/env.ts` | Points the SDK's `ANTHROPIC_BASE_URL` at `OPENROUTER_BASE_URL` (the proxy) under `EVAL_BACKEND=openrouter` |
 | `src/runtime/run-openrouter.ts` | Content tier's direct OpenAI-format call — also honours `OPENROUTER_BASE_URL` |
 
@@ -138,13 +138,14 @@ on OpenRouter. Because `OPENROUTER_BASE_URL` overrides the base for **both** tie
 routes the whole suite through it. `pnpm proxy:*` are thin wrappers over the script.
 
 ```bash
-# 1. Start the proxy (Docker). Reads OPENROUTER_API_KEY from env or ~/.devdigest/secrets.json.
+# 1. Start the proxy (Docker). Reads OPENROUTER_API_KEY from env or ~/.devdigest/secrets.json and
+#    generates a per-run master key (LITELLM_PORT=4400 if :4000 is taken).
 pnpm proxy:up                                  # → http://localhost:4000
 
-# 2. Point every tier at it and run the workflow tier on a cheap model
+# 2. Point every tier at it — clients send the master key, never the OpenRouter key
 EVAL_BACKEND=openrouter \
 OPENROUTER_BASE_URL=http://localhost:4000 \
-OPENROUTER_API_KEY=sk-or-... \
+LITELLM_MASTER_KEY="$(cat proxy/.master-key)" \
 EVAL_MODEL=google/gemini-2.5-flash \
 EVAL_JUDGE_MODEL=google/gemini-2.5-flash \
 pnpm eval:workflow
@@ -154,8 +155,11 @@ pnpm proxy:down
 ```
 
 `EVAL_MODEL` is forwarded verbatim to OpenRouter (the wildcard route in `proxy/litellm.config.yaml`),
-so you never edit config to try a new model. The proxy runs in **no-auth** mode — do not expose the
-port publicly.
+so you never edit config to try a new model. The image is pinned by digest (`proxy/docker-compose.yml`):
+LiteLLM ≥ 1.105 refuses to start without a master key, so every run gets a fresh random
+`LITELLM_MASTER_KEY`. The SDK and the direct judge call send it as their bearer
+(`src/runtime/env.ts`); `OPENROUTER_API_KEY` lives only in the proxy container. The port is bound to
+127.0.0.1 — do not expose it.
 
 #### Which cheap model — verified
 
@@ -190,7 +194,9 @@ workflow cases:
 
 The engine is CI-ready: bring the proxy up as a step, wait for it, run the tier, tear it down. Put
 the OpenRouter key in the repo's **Actions secrets** as `OPENROUTER_API_KEY` (Settings → Secrets and
-variables → Actions). Create `.github/workflows/<name>.yml` in your repo:
+variables → Actions). This repo's real wiring is `.github/workflows/evals.yml` — per-job master key
+(`openssl rand` + `::add-mask::`), the OpenRouter key on the proxy-up step only. The minimal upstream
+sketch below predates the master key; add those two pieces before using it:
 
 ```yaml
 name: evals
@@ -517,7 +523,9 @@ Cheap and orthogonal; the `TrendReporter` keeps writing test-level outcome rows 
 | `EVAL_BACKEND` | `subscription` | runner: `subscription` (Claude Code) or `openrouter` — see [Runners](#runners-claude-code-default-vs-openrouter) |
 | `EVAL_MODEL` | `claude-haiku-4-5` | model under test. Anthropic ID on `subscription`; OpenRouter slug on `openrouter` |
 | `EVAL_JUDGE_MODEL` | `claude-sonnet-5` | judge model (stronger family); same slug-format rule as `EVAL_MODEL` |
-| `OPENROUTER_API_KEY` | — | required when `EVAL_BACKEND=openrouter`; also in `~/.devdigest/secrets.json` |
+| `OPENROUTER_API_KEY` | — | required when `EVAL_BACKEND=openrouter` goes direct to OpenRouter; through the proxy only the container needs it. Also in `~/.devdigest/secrets.json` |
+| `LITELLM_MASTER_KEY` | — | required when `OPENROUTER_BASE_URL` points at the proxy — the bearer every client sends; `proxy:up` generates one |
+| `LITELLM_PORT` | `4000` | host port of the proxy (127.0.0.1) |
 | `OPENROUTER_BASE_URL` | OpenRouter | override to point at a local LiteLLM proxy for non-Anthropic tool-tier models |
 | `EVAL_MAX_TURNS` | `8` | max agent turns per case |
 | `EVAL_CONFIG` | `candidate` | `benchmark` sets this to `baseline` to skip artifact injection |
