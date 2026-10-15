@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray } from 'drizzle-orm';
 import type { EvalCaseResult, EvalMetric, EvalRunSkill } from '@devdigest/shared';
 import type { Db } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
@@ -89,4 +89,90 @@ export async function reapInterrupted(db: Db): Promise<number> {
     .where(eq(t.evalRuns.status, 'running'))
     .returning({ id: t.evalRuns.id });
   return rows.length;
+}
+
+/** A run row with its agent's name (left join: null only if the agent row is gone). */
+export interface EvalRunWithAgent {
+  run: EvalRunDbRow;
+  agentName: string | null;
+}
+
+export interface DashboardAgentRow {
+  agentId: string;
+  name: string;
+  enabled: boolean;
+  casesTotal: number;
+  latest: EvalRunWithAgent | null;
+}
+
+/** An agent's runs, newest first. */
+export function listRuns(db: Db, workspaceId: string, agentId: string): Promise<EvalRunDbRow[]> {
+  return db
+    .select()
+    .from(t.evalRuns)
+    .where(and(eq(t.evalRuns.workspaceId, workspaceId), eq(t.evalRuns.agentId, agentId)))
+    .orderBy(desc(t.evalRuns.ranAt), desc(t.evalRuns.id));
+}
+
+export async function runsByIds(db: Db, workspaceId: string, ids: string[]): Promise<EvalRunWithAgent[]> {
+  if (ids.length === 0) return [];
+  const rows = await db
+    .select({ run: t.evalRuns, agentName: t.agents.name })
+    .from(t.evalRuns)
+    .leftJoin(t.agents, eq(t.evalRuns.agentId, t.agents.id))
+    .where(and(eq(t.evalRuns.workspaceId, workspaceId), inArray(t.evalRuns.id, ids)));
+  return rows;
+}
+
+/** The newest runs of the workspace across agents, newest first. */
+export function recentRuns(db: Db, workspaceId: string, limit: number): Promise<EvalRunWithAgent[]> {
+  return db
+    .select({ run: t.evalRuns, agentName: t.agents.name })
+    .from(t.evalRuns)
+    .leftJoin(t.agents, eq(t.evalRuns.agentId, t.agents.id))
+    .where(eq(t.evalRuns.workspaceId, workspaceId))
+    .orderBy(desc(t.evalRuns.ranAt), desc(t.evalRuns.id))
+    .limit(limit);
+}
+
+/**
+ * One row per agent of the workspace that has at least one eval case (enabled or not),
+ * with its case count and its latest completed run. Reads `eval_cases` and `eval_runs`
+ * only, plus the agent's name and flag.
+ */
+export async function dashboardRows(db: Db, workspaceId: string): Promise<DashboardAgentRow[]> {
+  const agents = await db
+    .select({
+      agentId: t.agents.id,
+      name: t.agents.name,
+      enabled: t.agents.enabled,
+      casesTotal: count(t.evalCases.id),
+    })
+    .from(t.evalCases)
+    .innerJoin(t.agents, eq(t.evalCases.agentId, t.agents.id))
+    .where(and(eq(t.evalCases.workspaceId, workspaceId), eq(t.evalCases.ownerKind, 'agent')))
+    .groupBy(t.agents.id, t.agents.name, t.agents.enabled)
+    .orderBy(asc(t.agents.name), asc(t.agents.id));
+  if (agents.length === 0) return [];
+
+  const latestRows = await db
+    .selectDistinctOn([t.evalRuns.agentId])
+    .from(t.evalRuns)
+    .where(
+      and(
+        eq(t.evalRuns.workspaceId, workspaceId),
+        eq(t.evalRuns.status, 'completed'),
+        inArray(
+          t.evalRuns.agentId,
+          agents.map((a) => a.agentId),
+        ),
+      ),
+    )
+    .orderBy(t.evalRuns.agentId, desc(t.evalRuns.ranAt), desc(t.evalRuns.id));
+  const latestByAgent = new Map(latestRows.map((r) => [r.agentId, r]));
+
+  return agents.map((a) => {
+    const run = latestByAgent.get(a.agentId);
+    return { ...a, latest: run ? { run, agentName: a.name } : null };
+  });
 }

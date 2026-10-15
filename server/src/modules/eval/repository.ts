@@ -1,7 +1,13 @@
 import type { Db } from '../../db/client.js';
 import * as caseRepo from './repository/case.repo.js';
 import * as runRepo from './repository/run.repo.js';
-import type { EvalRunDbRow, FinishedRunValues, NewRunningRun } from './repository/run.repo.js';
+import type {
+  DashboardAgentRow,
+  EvalRunDbRow,
+  EvalRunWithAgent,
+  FinishedRunValues,
+  NewRunningRun,
+} from './repository/run.repo.js';
 import type {
   CreateCaseResult,
   EvalCaseDbRow,
@@ -14,7 +20,16 @@ import type {
  * composes them so the service sees one object.
  */
 
-export type { CreateCaseResult, EvalCaseDbRow, NewEvalCase, EvalRunDbRow, FinishedRunValues, NewRunningRun };
+export type {
+  CreateCaseResult,
+  DashboardAgentRow,
+  EvalCaseDbRow,
+  NewEvalCase,
+  EvalRunDbRow,
+  EvalRunWithAgent,
+  FinishedRunValues,
+  NewRunningRun,
+};
 
 export class EvalRepository {
   constructor(private db: Db) {}
@@ -54,6 +69,23 @@ export class EvalRepository {
 
   failRun(runId: string, reason: string): Promise<boolean> {
     return runRepo.failRun(this.db, runId, reason);
+  }
+
+  /** An agent's runs, newest first. */
+  listRuns(workspaceId: string, agentId: string): Promise<EvalRunDbRow[]> {
+    return runRepo.listRuns(this.db, workspaceId, agentId);
+  }
+
+  runsByIds(workspaceId: string, ids: string[]): Promise<EvalRunWithAgent[]> {
+    return runRepo.runsByIds(this.db, workspaceId, ids);
+  }
+
+  dashboardRows(workspaceId: string): Promise<DashboardAgentRow[]> {
+    return runRepo.dashboardRows(this.db, workspaceId);
+  }
+
+  recentRuns(workspaceId: string, limit: number): Promise<EvalRunWithAgent[]> {
+    return runRepo.recentRuns(this.db, workspaceId, limit);
   }
 
   reapInterrupted(): Promise<number> {
