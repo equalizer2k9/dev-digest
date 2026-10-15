@@ -142,7 +142,6 @@
   },
   "turnInto": {
     "label": "Turn into eval case",
-    "hint": "Add this finding to the agent's eval set",
     "success": "Added to {agent}'s eval set",
     "exists": "Already in {agent}'s eval set",
     "view": "View eval cases",
@@ -163,6 +162,7 @@
   },
   "deleteFailed": "Could not delete the eval case.",
   "runFailed": "Could not start the eval run.",
+  "runInProgress": "A run of this agent is already in progress.",
   "loadError": "Could not load eval data.",
   "retry": "Retry"
 }

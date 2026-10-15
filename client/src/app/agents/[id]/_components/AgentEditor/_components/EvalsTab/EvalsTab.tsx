@@ -8,6 +8,7 @@ import { useTranslations } from "next-intl";
 import { Badge, Button, ErrorState, Skeleton } from "@devdigest/ui";
 import type { Agent, EvalCaseRow } from "@devdigest/shared";
 import { ConfirmDialog } from "../../../../../../../components/confirm-dialog/ConfirmDialog";
+import { ApiError } from "../../../../../../../lib/api";
 import { useDeleteEvalCase, useEvalOverview, useRunEval } from "../../../../../../../lib/hooks/evals";
 import { EvalMetrics } from "../../../../../../../components/eval/EvalMetrics";
 import { EvalRunTable } from "../../../../../../../components/eval/EvalRunTable";
@@ -20,7 +21,7 @@ export function EvalsTab({ agent }: { agent: Agent }) {
   const runEval = useRunEval(agent.id);
   const deleteCase = useDeleteEvalCase(agent.id);
   const [pendingDelete, setPendingDelete] = React.useState<EvalCaseRow | null>(null);
-  const [runError, setRunError] = React.useState(false);
+  const [runError, setRunError] = React.useState<"runFailed" | "runInProgress" | null>(null);
   const [deleteError, setDeleteError] = React.useState(false);
   const [picked, setPicked] = React.useState<string[]>([]);
   const router = useRouter();
@@ -56,8 +57,16 @@ export function EvalsTab({ agent }: { agent: Agent }) {
   };
 
   const start = () => {
-    setRunError(false);
-    runEval.mutate(undefined, { onError: () => setRunError(true) });
+    setRunError(null);
+    runEval.mutate(undefined, {
+      onError: (err) => {
+        // Another tab started a run first (AC-13): say so and fetch it so its status line shows.
+        if (err instanceof ApiError && err.code === "eval_run_in_progress") {
+          setRunError("runInProgress");
+          void refetch();
+        } else setRunError("runFailed");
+      },
+    });
   };
 
   const confirmDelete = () => {
@@ -93,7 +102,7 @@ export function EvalsTab({ agent }: { agent: Agent }) {
           </div>
         )}
       </div>
-      {runError && <div style={s.inlineError}>{t("runFailed")}</div>}
+      {runError && <div style={s.inlineError}>{t(runError)}</div>}
       {deleteError && <div style={s.inlineError}>{t("deleteFailed")}</div>}
 
       {cases.length === 0 ? (

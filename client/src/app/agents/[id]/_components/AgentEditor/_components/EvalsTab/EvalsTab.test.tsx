@@ -4,6 +4,7 @@ import { render, screen, cleanup, fireEvent, within } from "@testing-library/rea
 import { NextIntlClientProvider } from "next-intl";
 import type { Agent, EvalAgentOverview, EvalCaseRow, EvalRunRecord } from "@devdigest/shared";
 import evalMessages from "../../../../../../../../messages/en/eval.json";
+import { ApiError } from "@/lib/api";
 
 const runMutate = vi.fn();
 const deleteMutate = vi.fn();
@@ -123,6 +124,27 @@ describe("EvalsTab", () => {
     expect(btn).toBeEnabled();
     fireEvent.click(btn);
     expect(runMutate).toHaveBeenCalledTimes(1);
+  });
+
+  it("AC-13: a run refused as in progress says so and refetches the overview", () => {
+    state.data = overview(THREE());
+    runMutate.mockImplementation((_v, opts) =>
+      opts.onError(new ApiError("A run is in progress", 409, "eval_run_in_progress")),
+    );
+    renderTab();
+    fireEvent.click(screen.getByRole("button", { name: "Run eval (3)" }));
+    expect(screen.getByText(evalMessages.runInProgress)).toBeInTheDocument();
+    expect(screen.queryByText(evalMessages.runFailed)).not.toBeInTheDocument();
+    expect(refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("any other run failure shows the generic error and does not refetch", () => {
+    state.data = overview(THREE());
+    runMutate.mockImplementation((_v, opts) => opts.onError(new ApiError("boom", 500, "internal_error")));
+    renderTab();
+    fireEvent.click(screen.getByRole("button", { name: "Run eval (3)" }));
+    expect(screen.getByText(evalMessages.runFailed)).toBeInTheDocument();
+    expect(refetch).not.toHaveBeenCalled();
   });
 
   it("Run eval is disabled with zero cases", () => {
