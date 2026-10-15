@@ -55,10 +55,14 @@ export const EvalPerTrace = z.object({
 });
 export type EvalPerTrace = z.infer<typeof EvalPerTrace>;
 
+/** A metric in [0, 1]; `null` = n/a (nothing to measure), never a number. */
+export const EvalMetric = z.number().min(0).max(1).nullable();
+export type EvalMetric = z.infer<typeof EvalMetric>;
+
 export const EvalRun = z.object({
-  recall: z.number().min(0).max(1),
-  precision: z.number().min(0).max(1),
-  citation_accuracy: z.number().min(0).max(1),
+  recall: EvalMetric,
+  precision: EvalMetric,
+  citation_accuracy: EvalMetric,
   traces_passed: z.number().int(),
   traces_total: z.number().int(),
   duration_ms: z.number().int(),
@@ -82,6 +86,29 @@ export const EvalCase = z.object({
   notes: z.string().nullish(),
 });
 export type EvalCase = z.infer<typeof EvalCase>;
+
+/** What a case expects: a finding on the zone (must_find) or none (must_not_flag). */
+export const EvalExpectationType = z.enum(['must_find', 'must_not_flag']);
+export type EvalExpectationType = z.infer<typeof EvalExpectationType>;
+
+export const EvalExpectation = z.object({
+  type: EvalExpectationType,
+  file: z.string(),
+  start_line: z.number().int(),
+  end_line: z.number().int(),
+  title: z.string(),
+});
+export type EvalExpectation = z.infer<typeof EvalExpectation>;
+
+/** Frozen PR metadata stored in `eval_cases.input_meta`. Server-side only; no author. */
+export const EvalFrozenMeta = z.object({
+  pr_id: z.string(),
+  pr_number: z.number().int(),
+  pr_title: z.string(),
+  pr_description: z.string(),
+  file: z.string(),
+});
+export type EvalFrozenMeta = z.infer<typeof EvalFrozenMeta>;
 
 // ---- Memory ----
 export const MemoryScope = z.enum(['repo', 'global', 'team']);

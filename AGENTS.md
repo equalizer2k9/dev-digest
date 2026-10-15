@@ -1,6 +1,6 @@
 # DevDigest
 
-Local-first AI pull-request review. Five standalone packages — **no workspace**: each has its
+Local-first AI pull-request review. Six standalone packages — **no workspace**: each has its
 own `package.json` + lockfile; cross-package code is shared via tsconfig path aliases.
 
 ## Packages — read `<pkg>/AGENTS.md` before working in a package
@@ -12,9 +12,10 @@ own `package.json` + lockfile; cross-package code is shared via tsconfig path al
 | [reviewer-core/](reviewer-core/AGENTS.md) | Pure review engine: diff → prompt → LLM → grounded findings | npm | — |
 | [e2e/](e2e/AGENTS.md) | Deterministic browser flows (agent-browser) | npm | — |
 | [devdigest-mcp/](devdigest-mcp/AGENTS.md) | stdio MCP server: 5 tools over the API, HTTP only | npm | — |
+| [evals/](evals/README.md) | Harness evals: skills, subagents, AGENTS.md (vitest + Claude Agent SDK) | pnpm | — |
 
 Every package has: `README.md` (humans) · `docs/` (deep dives) · `specs/` (feature specs) ·
-`INSIGHTS.md` (insight log, append-only). In `e2e/`, `specs/` holds the flow JSON instead.
+`INSIGHTS.md` (insight log, append-only). In `e2e/`, `specs/` holds the flow JSON instead; `evals/` has only `README.md` + `docs/`.
 
 ## Commands
 
@@ -51,6 +52,7 @@ Every package has: `README.md` (humans) · `docs/` (deep dives) · `specs/` (fea
 - New feature → write its spec first: `/spec <package> <name>`
 - Non-obvious finding (root cause, dead end, lib quirk, decision) → `engineering-insights` skill
   appends it to `<package>/INSIGHTS.md`; infra / cross-package → root [INSIGHTS.md](INSIGHTS.md)
+- Changed a skill, an agent or AGENTS.md → run the eval from the routing table in [evals/README.md](evals/README.md)
 
 ## Cross-package gotchas
 
@@ -68,11 +70,10 @@ Every package has: `README.md` (humans) · `docs/` (deep dives) · `specs/` (fea
   `migrations/meta/_journal.json` or a `*_snapshot.json`: they are drizzle-kit output and a manual
   edit has already corrupted the journal once (`2006964`). Schema change → edit `db/schema/*.ts`,
   then `pnpm db:generate` and commit the generated files unchanged.
-- **Lock files** — `client/pnpm-lock.yaml`, `server/pnpm-lock.yaml` (pnpm),
+- **Lock files** — `client/pnpm-lock.yaml`, `server/pnpm-lock.yaml`, `evals/pnpm-lock.yaml` (pnpm),
   `reviewer-core/package-lock.json`, `e2e/package-lock.json`, `devdigest-mcp/package-lock.json` (npm),
-  `skills-lock.json`. Never edit
-  or delete one to fix an install; change dependencies only by running that package's own package
-  manager, and never swap a package's PM.
+  `skills-lock.json`. Never edit or delete one to fix an install; change dependencies only by running
+  that package's own package manager, and never swap a package's PM.
 - `docker compose down -v` — deletes the `devdigest_pgdata` volume (every imported repo + review).
 - `server/clones/` — runtime checkouts, git-ignored.
 - AGENTS.md budget: root ≤ 80 lines, each package ≤ 60. Per line: "remove it — would Claude err?"

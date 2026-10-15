@@ -53,7 +53,8 @@
     "tabs": {
       "config": "Config",
       "skills": "Skills",
-      "context": "Context"
+      "context": "Context",
+      "evals": "Evals"
     }
   },
   "config": {

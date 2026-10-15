@@ -14,6 +14,14 @@ or delete; cleanup only via `/engineering-insights review root`.
 ## What Doesn't Work
 <!-- Dead ends and antipatterns, each with what to do instead -->
 
+- **2026-10-14** · NEVER ablate a skill rule for an eval delta by deleting only its numbered line — remove every restatement, including the frontmatter `description`.
+  - Why: `skillContent()` injects SKILL.md with frontmatter, and onion-architecture restates each rule in the ring diagram, so the knowledge survives a one-line removal.
+  - Evidence: `evals/src/artifacts/load.ts:19` · rule 4 removed → practice 100%→100%; + diagram line → 100%→67%, `container.ts` still named in 2/3 (`docs/hw6/lab/report.md`)
+  - Seen again 2026-10-14: removing rule 4 from body, diagram and `description` dropped the practice 100%→33% with controls at 100% (onion-v2c).
+- **2026-10-14** · NEVER read `eval:repeat` pass rate for a workflow case as its assertion result — recompute it from the record's `trace`.
+  - Why: `record()` gets no verdict for workflow cases, so `outcome = !isError` ("session didn't crash"); wf-1 printed 6/6 while 3/5 cases passed.
+  - Evidence: `evals/src/records/record.ts:49` · `evals/src/dsl/case.ts:132`
+
 ## Codebase Patterns
 <!-- Undocumented conventions and architectural decisions, with the reason -->
 
@@ -34,6 +42,13 @@ or delete; cleanup only via `/engineering-insights review root`.
 ## Tool & Library Notes
 <!-- Dependency and tooling quirks, with the version -->
 
+- **2026-10-14** · To restrict an eval session's tools, pass the Agent SDK `tools` option — `allowedTools` only auto-approves and removes nothing.
+  - Why: `evals/src/runtime/run-claude.ts` sets only `allowedTools` + `bypassPermissions`, so "read-only" and "no tools" sessions still get Bash/Write/Edit.
+  - Evidence: `@anthropic-ai/claude-agent-sdk` 0.3.198 `sdk.d.ts:1305-1311` · `evals/src/config.ts:28` · `evals/src/tasks.ts:50`
+- **2026-10-14** · To keep a `settingSources: ["project"]` eval session off the DevDigest MCP, pass `strictMcpConfig: true` — `tools` does not filter MCP tools.
+  - Why: the session loads `.mcp.json`, so `mcp__devdigest__run_agent_on_pr` (a paid review via the API on :3001) stays callable under bypassPermissions.
+  - Evidence: init probe tools list · `sdk.d.ts:1895` · a fresh worktree is safe only because `devdigest-mcp/node_modules` is missing
+
 ## Recurring Errors & Fixes
 <!-- Exact error text → real cause → fix -->
 
@@ -42,6 +57,19 @@ or delete; cleanup only via `/engineering-insights review root`.
   - Fix: kill the dev client BY PID, `rm -rf client/.next`, restart `./scripts/dev.sh`.
   - Evidence: `scripts/e2e.sh:42` · `scripts/e2e.sh:148`
   - Seen again 2026-10-07: killing only the client ends `dev.sh` but orphans the API (`tsx watch` child) on :3001 — kill it by PID too before restarting.
+- **2026-10-14** · `ERR_PNPM_IGNORED_BUILDS ... Ignored build scripts: esbuild@0.21.5, esbuild@0.28.1` on `pnpm install` in `evals/`
+  - Cause: pnpm 12 ignores `pnpm.onlyBuiltDependencies` in `evals/package.json`; build approval now lives in `allowBuilds` of `pnpm-workspace.yaml`.
+  - Fix: keep `evals/pnpm-workspace.yaml` (`allowBuilds: esbuild: true`) — it is settings for one package, not a workspace; regenerate via `pnpm install --allow-build=esbuild`.
+  - Evidence: pnpm v12.10.1 · `evals/pnpm-workspace.yaml`
+- **2026-10-14** · Contrast case `[treatment]` output in `evals/results/outputs/` shows the control's text
+  - Cause: `slugify()` cuts the label to 80 chars before the `[treatment]`/`[control]` suffix, so both write one file and control wins.
+  - Fix: keep contrast case names ≤ 65 chars, or slug the suffix separately in `record()`.
+  - Evidence: `evals/src/records/record.ts:26`
+- **2026-10-14** · `UnsafeMasterKeyError: LiteLLM proxy refused to start: no master key is set` on `docker compose -f evals/proxy/docker-compose.yml up`
+  - Cause: the unpinned `ghcr.io/berriai/litellm:main-stable` image now refuses no-auth mode, which `evals/proxy/litellm.config.yaml` uses on purpose.
+  - Fix: not applied yet — pin the image, or set a per-run `LITELLM_MASTER_KEY` and send it as the bearer (`evals/src/runtime/env.ts` sends `OPENROUTER_API_KEY` today).
+  - Evidence: CI run 38626992479, jobs `agents` and `workflow`, step `LiteLLM proxy up`
+  - Superseded 2026-10-15: fix applied — image pinned to `v1.105.1@sha256:b7b9e2c3…`, per-run `LITELLM_MASTER_KEY` sent as the bearer by `evals/src/runtime/env.ts`.
 
 ## Session Notes
 <!-- ### YYYY-MM-DD — task: outcome, sections that got entries, what stayed open -->
@@ -65,3 +93,7 @@ or delete; cleanup only via `/engineering-insights review root`.
 
 ## Open Questions
 <!-- Unverified hypotheses and unanswered questions; close with a "Resolved" sub-bullet -->
+
+- **2026-10-14** · Why does an Agent SDK session report `cache_read_input_tokens` far above its visible context?
+  - Known: architecture-reviewer, 3 turns, ~8k context → second request alone reports 137,430 cache-read tokens; `modelUsage` also shows a hidden ~800-token haiku side call per session (SDK 0.3.198).
+  - Matters because: eval token totals in `evals/results/records.jsonl` are dominated by this figure, so prompt-token cost is an upper bound.

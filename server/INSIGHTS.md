@@ -44,6 +44,9 @@ or delete; cleanup only via `/engineering-insights review server`.
 - **2026-10-14** · ALWAYS persist a run's trace (`saveRunTrace`) BEFORE its terminal status (`completeAgentRun`) — on success, agent failure and `failAll`.
   - Why: readers (PR timeline, `test/helpers/runs.ts` `waitForPrRuns`) treat `done`/`failed` as "trace readable"; status-first left a window where `getRunTrace` returned `undefined`.
   - Evidence: `src/modules/reviews/run-executor.ts:89,384,410` · regression `run-executor.test.ts` › "the trace is stored before the terminal status" · symptom `TypeError: Cannot read properties of undefined (reading 'log')` in `test/intent.it.test.ts` sentinel test, ~1 in 3 full runs
+- **2026-10-14** · NEVER apply the `zod` skill's `parse-use-safeparse` to a request body — validate with route-level `schema: { body }`; invalid input answers 422.
+  - Why: the generic skill pushed a skill-creator run to `safeParse(req.body)` + hand-made `reply.code(400)`, breaking onion rule 7 and the app's error shape.
+  - Evidence: `src/app.ts:133` (validation → 422) · `test/routes-smoke.test.ts:63` · `docs/hw6/lab/exp1-skill-creator.md`
 
 ## Tool & Library Notes
 <!-- Dependency and tooling quirks, with the version -->
@@ -60,6 +63,9 @@ or delete; cleanup only via `/engineering-insights review server`.
 - **2026-09-22** · drizzle-kit 0.30.1 `generate` runs unattended on an ADDITIONS-only diff — a new table plus new columns emits zero `DROP` and asks nothing.
   - Why: the unanswerable "renamed or created?" prompt only appears when one diff both drops and adds; shaping a schema change as add-only is what makes it safe for an agent run. Verify with `grep -in "drop\|rename"` on the generated file before `db:migrate`.
   - Evidence: `src/db/migrations/0011_abandoned_jack_power.sql` (13 statements, all `CREATE TABLE` / `ADD COLUMN` / `ADD CONSTRAINT` / `CREATE INDEX`) · `src/db/schema/knowledge.ts`
+- **2026-10-15** · NEVER treat `OpenRouterProvider`'s 90 s `timeout` as a bound on a model call — openai 4.104.0 stops the timer once response headers arrive.
+  - Why: `fetchWithTimeout` clears its `setTimeout` in the `fetch(...).finally`, so reading the body has no deadline; a run-level deadline must come from the caller.
+  - Evidence: `../reviewer-core/node_modules/openai/core.js:382-399` · `../reviewer-core/src/llm/openrouter.ts:54` · `src/platform/container.ts:204` passes no `timeoutMs` · `src/modules/reviews/run-executor.ts` has no deadline
 
 ## Recurring Errors & Fixes
 <!-- Exact error text → real cause → fix -->
@@ -85,9 +91,18 @@ or delete; cleanup only via `/engineering-insights review server`.
 - Done: trace persisted before terminal status in all three run endings; 3 order tests; intent suite 20/20 shuffled green.
 - Added: What Doesn't Work, Codebase Patterns.
 
+### 2026-10-15 — Review of a 63-file PR hung 46 min
+- Done: run cancelled; no fix in HW6 by decision, cause recorded as an open question.
+- Added: Tool & Library Notes, Open Questions.
+- Open: which step of the run hung.
+
 ## Open Questions
 <!-- Unverified hypotheses and unanswered questions; close with a "Resolved" sub-bullet -->
 
 - **2026-09-22** · Should a re-run of `POST /repos/:id/conventions/skill` refresh `skills.evidence_files`?
   - Known: the insert path writes the distinct accepted paths (`src/modules/conventions/service.ts:241`), the update path does not, because widening `UpdateSkillInput` is what the spec's "nothing else in the skills module changes" forbids.
   - Matters because: after a rescan with different accepted rules, the skill cites paths its body no longer mentions.
+- **2026-10-15** · Why did a General Reviewer run on a 63-file PR stay `running` for 46 min without a trace?
+  - Known: run `ddac718a` on fork PR #12, `deepseek/deepseek-v4-flash` via OpenRouter; no tokens or cost recorded; `POST /runs/:id/cancel` → `cancelled`; four smaller PRs finished in 20–154 s.
+  - Known: the model call has no effective deadline (see Tool & Library Notes, 2026-10-15), but which step hung — diff load, context, or the call — was not traced.
+  - Matters because: a hung run stays `running` until cancelled by hand or reaped on boot (`reapStaleRunningRuns`), and the Eval Pipeline makes one model call per case (SPEC-03 AC-14).

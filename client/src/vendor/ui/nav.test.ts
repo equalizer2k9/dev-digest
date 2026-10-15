@@ -32,8 +32,8 @@ describe("nav — Conventions", () => {
     expect(workspace?.items.map((i) => i.key)).not.toContain("conventions");
   });
 
-  it("follows Skills and Agents in that section", () => {
-    expect(skillsLab?.items.map((i) => i.key)).toEqual(["skills", "agents", "conventions"]);
+  it("lists Skills, Agents, Conventions, then Eval Dashboard", () => {
+    expect(skillsLab?.items.map((i) => i.key)).toEqual(["skills", "agents", "conventions", "eval"]);
   });
 
   it("carries the label, icon and g-chord the spec names", () => {
@@ -58,5 +58,19 @@ describe("nav — Conventions", () => {
     expect(SHORTCUTS).toEqual(
       expect.arrayContaining([{ keys: "g c", label: "Go to Conventions", group: "Navigation" }]),
     );
+  });
+});
+
+describe("nav — Eval Dashboard", () => {
+  const evalItem = skillsLab?.items.find((i) => i.key === "eval");
+
+  it("sits in SKILLS LAB after Conventions with the label and href, no g-chord", () => {
+    expect(evalItem).toMatchObject({ label: "Eval Dashboard", icon: "FlaskConical", href: "/eval" });
+    expect(evalItem?.gKey).toBeUndefined();
+    expect(skillsLab?.items.at(-1)?.key).toBe("eval");
+  });
+
+  it("is not repo-scoped", () => {
+    expect(resolveHref(evalItem!.href, "repo-42")).toBe("/eval");
   });
 });

@@ -99,6 +99,13 @@
       "when": 1791976987941,
       "tag": "0013_lyrical_leper_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792075792364,
+      "tag": "0014_complex_shaman",
+      "breakpoints": true
     }
   ]
 }

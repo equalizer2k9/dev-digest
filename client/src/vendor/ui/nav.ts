@@ -38,6 +38,8 @@ export const NAV: NavGroup[] = [
       // Conventions is repo-scoped (the rules are extracted from ONE clone), so
       // its href carries :repoId even though it sits in SKILLS LAB, not WORKSPACE.
       { key: "conventions", label: "Conventions", icon: "ListChecks", href: "/repos/:repoId/conventions", gKey: "c" },
+      // Workspace-wide eval metrics per agent; no g-chord.
+      { key: "eval", label: "Eval Dashboard", icon: "FlaskConical", href: "/eval" },
     ],
   },
 ];

@@ -1,0 +1,52 @@
+# LiteLLM translating proxy for the eval tool tiers (agentTask / workflowTask).
+#
+# WHY THIS EXISTS
+# The Claude Agent SDK only speaks the Anthropic Messages wire protocol (POST /v1/messages).
+# OpenRouter's native "Anthropic Skin" serves that shape ONLY for anthropic/* slugs, so cheap
+# non-Anthropic models (DeepSeek, Gemini Flash, Llama, …) can't back the tool tiers directly.
+#
+# LiteLLM's proxy accepts BOTH shapes on one port:
+#   - POST /v1/messages          (Anthropic format)  ← the Agent SDK, via ANTHROPIC_BASE_URL
+#   - POST /chat/completions      (OpenAI format)     ← the content tier's direct OpenAI client
+# and translates each to the target model on OpenRouter. Point OPENROUTER_BASE_URL at this proxy
+# (http://localhost:4000) and every eval tier can run on any OpenRouter model, cheaply, on CI.
+#
+# The wildcard route forwards whatever EVAL_MODEL / EVAL_JUDGE_MODEL you pass straight through to
+# OpenRouter, so you never edit this file to try a new model — e.g. EVAL_MODEL=deepseek/deepseek-chat
+# arrives here as "deepseek/deepseek-chat" and is dispatched as "openrouter/deepseek/deepseek-chat".
+
+# SUBAGENT ALIASES
+# A repo subagent with `model: sonnet` / `opus` / `haiku` (.claude/agents/*.md) makes the SDK send a
+# bare Anthropic name ("claude-sonnet-5", "claude-opus-4-8"). Through the wildcard it became
+# "openrouter/claude-sonnet-5", which OpenRouter rejects (400 "not a valid model ID"), so every
+# dispatched subagent errored in CI. The exact names below win over the wildcard and map the aliases
+# to the real OpenRouter slugs (dots, not dashes, in the version).
+
+model_list:
+  - model_name: "claude-sonnet-5"
+    litellm_params:
+      model: "openrouter/anthropic/claude-sonnet-5"
+      api_key: os.environ/OPENROUTER_API_KEY
+  - model_name: "claude-opus-4-8"
+    litellm_params:
+      model: "openrouter/anthropic/claude-opus-4.8"
+      api_key: os.environ/OPENROUTER_API_KEY
+  - model_name: "claude-haiku-4-5"
+    litellm_params:
+      model: "openrouter/anthropic/claude-haiku-4.5"
+      api_key: os.environ/OPENROUTER_API_KEY
+  - model_name: "*"
+    litellm_params:
+      model: "openrouter/*"
+      api_key: os.environ/OPENROUTER_API_KEY
+
+litellm_settings:
+  # Deterministic evals: never retry-with-jitter behind our back; the runners own retries.
+  drop_params: true
+
+general_settings:
+  # Every request must carry the master key (a fresh random value per run: scripts/litellm-proxy.sh
+  # up, or one per CI job). Clients send it as their bearer (src/runtime/env.ts); the proxy then
+  # authenticates to OpenRouter with OPENROUTER_API_KEY from its own environment, so the provider
+  # key never reaches the eval sessions. Still bound to 127.0.0.1 — do not expose the port.
+  master_key: os.environ/LITELLM_MASTER_KEY

@@ -4,6 +4,7 @@ import { NextIntlClientProvider } from "next-intl";
 import type { Agent } from "@devdigest/shared";
 import messages from "../../../../../../messages/en/agents.json";
 import contextMessages from "../../../../../../messages/en/context.json";
+import evalMessages from "../../../../../../messages/en/eval.json";
 import { ToastProvider } from "../../../../../lib/toast";
 
 // Mock the data hooks so the editor renders without a network/query client.
@@ -15,6 +16,19 @@ vi.mock("../../../../../lib/hooks/skills", () => ({
   useSkills: () => ({ data: [], isLoading: false, isError: false, refetch: vi.fn() }),
   useAgentSkills: () => ({ data: [] }),
   useSetAgentSkills: () => ({ mutate: vi.fn(), isPending: false }),
+}));
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+
+vi.mock("../../../../../lib/hooks/evals", () => ({
+  useEvalOverview: () => ({
+    data: { agent_id: "ag1", agent_name: "Security Reviewer", cases: [], runs: [] },
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  }),
+  useRunEval: () => ({ mutate: vi.fn(), isPending: false }),
+  useDeleteEvalCase: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 vi.mock("../../../../../lib/repo-context", () => ({
@@ -62,7 +76,7 @@ const AGENT: Agent = {
 
 function renderWithIntl(ui: React.ReactElement) {
   return render(
-    <NextIntlClientProvider locale="en" messages={{ agents: messages, context: contextMessages }}>
+    <NextIntlClientProvider locale="en" messages={{ agents: messages, context: contextMessages, eval: evalMessages }}>
       <ToastProvider>{ui}</ToastProvider>
     </NextIntlClientProvider>,
   );
@@ -76,12 +90,12 @@ describe("A2 Agent Editor (smoke)", () => {
     expect(screen.getByText("Save agent")).toBeInTheDocument();
   });
 
-  it("offers exactly three tabs: Config, Skills and Context", () => {
+  it("offers exactly four tabs: Config, Skills, Context and Evals", () => {
     renderWithIntl(<AgentEditor agent={AGENT} tab="config" onTab={() => {}} />);
     expect(screen.getByText("Config")).toBeInTheDocument();
     expect(screen.getByText("Skills")).toBeInTheDocument();
     expect(screen.getByText(messages.editor.tabs.context)).toBeInTheDocument();
-    expect(screen.queryByText("Evals")).not.toBeInTheDocument();
+    expect(screen.getByText("Evals")).toBeInTheDocument();
     expect(screen.queryByText("Stats")).not.toBeInTheDocument();
     expect(screen.queryByText("CI")).not.toBeInTheDocument();
   });
@@ -101,6 +115,12 @@ describe("A2 Agent Editor (smoke)", () => {
     expect(
       screen.getByText(/earlier skills appear earlier in the assembled prompt/),
     ).toBeInTheDocument();
+    expect(screen.queryByText("Configuration")).not.toBeInTheDocument();
+  });
+
+  it("renders the Evals tab and not the Config form", () => {
+    renderWithIntl(<AgentEditor agent={AGENT} tab="evals" onTab={() => {}} />);
+    expect(screen.getByRole("button", { name: "Run eval (0)" })).toBeInTheDocument();
     expect(screen.queryByText("Configuration")).not.toBeInTheDocument();
   });
 

@@ -1,6 +1,7 @@
 import type { Severity } from "@devdigest/ui";
 import type {
   BlastRadiusResponse,
+  EvalRunRecord,
   ConventionCandidate,
   FindingRecord,
   PrBrief,
@@ -184,3 +185,31 @@ export const SHOWCASE_CONTEXT_ATTACHMENTS: ProjectContextAttachments = {
   attached: ["docs/architecture.md"],
   effective: SHOWCASE_CONTEXT_EFFECTIVE,
 };
+
+/** Sample eval runs for the Evals gallery group (one completed, one running, one with null metrics). */
+const SHOWCASE_EVAL_RUN: EvalRunRecord = {
+  id: "er-1",
+  agent_id: "ag-1",
+  agent_name: "Security reviewer",
+  agent_version: 3,
+  provider: "openai",
+  model: "gpt-4.1",
+  skills: [],
+  status: "completed",
+  has_errors: false,
+  error: null,
+  started_at: "2026-05-01T10:00:00.000Z",
+  finished_at: "2026-05-01T10:01:00.000Z",
+  recall: 0.83,
+  precision: 0.6,
+  citation_accuracy: 1,
+  passed: 5,
+  total: 8,
+  cost_usd: 0.0123,
+};
+
+export const SHOWCASE_EVAL_RUNS: EvalRunRecord[] = [
+  SHOWCASE_EVAL_RUN,
+  { ...SHOWCASE_EVAL_RUN, id: "er-2", status: "running", finished_at: null, recall: null, precision: null, citation_accuracy: null, passed: 0, total: 8, cost_usd: null },
+  { ...SHOWCASE_EVAL_RUN, id: "er-3", has_errors: true, agent_version: 2, recall: 0.5, precision: null, passed: 3, cost_usd: null },
+];

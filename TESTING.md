@@ -31,6 +31,7 @@ If a test wouldn't catch a class of regression we care about, we don't write it.
 | server-integration | `server/` | integration (real Postgres) | vitest | `server-integration.yml` | **yes** |
 | reviewer-core | `reviewer-core/` | unit (engine) | vitest | `reviewer-core.yml` | no |
 | e2e web | `e2e/` | browser e2e (deterministic) | agent-browser + `run.ts` | `e2e-web.yml` | yes (stack) |
+| harness evals | `evals/` | `eval:quality` gate (blocks) + skill / agent / workflow model evals (report only, 1 run, skipped without `OPENROUTER_API_KEY`) — routing in `evals/README.md` | vitest + Claude Agent SDK | `evals.yml` | yes (LiteLLM proxy for agents/workflow) |
 
 ## What each suite covers
 

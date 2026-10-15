@@ -1,0 +1,57 @@
+diff --git a/server/src/modules/repos/service.ts b/server/src/modules/repos/service.ts
+--- a/server/src/modules/repos/service.ts
++++ b/server/src/modules/repos/service.ts
+@@ -50,8 +50,7 @@
+ 
+   async runCloneJob(payload: CloneJobPayload): Promise<void> {
+     const { repoId, owner, name, url } = payload;
+-    const token = await this.container.secrets.get(GITHUB_TOKEN_SECRET);
+-    const cloneUrl = token ? withGitHubToken(url, token) : url;
++    const cloneUrl = await this.authenticatedUrl(url);
+     const { path } = await this.container.git.clone({ owner, name }, cloneUrl, {
+       depth: CLONE_DEPTH,
+     });
+@@ -95,12 +94,7 @@
+     if (existing) return { repo: toRepoDto(existing), created: false };
+ 
+     const row = await this.repo.insert({ workspaceId, owner, name, fullName, createdBy: userId });
+-    await this.container.jobs.enqueue(workspaceId, CLONE_JOB_KIND, {
+-      repoId: row.id,
+-      owner,
+-      name,
+-      url,
+-    } satisfies CloneJobPayload);
++    await this.enqueueClone(workspaceId, { repoId: row.id, owner, name, url });
+ 
+     return { repo: toRepoDto(row), created: true };
+   }
+@@ -114,12 +108,12 @@
+   async refresh(workspaceId: string, id: string): Promise<{ status: 'refreshing' }> {
+     const repo = await this.repo.getById(workspaceId, id);
+     if (!repo) throw new NotFoundError('Repo not found');
+-    await this.container.jobs.enqueue(workspaceId, CLONE_JOB_KIND, {
++    await this.enqueueClone(workspaceId, {
+       repoId: repo.id,
+       owner: repo.owner,
+       name: repo.name,
+       url: `https://github.com/${repo.fullName}.git`,
+-    } satisfies CloneJobPayload);
++    });
+     // T2.2 — also enqueue an incremental refresh. The two queue positions are
+     // independent (p-queue doesn't FIFO across kinds), but `runIncremental` is
+     // a no-op when `currentHead === lastIndexedSha`, so ordering is safe: if
+@@ -141,4 +135,14 @@
+     const ok = await this.repo.remove(workspaceId, id);
+     if (!ok) throw new NotFoundError('Repo not found');
+   }
++
++  /** Clone URL carrying the stored GitHub PAT, or the plain URL when none is stored. */
++  private async authenticatedUrl(url: string): Promise<string> {
++    const token = await this.container.secrets.get(GITHUB_TOKEN_SECRET);
++    return token ? withGitHubToken(url, token) : url;
++  }
++
++  private async enqueueClone(workspaceId: string, payload: CloneJobPayload): Promise<void> {
++    await this.container.jobs.enqueue(workspaceId, CLONE_JOB_KIND, payload);
++  }
+ }

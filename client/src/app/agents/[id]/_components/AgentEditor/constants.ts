@@ -7,11 +7,12 @@ export interface EditorTab {
   icon: IconName;
 }
 
-/** Three tabs ship: Config, Skills and Context — Evals, Stats and CI are later work. */
+/** Four tabs ship: Config, Skills, Context and Evals — Stats and CI are later work. */
 export const TABS: readonly EditorTab[] = [
   { key: "config", labelKey: "editor.tabs.config", icon: "Settings" },
   { key: "skills", labelKey: "editor.tabs.skills", icon: "Sparkles" },
   { key: "context", labelKey: "editor.tabs.context", icon: "Folder" },
+  { key: "evals", labelKey: "editor.tabs.evals", icon: "FlaskConical" },
 ];
 
 /** Tab keys the `?tab` query param is validated against. */
