@@ -7,7 +7,7 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge, Button } from "@devdigest/ui";
 import type { MultiRunAgent } from "@devdigest/shared";
-import RunTraceDrawer from "@/app/repos/[repoId]/pulls/[number]/_components/RunTraceDrawer";
+import RunTraceDrawer from "@/components/run-trace/RunTraceDrawer";
 import { useCancelRun } from "@/lib/hooks/reviews";
 import { isInProgress } from "@/lib/hooks/multi-agent";
 import { formatCost, formatDuration } from "@/components/multi-agent";

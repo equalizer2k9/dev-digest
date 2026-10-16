@@ -18,8 +18,8 @@ vi.mock("@/lib/hooks/reviews", () => ({ useCancelRun: () => ({ mutate: vi.fn(), 
 vi.mock("@/components/app-shell", () => ({
   AppShell: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
-vi.mock("@/app/repos/[repoId]/pulls/[number]/_components/RunTraceDrawer", () => ({ default: () => null }));
-vi.mock("@/app/repos/[repoId]/pulls/[number]/_components/EvalCaseButton", () => ({ EvalCaseButton: () => null }));
+vi.mock("@/components/run-trace/RunTraceDrawer", () => ({ default: () => null }));
+vi.mock("@/components/eval/EvalCaseButton", () => ({ EvalCaseButton: () => null }));
 
 import { MultiRunView } from "./MultiRunView";
 

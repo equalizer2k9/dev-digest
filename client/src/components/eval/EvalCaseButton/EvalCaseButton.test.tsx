@@ -3,16 +3,16 @@ import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { FindingRecord } from "@devdigest/shared";
-import messages from "../../../../../../../../messages/en/eval.json";
-import { ApiError } from "../../../../../../../lib/api";
+import messages from "../../../../messages/en/eval.json";
+import { ApiError } from "../../../lib/api";
 
 const mutate = vi.fn();
 const notify = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), info: vi.fn(), toast: vi.fn() }));
 
-vi.mock("../../../../../../../lib/hooks/evals", () => ({
+vi.mock("../../../lib/hooks/evals", () => ({
   useCreateEvalCase: () => ({ mutate, isPending: false }),
 }));
-vi.mock("../../../../../../../lib/toast", () => ({ notify }));
+vi.mock("../../../lib/toast", () => ({ notify }));
 
 import { EvalCaseButton } from "./EvalCaseButton";
 

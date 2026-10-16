@@ -9,7 +9,7 @@ const cancelMutate = vi.fn();
 vi.mock("@/lib/hooks/reviews", () => ({
   useCancelRun: () => ({ mutate: cancelMutate, isPending: false }),
 }));
-vi.mock("@/app/repos/[repoId]/pulls/[number]/_components/RunTraceDrawer", () => ({
+vi.mock("@/components/run-trace/RunTraceDrawer", () => ({
   default: (p: { runId: string; running?: boolean }) => (
     <div data-testid="drawer" data-run={p.runId} data-running={String(!!p.running)} />
   ),

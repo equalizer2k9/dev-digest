@@ -63,7 +63,7 @@ import { RepoCtx } from "../../lib/repo-context";
 import { IntentCard } from "../../app/repos/[repoId]/pulls/[number]/_components/IntentCard";
 import { ApiError } from "../../lib/api";
 import { FileCard } from "../diff-viewer";
-import { FindingCard } from "../../app/repos/[repoId]/pulls/[number]/_components/FindingCard";
+import { FindingCard } from "../findings/FindingCard";
 import { DiffRoleGroup } from "../../app/repos/[repoId]/pulls/[number]/_components/DiffRoleGroup";
 import { BlastRadius } from "../../app/repos/[repoId]/pulls/[number]/_components/BlastRadius";
 import { PrBriefBlock } from "../../app/repos/[repoId]/pulls/[number]/_components/PrBriefBlock";

@@ -7,9 +7,9 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Button } from "@devdigest/ui";
 import type { EvalCaseCreated, FindingRecord } from "@devdigest/shared";
-import { useCreateEvalCase } from "../../../../../../../lib/hooks/evals";
-import { notify } from "../../../../../../../lib/toast";
-import { ApiError } from "../../../../../../../lib/api";
+import { useCreateEvalCase } from "../../../lib/hooks/evals";
+import { notify } from "../../../lib/toast";
+import { ApiError } from "../../../lib/api";
 import { conflictName, errorKey } from "./helpers";
 
 const HINT_STYLE: React.CSSProperties = {

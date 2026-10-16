@@ -11,7 +11,7 @@ const mutate = vi.fn();
 vi.mock("@/lib/hooks/multi-agent", () => ({
   useMultiRunFindingAction: () => ({ mutate, isPending: false }),
 }));
-vi.mock("@/app/repos/[repoId]/pulls/[number]/_components/EvalCaseButton", () => ({
+vi.mock("@/components/eval/EvalCaseButton", () => ({
   EvalCaseButton: () => <span data-testid="eval-btn" />,
 }));
 
