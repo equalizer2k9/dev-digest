@@ -54,6 +54,36 @@ describe('readResultArtifact (AC-9, AC-10)', () => {
       reason: 'invalid_result',
     });
   });
+  it.each([
+    ['findings_count', -1],
+    ['findings_count', 10_001],
+    ['critical', -1],
+    ['warning', 10_001],
+    ['suggestion', -5],
+    ['cost_usd', -0.01],
+    ['cost_usd', 1_001],
+    ['duration_ms', -1],
+    ['duration_ms', 86_400_001],
+    ['pr_number', 0],
+    ['pr_number', -3],
+    ['pr_number', 2_147_483_648],
+  ])('AC-10: %s=%s is rejected', (key, value) => {
+    const out = readResultArtifact(zipOf({ [ARTIFACT_FILE]: JSON.stringify({ ...result, [key]: value }) }));
+    expect(out).toEqual({ ok: false, reason: 'invalid_result' });
+  });
+  it('AC-10: values at the maxima are accepted', () => {
+    const max = {
+      ...result,
+      findings_count: 10_000,
+      critical: 10_000,
+      warning: 10_000,
+      suggestion: 10_000,
+      cost_usd: 1_000,
+      duration_ms: 86_400_000,
+      pr_number: 2_147_483_647,
+    };
+    expect(readResultArtifact(zipOf({ [ARTIFACT_FILE]: JSON.stringify(max) })).ok).toBe(true);
+  });
   it('oversized entry -> bad_archive', () => {
     const big = JSON.stringify({ ...result, agent: 'x'.repeat(ARTIFACT_MAX_BYTES + 10) });
     expect(readResultArtifact(zipOf({ [ARTIFACT_FILE]: big }))).toEqual({ ok: false, reason: 'bad_archive' });

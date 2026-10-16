@@ -108,6 +108,23 @@ describe('downloadArtifact', () => {
     });
     expect(await client().downloadArtifact(repo, 5, 'x')).toEqual({ kind: 'expired' });
   });
+  it('AC-10: size over 1 MiB -> too_large, nothing downloaded', async () => {
+    stub.impls.listWorkflowRunArtifacts = async () => ({
+      data: { artifacts: [{ id: 9, expired: false, size_in_bytes: 1024 * 1024 + 1 }] },
+    });
+    stub.impls.downloadArtifact = async () => {
+      throw new Error('must not download');
+    };
+    expect(await client().downloadArtifact(repo, 5, 'x')).toEqual({ kind: 'too_large' });
+    expect(stub.calls.some((c) => c.name === 'downloadArtifact')).toBe(false);
+  });
+  it('exactly 1 MiB is still downloaded', async () => {
+    stub.impls.listWorkflowRunArtifacts = async () => ({
+      data: { artifacts: [{ id: 9, expired: false, size_in_bytes: 1024 * 1024 }] },
+    });
+    stub.impls.downloadArtifact = async () => ({ data: new Uint8Array([1]).buffer });
+    expect((await client().downloadArtifact(repo, 5, 'x')).kind).toBe('ok');
+  });
   it('returns the bytes', async () => {
     stub.impls.listWorkflowRunArtifacts = async () => ({
       data: { artifacts: [{ id: 9, expired: false }] },

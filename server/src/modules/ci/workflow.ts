@@ -40,6 +40,8 @@ concurrency:
 
 jobs:
   review:
+    # The check name a ruleset requires (NFR-2) is the job's name.
+    name: ${WORKFLOW_NAME}
     runs-on: ubuntu-latest
     timeout-minutes: ${JOB_TIMEOUT_MINUTES}
     steps:

@@ -208,6 +208,13 @@ export class CiService {
         log.warn({ runUrl: run.html_url, reason }, 'ci ingest: run skipped');
       };
 
+      // AC-9 / D15: on pull_request GitHub runs the PR's own workflow file, so only
+      // same-repo runs are trusted; a fork PR could upload a forged artifact.
+      if (run.head_repo?.toLowerCase() !== inst.repo.toLowerCase()) {
+        await skip('foreign_head_repo');
+        continue;
+      }
+
       const dl = await gh.downloadArtifact(ref, run.id, ARTIFACT_NAME);
       if (dl.kind !== 'ok') {
         await skip(dl.kind);
@@ -223,23 +230,28 @@ export class CiService {
         await skip(mismatch);
         continue;
       }
-      const prNumber = run.pr_number as number; // checkArtifact guarantees non-null
-      const prId = await this.repo.prIdFor(workspaceId, inst.repo, prNumber);
-      const recorded = await this.repo.recordCiRun(workspaceId, {
-        githubUrl: run.html_url,
-        agentId: inst.agentId,
-        installationId: inst.installationId,
-        provider: inst.provider,
-        model: inst.model,
-        prId,
-        prNumber,
-        status: ciStatusFor(run.conclusion, read.data.findings_count),
-        findingsCount: read.data.findings_count,
-        costUsd: read.data.cost_usd,
-        durationMs: read.data.duration_ms ?? null,
-        ranAt: new Date(run.completed_at),
-      });
-      if (recorded) ingested++;
+      try {
+        const prNumber = run.pr_number as number; // checkArtifact guarantees non-null
+        const prId = await this.repo.prIdFor(workspaceId, inst.repo, prNumber);
+        const recorded = await this.repo.recordCiRun(workspaceId, {
+          githubUrl: run.html_url,
+          agentId: inst.agentId,
+          installationId: inst.installationId,
+          provider: inst.provider,
+          model: inst.model,
+          prId,
+          prNumber,
+          status: ciStatusFor(run.conclusion, read.data.findings_count),
+          findingsCount: read.data.findings_count,
+          costUsd: read.data.cost_usd,
+          durationMs: read.data.duration_ms ?? null,
+          ranAt: new Date(run.completed_at),
+        });
+        if (recorded) ingested++;
+      } catch {
+        // One run's DB failure must not abort the installation; the message is not logged.
+        await skip('record_failed');
+      }
     }
     return { ingested, skipped };
   }

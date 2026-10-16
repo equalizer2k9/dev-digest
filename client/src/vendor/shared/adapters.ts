@@ -152,7 +152,8 @@ export interface WorkflowRunInfo {
 export type ArtifactDownload =
   | { kind: 'ok'; zip: Uint8Array }
   | { kind: 'missing' }
-  | { kind: 'expired' };
+  | { kind: 'expired' }
+  | { kind: 'too_large' };
 
 export interface GitHubClient {
   listPullRequests(repo: RepoRef): Promise<PrMeta[]>;

@@ -303,6 +303,56 @@ describe('refresh', () => {
     expect(out.skipped).toBe(7);
   });
 
+  it('AC-9 / D15: foreign or unknown head repo is skipped without a download', async () => {
+    const gh = new MockGitHubClient({
+      workflowRuns: [
+        wfRun(1, { head_repo: 'evil/api' }),
+        wfRun(2, { head_repo: null }),
+        wfRun(3, { head_repo: 'ACME/Api' }),
+      ],
+      artifacts: { 1: art(), 2: art(), 3: art() },
+    });
+    const { service, calls } = setup({ gh });
+    const l = log();
+    const out = await service.refresh(WS, l);
+    expect(gh.downloads.map((d) => d.runId)).toEqual([3]);
+    const reasons = l.warn.mock.calls.map((c) => (c[0] as { reason: string }).reason);
+    expect(reasons).toEqual(['foreign_head_repo', 'foreign_head_repo']);
+    expect(calls.recorded.map((r) => r.githubUrl)).toEqual(['https://github.com/acme/api/actions/runs/3']);
+    expect(out).toMatchObject({ error: null, ingested: 1, skipped: 2 });
+  });
+
+  it('AC-10: a too_large artifact is skipped', async () => {
+    const gh = new MockGitHubClient({ workflowRuns: [wfRun(1)], artifacts: { 1: { kind: 'too_large' } } });
+    const { service, calls } = setup({ gh });
+    const l = log();
+    const out = await service.refresh(WS, l);
+    expect((l.warn.mock.calls[0]![0] as { reason: string }).reason).toBe('too_large');
+    expect(calls.recorded).toEqual([]);
+    expect(out.skipped).toBe(1);
+  });
+
+  it('a recordCiRun failure skips only that run; the next is recorded and error stays null', async () => {
+    const gh = new MockGitHubClient({ workflowRuns: [wfRun(1), wfRun(2)], artifacts: { 1: art(), 2: art() } });
+    const recorded: CiRunValues[] = [];
+    let n = 0;
+    const recordCiRun = vi.fn(async (_ws: string, v: CiRunValues) => {
+      if (n++ === 0) throw new Error('db down');
+      recorded.push(v);
+      return true;
+    });
+    const { service } = setup({ gh, repoOver: { recordCiRun } });
+    const l = log();
+    const out = await service.refresh(WS, l);
+    expect(out).toMatchObject({ error: null, ingested: 1, skipped: 1 });
+    expect(recorded.map((r) => r.githubUrl)).toEqual(['https://github.com/acme/api/actions/runs/2']);
+    expect(l.warn.mock.calls).toHaveLength(1);
+    expect(l.warn.mock.calls[0]![0]).toEqual({
+      runUrl: 'https://github.com/acme/api/actions/runs/1',
+      reason: 'record_failed',
+    });
+  });
+
   it('S-2: logs carry no token and no artifact body', async () => {
     const gh = new MockGitHubClient({ workflowRuns: [wfRun(1)], artifacts: { 1: art({ agent: TOKEN, pr_number: 9 }) } });
     const { service } = setup({ gh });
@@ -333,7 +383,7 @@ describe('refresh', () => {
     };
     const two = [
       { installationId: 'i1', agentId: AGENT_ID, agentName: 'Reviewer', provider: 'openrouter', model: 'm/x', repo: 'acme/api' },
-      { installationId: 'i2', agentId: AGENT_ID, agentName: 'Reviewer', provider: 'openrouter', model: 'm/x', repo: 'acme/web' },
+      { installationId: 'i2', agentId: AGENT_ID, agentName: 'Reviewer', provider: 'openrouter', model: 'm/x', repo: 'acme/api' },
     ];
     const s2 = setup({ gh: gh2, repoOver: { ghaInstallations: vi.fn(async () => two) } });
     const out2 = await s2.service.refresh(WS, log());

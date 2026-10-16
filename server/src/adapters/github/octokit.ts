@@ -19,6 +19,8 @@ import { FileTooLargeError } from '../file-too-large.js';
 import { GitHubWorkflowPermissionError } from './errors.js';
 
 const TIMEOUT = 30_000;
+/** Largest CI artifact zip we download (AC-10); the real result file is a few hundred bytes. */
+const MAX_ARTIFACT_DOWNLOAD_BYTES = 1024 * 1024;
 
 /** 403, or any message naming `workflow`, on a write step = the token may not touch workflow files. */
 function asWorkflowPermission(err: unknown): unknown {
@@ -454,6 +456,7 @@ export class OctokitGitHubClient implements GitHubClient {
           const artifact = list.data.artifacts[0];
           if (!artifact) return { kind: 'missing' } as const;
           if (artifact.expired) return { kind: 'expired' } as const;
+          if (artifact.size_in_bytes > MAX_ARTIFACT_DOWNLOAD_BYTES) return { kind: 'too_large' } as const;
           const res = await this.octokit.rest.actions.downloadArtifact({
             owner: repo.owner,
             repo: repo.name,

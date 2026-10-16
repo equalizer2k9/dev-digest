@@ -136,14 +136,17 @@ Install (D14, D19)
 Ingest (D17)
 - AC-9 (D17). WHEN CI runs are refreshed, the system shall, for every GitHub Actions installation of
   the workspace, list the completed runs of `devdigest-review.yml` and, for each one not yet ingested
-  whose `devdigest-result` artifact passes the shared CI result contract with a `pr_number` equal to
+  whose head repository is the installation's repository (D15: a fork pull request's run is never
+  ingested, before any download) and whose `devdigest-result` artifact passes the shared CI result contract with a `pr_number` equal to
   the run's pull request and an `agent` equal to the installation's agent name, record one agent run
   with source `ci` and one CI run (status, findings count, cost, pull request number, run URL); a run
   already ingested shall not be recorded again.
-- AC-10 (D17). IF a completed run's artifact is missing, expired, not a readable archive, fails the
-  shared CI result contract, or names another pull request or agent THEN the system shall skip that
-  run, write a log entry naming the run URL and the reason, record nothing for it, and continue with
-  the other runs.
+- AC-10 (D17). IF a completed run comes from another head repository, or its artifact is missing,
+  expired, larger than 1 MiB by the artifact's metadata (checked before the download), not a readable
+  archive, fails the shared CI result contract (whose counts, cost and duration are bounded), or names
+  another pull request or agent, or recording it fails, THEN the system shall skip that run, write a
+  log entry naming the run URL and the reason, record nothing for it, and continue with the other
+  runs.
 - AC-11 (D17, D19). IF GitHub cannot be reached or refuses to list runs or download artifacts during a
   refresh THEN the system shall answer with the CI runs already recorded plus an error message, and
   shall keep every previously recorded CI run.
@@ -204,7 +207,8 @@ Runner (D16, Security)
   success, shows the pull request link.
 - NFR-2 (D20). The Configure step shows a hint, as in the design, that the check is made required by
   the user with a ruleset on `main` requiring the `DevDigest Review` check; the studio sets no
-  ruleset.
+  ruleset. The generated workflow's job is named `DevDigest Review`, because a ruleset requires a
+  check by its job name.
 - NFR-3 (D18). Agent CI tab: the agent's CI installations (repository, installed at), the "Fail CI on"
   setting (never / critical / warning / any) saved on the agent through the existing agent update,
   with a note that a change applies after the next install, the agent's CI runs (AC-12 for that agent)
@@ -298,6 +302,11 @@ feature does not change them.
   - R-3. A workflow edited in Preview is committed as is (A-5) and may drop any S-4 property; the
     install pull request is the user's review point.
   - R-4. Closed by AC-13 (was: the PR title reached the engine's `task` line unwrapped).
+  - R-5. On `pull_request` GitHub runs the workflow file of the pull request itself, so its author can
+    upload a forged `devdigest-result` artifact. Ingest takes only runs whose head repository is the
+    installation's repository (AC-9), which drops every fork pull request; a same-repository author
+    already has write access to the repository and its checks, so the forged counts they could show
+    stay residual.
 
 ## Open questions
 
@@ -361,3 +370,7 @@ settle is recorded below as an assumption, to be overridden by the user if wrong
   block, because a human reviews the `devdigest/ci` PR; AC-5 names the three verified action SHAs;
   new AC-13 and S-7 fix R-4 (PR title only inside the untrusted block); R-1 and R-2 stay residual,
   with reasons.
+- 2026-10-16. After the plan verification, by the user: AC-9 ingests only runs whose head repository
+  is the installation's repository; AC-10 skips an artifact over 1 MiB before the download, bounds the
+  artifact's numbers, and skips a run whose recording fails instead of failing the refresh; NFR-2 names
+  the check `DevDigest Review` (the job name); new residual risk R-5.

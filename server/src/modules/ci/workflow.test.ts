@@ -27,6 +27,7 @@ describe('buildWorkflow (AC-4)', () => {
     expect(w).toMatch(/group: devdigest-review-\$\{\{ github\.event\.pull_request\.number \}\}/);
     expect(w).toContain('cancel-in-progress: true');
     expect(w).toContain('runs-on: ubuntu-latest');
+    expect(w).toMatch(/\n  review:\n    # [^\n]*\n    name: DevDigest Review\n/);
     expect(w).toContain('timeout-minutes: 10');
     expect(w).toContain('node-version: 22');
     expect(w).toContain('run: node .devdigest/runner/index.js');

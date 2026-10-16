@@ -96,7 +96,7 @@
       "reopened": "Reopened"
     },
     "triggerRequired": "Pick at least one trigger.",
-    "requiredCheckHint": "To block merges, mark this workflow's check as required in the repo's branch protection settings.",
+    "requiredCheckHint": "DevDigest does not set a ruleset. To block merges, create a ruleset on `main` in GitHub that requires the `DevDigest Review` status check.",
     "editedNote": "The workflow was edited here; your version is committed as written.",
     "openPr": "Open PR",
     "prOpened": "Pull request opened",
