@@ -1,0 +1,66 @@
+name: DevDigest Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: devdigest-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    # The check name a ruleset requires (NFR-2) is the job's name.
+    name: DevDigest Review
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Skip notice for fork pull requests
+        if: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
+        run: echo "::notice::DevDigest review skipped - pull requests from forks have no access to repository secrets."
+
+      - name: Checkout base commit
+        if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
+      - name: Check for the DevDigest runner
+        id: runner
+        if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+        run: |
+          if [ -f .devdigest/runner/index.js ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::DevDigest runner not found on the base branch - merge the DevDigest CI pull request first."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Node
+        if: ${{ steps.runner.outputs.present == 'true' }}
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      - name: Run DevDigest review
+        if: ${{ steps.runner.outputs.present == 'true' }}
+        run: node .devdigest/runner/index.js
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          DEVDIGEST_POST_AS: github_review
+
+      - name: Upload result
+        if: ${{ always() && steps.runner.outputs.present == 'true' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: devdigest-result
+          path: devdigest-result.json
+          retention-days: 7
+          if-no-files-found: ignore
