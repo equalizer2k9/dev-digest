@@ -54,7 +54,8 @@
       "config": "Config",
       "skills": "Skills",
       "context": "Context",
-      "evals": "Evals"
+      "evals": "Evals",
+      "ci": "CI"
     }
   },
   "config": {

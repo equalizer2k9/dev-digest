@@ -1,0 +1,51 @@
+import type { CSSProperties } from "react";
+
+/** Co-located styles for ExportWizard. */
+export const s = {
+  wrap: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 16,
+    border: "1px solid var(--border)",
+    borderRadius: 10,
+    background: "var(--bg-surface)",
+    padding: 20,
+  } satisfies CSSProperties,
+  head: { display: "flex", justifyContent: "space-between", alignItems: "flex-start" } satisfies CSSProperties,
+  title: { fontSize: 16, fontWeight: 700 } satisfies CSSProperties,
+  subtitle: { fontSize: 13, color: "var(--text-muted)" } satisfies CSSProperties,
+  body: { display: "flex", flexDirection: "column", gap: 12 } satisfies CSSProperties,
+  footer: { display: "flex", justifyContent: "space-between", gap: 8 } satisfies CSSProperties,
+  card: {
+    border: "1px solid var(--accent)",
+    borderRadius: 8,
+    padding: "10px 14px",
+    background: "var(--bg-elevated)",
+  } satisfies CSSProperties,
+  cardTitle: { fontWeight: 600, fontSize: 14 } satisfies CSSProperties,
+  muted: { fontSize: 12, color: "var(--text-muted)" } satisfies CSSProperties,
+  option: { display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer" } satisfies CSSProperties,
+  options: { display: "flex", flexDirection: "column", gap: 8 } satisfies CSSProperties,
+  filePath: { fontFamily: "var(--font-mono, monospace)", fontSize: 12, fontWeight: 600 } satisfies CSSProperties,
+  fileBody: {
+    margin: "4px 0 0",
+    padding: 10,
+    fontFamily: "var(--font-mono, monospace)",
+    fontSize: 12,
+    background: "var(--bg-elevated)",
+    border: "1px solid var(--border)",
+    borderRadius: 6,
+    maxHeight: 220,
+    overflow: "auto",
+    whiteSpace: "pre-wrap",
+  } satisfies CSSProperties,
+  error: {
+    fontSize: 13,
+    color: "var(--crit)",
+    background: "var(--crit-bg)",
+    borderRadius: 6,
+    padding: "8px 12px",
+  } satisfies CSSProperties,
+  hint: { fontSize: 13, color: "var(--text-secondary)" } satisfies CSSProperties,
+  link: { color: "var(--accent)", fontWeight: 600 } satisfies CSSProperties,
+} as const;

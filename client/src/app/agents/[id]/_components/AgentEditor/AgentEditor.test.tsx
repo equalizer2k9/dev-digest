@@ -90,14 +90,14 @@ describe("A2 Agent Editor (smoke)", () => {
     expect(screen.getByText("Save agent")).toBeInTheDocument();
   });
 
-  it("offers exactly four tabs: Config, Skills, Context and Evals", () => {
+  it("offers exactly five tabs: Config, Skills, Context, Evals and CI", () => {
     renderWithIntl(<AgentEditor agent={AGENT} tab="config" onTab={() => {}} />);
     expect(screen.getByText("Config")).toBeInTheDocument();
     expect(screen.getByText("Skills")).toBeInTheDocument();
     expect(screen.getByText(messages.editor.tabs.context)).toBeInTheDocument();
     expect(screen.getByText("Evals")).toBeInTheDocument();
     expect(screen.queryByText("Stats")).not.toBeInTheDocument();
-    expect(screen.queryByText("CI")).not.toBeInTheDocument();
+    expect(screen.getByText(messages.editor.tabs.ci)).toBeInTheDocument();
   });
 
   it("the Config tab edits name, description, provider, model, strategy and the system prompt", () => {

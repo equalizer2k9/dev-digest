@@ -74,6 +74,9 @@ import { ConventionCard } from "../../app/repos/[repoId]/conventions/_components
 import evalMessages from "../../../messages/en/eval.json";
 import { EvalMetrics } from "../eval/EvalMetrics";
 import { EvalRunTable } from "../eval/EvalRunTable";
+import ciMessages from "../../../messages/en/ci.json";
+import { CiRunsTable } from "../ci/CiRunsTable";
+import { ExportWizard } from "../../app/agents/[id]/_components/AgentEditor/_components/CiTab/_components/ExportWizard";
 import { s } from "./styles";
 import {
   SEVERITIES,
@@ -95,6 +98,10 @@ import {
   SHOWCASE_CONTEXT_REPO_ID,
   SHOWCASE_CONTEXT_OWNER_ID,
   SHOWCASE_CONVENTION_PENDING,
+  SHOWCASE_CI_RUNS,
+  SHOWCASE_CI_REPOS,
+  SHOWCASE_CI_FILES,
+  SHOWCASE_CI_AGENT,
 } from "./constants";
 
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
@@ -138,6 +145,14 @@ export function Gallery() {
         content: SHOWCASE_CONTEXT_MARKDOWN,
       });
     }
+    return qc;
+  });
+
+  // ExportWizard reads the repos through a hook: a client of its own with the list seeded and
+  // never stale, so it renders the Preview step from fixtures and no request leaves the gallery.
+  const [ciQc] = React.useState(() => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    qc.setQueryData(["repos"], SHOWCASE_CI_REPOS);
     return qc;
   });
 
@@ -548,6 +563,26 @@ export function Gallery() {
             <EvalRunTable runs={SHOWCASE_EVAL_RUNS} showAgent selectable selected={["er-1"]} onToggle={() => {}} />
           </div>
         </Group>
+      </NextIntlClientProvider>
+
+      {/* Export to CI: the shared runs table. Presentational, `ci` namespace, no hooks. */}
+      <NextIntlClientProvider locale="en" messages={{ ci: ciMessages }}>
+        <Group title="CI runs (CiRunsTable)">
+          <div style={s.w460}>
+            <CiRunsTable runs={SHOWCASE_CI_RUNS} />
+          </div>
+        </Group>
+        <QueryClientProvider client={ciQc}>
+          <Group title="CI export (ExportWizard, Preview step)">
+            <div style={s.w460}>
+              <ExportWizard
+                agent={SHOWCASE_CI_AGENT}
+                onClose={() => {}}
+                initial={{ step: 1, repoId: SHOWCASE_CI_REPOS[0]!.id, files: SHOWCASE_CI_FILES }}
+              />
+            </div>
+          </Group>
+        </QueryClientProvider>
       </NextIntlClientProvider>
 
       {confirm && (
