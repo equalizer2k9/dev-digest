@@ -16,6 +16,7 @@ import { patternMatch } from "../scoring/pattern-match.js";
 import { llmJudge, type Verdict } from "../scoring/llm-judge.js";
 import { logTrace, logVerdict } from "../logging/log.js";
 import { record } from "../records/record.js";
+import { activated, workflowPassed } from "./workflow-pass.js";
 
 // --- Case shapes ------------------------------------------------------------
 
@@ -68,12 +69,7 @@ export type WorkflowCase =
       maxTurns?: number;
     };
 
-/** Did a skill engage? Either an explicit Skill tool-call, or reading its SKILL.md. */
-export function activated(result: Result, skill: string): boolean {
-  const bySkill = result.skillsInvoked.some((s) => s === skill || s.endsWith(`:${skill}`));
-  const byRead = result.filesRead.some((f) => f.includes(`skills/${skill}/SKILL.md`));
-  return bySkill || byRead;
-}
+export { activated } from "./workflow-pass.js";
 
 // --- Runners ----------------------------------------------------------------
 
@@ -129,7 +125,7 @@ export function runWorkflowCases(cases: WorkflowCase[]): void {
         try {
           expect(result.subagents, `subagents: ${result.subagents.join(", ")}`).toContain(c.expectSubagent);
         } finally {
-          record(c.name, { result });
+          record(c.name, { result, passed: workflowPassed(c, result) });
         }
       } else if (c.kind === "activation") {
         const result = await workflowTask(c.prompt, { maxTurns: c.maxTurns });
@@ -140,7 +136,7 @@ export function runWorkflowCases(cases: WorkflowCase[]): void {
             `skills: ${result.skillsInvoked.join(", ")} | reads: ${result.filesRead.join(", ")}`,
           ).toBe(c.shouldActivate);
         } finally {
-          record(c.name, { result });
+          record(c.name, { result, passed: workflowPassed(c, result) });
         }
       } else if (c.kind === "trace") {
         // One session, many asserts — every provided expectation is checked against the same trace.
@@ -178,7 +174,7 @@ export function runWorkflowCases(cases: WorkflowCase[]): void {
           }
           expect(result.isError).toBe(false);
         } finally {
-          record(c.name, { result });
+          record(c.name, { result, passed: workflowPassed(c, result) });
         }
       } else {
         // contrast: treatment (real harness) vs control (empty tmpdir, no on-disk config).
@@ -199,8 +195,8 @@ export function runWorkflowCases(cases: WorkflowCase[]): void {
           expect(treatmentRead, `treatment reads: ${treatment.filesRead.join(", ")}`).toBe(true);
           expect(controlRead, `control reads: ${control.filesRead.join(", ")}`).toBe(false);
         } finally {
-          record(`${c.name} [treatment]`, { result: treatment });
-          record(`${c.name} [control]`, { result: control });
+          record(`${c.name} [treatment]`, { result: treatment, passed: workflowPassed(c, treatment, "treatment") });
+          record(`${c.name} [control]`, { result: control, passed: workflowPassed(c, control, "control") });
         }
       }
     });

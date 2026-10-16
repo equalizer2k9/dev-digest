@@ -22,6 +22,7 @@ or delete; cleanup only via `/engineering-insights review root`.
   - Why: `record()` gets no verdict for workflow cases, so `outcome = !isError` ("session didn't crash"); wf-1 printed 6/6 while 3/5 cases passed.
   - Evidence: `evals/src/records/record.ts:49` · `evals/src/dsl/case.ts:132`
   - Seen again 2026-10-16: wf-desc printed activation+ 1/2 (skill invoked both runs, run 1 hit maxTurns) and contrast 4/4 (run 2 treatment read nothing).
+  - Resolved 2026-10-16: `record()` now stores `workflowPassed(case, trace)` as the outcome (`evals/src/dsl/workflow-pass.ts`), contrast rows aggregate as `[treatment]` / `[control]`; rescored wf-1 and wf-desc match the trace tables.
 
 ## Codebase Patterns
 <!-- Undocumented conventions and architectural decisions, with the reason -->
