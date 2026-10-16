@@ -2,7 +2,7 @@ import React from "react";
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
-import type { MultiRunAgent } from "@devdigest/shared";
+import type { GroupMember, MultiRunAgent } from "@devdigest/shared";
 import messages from "../../../../../../messages/en/multiAgent.json";
 
 const cancelMutate = vi.fn();
@@ -10,8 +10,13 @@ vi.mock("@/lib/hooks/reviews", () => ({
   useCancelRun: () => ({ mutate: cancelMutate, isPending: false }),
 }));
 vi.mock("@/components/run-trace/RunTraceDrawer", () => ({
-  default: (p: { runId: string; running?: boolean }) => (
-    <div data-testid="drawer" data-run={p.runId} data-running={String(!!p.running)} />
+  default: (p: { runId: string; running?: boolean; findings?: { id: string }[] }) => (
+    <div
+      data-testid="drawer"
+      data-run={p.runId}
+      data-running={String(!!p.running)}
+      data-findings={(p.findings ?? []).map((f) => f.id).join(",")}
+    />
   ),
 }));
 
@@ -34,10 +39,10 @@ const agent = (run_id: string, extra: Partial<MultiRunAgent> = {}): MultiRunAgen
   ...extra,
 });
 
-const wrap = (agents: MultiRunAgent[]) =>
+const wrap = (agents: MultiRunAgent[], findings?: GroupMember[]) =>
   render(
     <NextIntlClientProvider locale="en" messages={{ multiAgent: messages }}>
-      <AgentColumns agents={agents} prNumber={7} />
+      <AgentColumns agents={agents} prNumber={7} findings={findings} />
     </NextIntlClientProvider>,
   );
 
@@ -53,6 +58,14 @@ describe("AgentColumns", () => {
     expect(screen.getAllByTestId("drawer")).toHaveLength(1);
     expect(screen.getByTestId("drawer")).toHaveAttribute("data-run", "r2");
     expect(screen.getByTestId("drawer")).toHaveAttribute("data-running", "true");
+  });
+
+  it("the trace drawer gets only the selected run's findings, not an empty list", () => {
+    const f = (id: string, run_id: string) => ({ id, run_id }) as GroupMember;
+    wrap([agent("r1"), agent("r2")], [f("f1", "r1"), f("f2", "r2"), f("f3", "r1")]);
+    const cols = document.querySelectorAll<HTMLElement>("[data-run-id]");
+    fireEvent.click(within(cols[0]!).getByRole("button", { name: messages.column.viewTrace }));
+    expect(screen.getByTestId("drawer")).toHaveAttribute("data-findings", "f1,f3");
   });
 
   it("deleted agent label when agent_name is null (EC-3)", () => {

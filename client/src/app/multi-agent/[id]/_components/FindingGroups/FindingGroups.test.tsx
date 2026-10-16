@@ -83,6 +83,14 @@ describe("FindingGroups", () => {
     expect(screen.getAllByTestId("eval-btn")).toHaveLength(2);
   });
 
+  it("each expanded original names the agent that wrote it", () => {
+    const { container } = wrap([group([member("f1", "r1"), member("f2", "r2")])]);
+    fireEvent.click(screen.getByRole("button", { name: /Title f1/ }));
+    const cards = [...container.querySelectorAll<HTMLElement>("[data-finding-id]")];
+    expect(cards[0]!.parentElement).toHaveTextContent(/^Security/);
+    expect(cards[1]!.parentElement).toHaveTextContent(new RegExp(`^${messages.column.deletedAgent}`));
+  });
+
   it("Accept on a member calls the finding action with its id", () => {
     wrap([group([member("f1", "r1")])]);
     fireEvent.click(screen.getByRole("button", { name: /Title f1/ }));

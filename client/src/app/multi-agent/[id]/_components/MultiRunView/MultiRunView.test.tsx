@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { MultiRunDetail } from "@devdigest/shared";
 import messages from "../../../../../../messages/en/multiAgent.json";
@@ -100,6 +100,17 @@ describe("MultiRunView", () => {
     expect(screen.getByText("100 / 40")).toBeInTheDocument();
     expect(screen.getByText("$0.020")).toBeInTheDocument();
     expect(screen.getByText("81")).toBeInTheDocument();
+    const findingsCell = (i: number) =>
+      within(container.querySelectorAll<HTMLElement>("[data-run-id]")[i]!).getByText(messages.column.findings)
+        .nextElementSibling;
+    expect(findingsCell(0)).toHaveTextContent("3");
+    expect(findingsCell(1)).toHaveTextContent("—");
+  });
+
+  it('titles the disagreements section "Where agents disagree", as in the spec and the design', () => {
+    state.data = detail();
+    wrap();
+    expect(screen.getByRole("heading", { level: 2, name: "Where agents disagree" })).toBeInTheDocument();
   });
 
   it("keeps the last data and shows the notice when the re-request failed (EC-11)", () => {

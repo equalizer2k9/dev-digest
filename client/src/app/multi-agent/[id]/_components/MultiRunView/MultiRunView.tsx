@@ -79,7 +79,11 @@ export function MultiRunView({ id }: { id: string }) {
         {isError && <div style={s.notice}>{t("page.refreshNotice")}</div>}
         <section>
           <h2 style={s.sectionTitle}>{t("column.title")}</h2>
-          <AgentColumns agents={data.agents} prNumber={data.pr.number} />
+          <AgentColumns
+            agents={data.agents}
+            prNumber={data.pr.number}
+            findings={data.groups.flatMap((g) => g.members)}
+          />
         </section>
         <section>
           <h2 style={s.sectionTitle}>{t("groups.title")}</h2>

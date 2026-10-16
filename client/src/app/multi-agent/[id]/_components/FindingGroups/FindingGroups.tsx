@@ -56,16 +56,20 @@ export function FindingGroups({ groups, agents, multiRunId }: FindingGroupsProps
             {expanded && (
               <div style={s.members}>
                 {g.members.map((m) => (
-                  <FindingCard
-                    key={m.id}
-                    f={m}
-                    defaultExpanded
-                    pending={action.isPending}
-                    extraAction={<EvalCaseButton finding={m} />}
-                    onAction={(act, reply) =>
-                      action.mutate({ findingId: m.id, action: act, reply })
-                    }
-                  />
+                  <div key={m.id} style={s.member}>
+                    <span style={s.author}>
+                      {groupAgentNames([m], agents, t("column.deletedAgent"))[0]}
+                    </span>
+                    <FindingCard
+                      f={m}
+                      defaultExpanded
+                      pending={action.isPending}
+                      extraAction={<EvalCaseButton finding={m} />}
+                      onAction={(act, reply) =>
+                        action.mutate({ findingId: m.id, action: act, reply })
+                      }
+                    />
+                  </div>
                 ))}
               </div>
             )}

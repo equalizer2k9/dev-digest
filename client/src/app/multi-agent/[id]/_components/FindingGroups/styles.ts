@@ -24,4 +24,6 @@ export const s = {
   title: { flex: 1, fontWeight: 600, wordBreak: "break-word" } satisfies CSSProperties,
   meta: { fontSize: 12, color: "var(--text-muted)" } satisfies CSSProperties,
   members: { display: "flex", flexDirection: "column", gap: 8, padding: "0 14px 14px" } satisfies CSSProperties,
+  member: { display: "flex", flexDirection: "column", gap: 4 } satisfies CSSProperties,
+  author: { fontSize: 12, fontWeight: 600, color: "var(--text-secondary)" } satisfies CSSProperties,
 } as const;

@@ -6,7 +6,7 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge, Button } from "@devdigest/ui";
-import type { MultiRunAgent } from "@devdigest/shared";
+import type { GroupMember, MultiRunAgent } from "@devdigest/shared";
 import RunTraceDrawer from "@/components/run-trace/RunTraceDrawer";
 import { useCancelRun } from "@/lib/hooks/reviews";
 import { isInProgress } from "@/lib/hooks/multi-agent";
@@ -17,9 +17,11 @@ import { s } from "./styles";
 export interface AgentColumnsProps {
   agents: MultiRunAgent[];
   prNumber: number;
+  /** Every finding of the multi-agent run (the groups' members); the drawer shows the selected run's. */
+  findings?: GroupMember[];
 }
 
-export function AgentColumns({ agents, prNumber }: AgentColumnsProps) {
+export function AgentColumns({ agents, prNumber, findings = [] }: AgentColumnsProps) {
   const t = useTranslations("multiAgent");
   const cancel = useCancelRun();
   const [selectedRunId, setSelectedRunId] = React.useState<string | null>(null);
@@ -87,6 +89,7 @@ export function AgentColumns({ agents, prNumber }: AgentColumnsProps) {
           runId={selected.run_id}
           agentName={selected.agent_name ?? t("column.deletedAgent")}
           prNumber={prNumber}
+          findings={findings.filter((f) => f.run_id === selected.run_id)}
           running={isInProgress(selected.status)}
           onClose={() => setSelectedRunId(null)}
         />
