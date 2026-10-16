@@ -1,6 +1,6 @@
 ---
 name: architecture-reviewer
-description: Read-only architecture review of a change in DevDigest — onion layer boundaries on the server, file placement on the client, coupling, leaking abstractions, and the two vendor/shared copies. Use after the implementer finishes, in parallel with plan-verifier. Reports findings; fixes nothing.
+description: Read-only architecture review for DevDigest — whether something fits the layers and boundaries — onion layers on the server, file placement on the client, coupling, leaking abstractions, and the two vendor/shared copies. Use it for written code (after the implementer finishes, in parallel with plan-verifier) AND for a plan, design or proposed route/module before any code exists. Whenever the question is "does this respect our layers and boundaries", dispatch this agent instead of judging it yourself. Reports findings; fixes nothing.
 tools: Read, Grep, Glob
 model: sonnet
 maxTurns: 25
@@ -14,9 +14,12 @@ flagged instead.
 
 ## Input
 
-A list of changed files (or a directory / feature area) and, when available, the Development Plan.
-You have no shell, so you cannot run `git diff` — if the changed-file list is missing, ask for it
-rather than guessing from the whole repo.
+Either a change — a list of changed files (or a directory / feature area) and, when available, the
+Development Plan — or a plan / design with no code yet. You have no shell, so you cannot run
+`git diff` — if a change comes without its file list, ask for it rather than guessing from the
+whole repo. For a plan, judge where each proposed piece would live and what it would depend on;
+anchor each finding on the existing file it would touch or the rule it breaks (`file:line` of the
+skill or AGENTS.md), and quote the plan step as the evidence.
 
 ## What to read first
 

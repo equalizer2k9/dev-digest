@@ -6,6 +6,7 @@ import type {
   CiRunRow,
   Repo,
   EvalRunRecord,
+  EvalSingleRun,
   ConventionCandidate,
   FindingRecord,
   PrBrief,
@@ -217,6 +218,39 @@ export const SHOWCASE_EVAL_RUNS: EvalRunRecord[] = [
   SHOWCASE_EVAL_RUN,
   { ...SHOWCASE_EVAL_RUN, id: "er-2", status: "running", finished_at: null, recall: null, precision: null, citation_accuracy: null, passed: 0, total: 8, cost_usd: null },
   { ...SHOWCASE_EVAL_RUN, id: "er-3", has_errors: true, agent_version: 2, recall: 0.5, precision: null, passed: 3, cost_usd: null },
+];
+
+/** A draft for the eval case modal: one hunk, the zone is lines 11-12 of the new file. */
+export const SHOWCASE_EVAL_DRAFT = {
+  agent_id: "ag-1",
+  agent_name: "Security reviewer",
+  name: "Hardcoded secret",
+  expectation: {
+    type: "must_find" as const,
+    file: "src/config.ts",
+    start_line: 11,
+    end_line: 12,
+    title: "Hardcoded secret",
+  },
+  input_diff: [
+    "--- a/src/config.ts",
+    "+++ b/src/config.ts",
+    "@@ -9,5 +9,6 @@",
+    " export const config = {",
+    "   port: 3000,",
+    "-  stripeKey: process.env.STRIPE_KEY,",
+    '+  stripeKey: "sk_live_abc123",',
+    '+  region: "eu",',
+    " };",
+  ].join("\n"),
+  pr_number: 42,
+  pr_title: "Add Stripe integration",
+};
+
+export const SHOWCASE_EVAL_SINGLE_RUNS: EvalSingleRun[] = [
+  { status: "passed", error: null, kept: 1, dropped: 0, kept_findings: [], cost_usd: 0.02, duration_ms: 1800 },
+  { status: "failed", error: null, kept: 0, dropped: 2, kept_findings: [], cost_usd: null, duration_ms: 2400 },
+  { status: "error", error: "model timed out", kept: 0, dropped: 0, kept_findings: [], cost_usd: null, duration_ms: 900 },
 ];
 
 const SHOWCASE_CI_RUN: CiRunRow = {

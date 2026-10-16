@@ -10,6 +10,8 @@ import { EvalRepository } from './repository.js';
 import {
   EvalAgentOverview,
   EvalCaseCreated,
+  EvalCaseDraft,
+  EvalCaseRow,
   EvalCompare,
   EvalDashboard,
 } from '@devdigest/shared';
@@ -181,7 +183,9 @@ d('eval routes (Postgres)', () => {
     return { agent: agent!, pr: pr!, review, mkReview, mkFinding };
   }
 
-  const post = (url: string) => app.inject({ method: 'POST', url });
+  const post = (url: string, payload?: object) =>
+    app.inject({ method: 'POST', url, ...(payload ? { payload } : {}) });
+  const patch = (url: string, payload: object) => app.inject({ method: 'PATCH', url, payload });
   const get = (url: string) => app.inject({ method: 'GET', url });
   const del = (url: string) => app.inject({ method: 'DELETE', url });
   const counts = async () => ({
@@ -334,8 +338,14 @@ d('eval routes (Postgres)', () => {
       .values({ workspaceId: wsId, agentId: mine.agent.id, agentVersion: 1, status: 'completed' })
       .returning();
     const before = await counts();
-    const calls: Array<[string, string]> = [
+    const calls: Array<[string, string, object?]> = [
       ['POST', `/findings/${otherFinding.id}/eval-case`],
+      ['GET', `/findings/${otherFinding.id}/eval-case/draft`],
+      ['POST', `/findings/${otherFinding.id}/eval-case/run`, { name: 'x', start_line: 2, end_line: 2 }],
+      ['PATCH', `/agents/${other.agent.id}/evals/cases/${otherCaseRes[0]!.id}`, { name: 'x', start_line: 2, end_line: 2 }],
+      ['PATCH', `/agents/${mine.agent.id}/evals/cases/${otherCaseRes[0]!.id}`, { name: 'x', start_line: 2, end_line: 2 }],
+      ['POST', `/agents/${other.agent.id}/evals/cases/${otherCaseRes[0]!.id}/run`],
+      ['POST', `/agents/${mine.agent.id}/evals/cases/${otherCaseRes[0]!.id}/run`],
       ['GET', `/agents/${other.agent.id}/evals`],
       ['DELETE', `/agents/${other.agent.id}/evals/cases/${otherCaseRes[0]!.id}`],
       ['DELETE', `/agents/${mine.agent.id}/evals/cases/${otherCaseRes[0]!.id}`],
@@ -343,17 +353,128 @@ d('eval routes (Postgres)', () => {
       ['GET', `/evals/compare?a=${otherRun!.id}&b=${myRun!.id}`],
       ['GET', `/evals/compare?a=${myRun!.id}&b=${otherRun!.id}`],
     ];
-    for (const [method, url] of calls) {
-      const res = await app.inject({ method: method as 'GET', url });
+    for (const [method, url, payload] of calls) {
+      const res = await app.inject({ method: method as 'GET', url, ...(payload ? { payload } : {}) });
       expect(res.statusCode, `${method} ${url}`).toBe(404);
       expect(res.json().error.code).toBe('not_found');
     }
     expect(await counts()).toEqual(before);
+    expect(llm.calls).toHaveLength(0);
     expect(await db().select().from(t.evalCases).where(eq(t.evalCases.id, otherCaseRes[0]!.id))).toHaveLength(1);
     // the dashboard shows only this workspace
     const dash = EvalDashboard.parse((await get('/evals/dashboard')).json());
     expect(dash.agents.map((a) => a.agent_id)).not.toContain(other.agent.id);
     expect(dash.recent_runs.map((r) => r.id)).not.toContain(otherRun!.id);
+  });
+
+  // ---- after the mentor review: modal draft, edited save, PATCH (AC-46, AC-47, AC-51) ----
+
+  it('AC-46: the draft carries the frozen one-file diff and stores nothing; an existing case is reported', async () => {
+    const w = await world(wsId);
+    const f = await w.mkFinding(w.review.id, 'a.ts', 2, 2, 'accepted', 'Draft title');
+    const before = await counts();
+    const res = await get(`/findings/${f.id}/eval-case/draft`);
+    expect(res.statusCode).toBe(200);
+    const body = EvalCaseDraft.parse(res.json());
+    expect(body.existing).toBeNull();
+    expect(body.draft).toMatchObject({
+      agent_id: w.agent.id,
+      agent_name: w.agent.name,
+      name: 'Draft title',
+      pr_number: w.pr.number,
+      pr_title: w.pr.title,
+      expectation: { type: 'must_find', file: 'a.ts', start_line: 2, end_line: 2, title: 'Draft title' },
+    });
+    expect(body.draft!.input_diff).toContain('+b');
+    expect(JSON.stringify(body)).not.toContain('someone'); // the PR author
+    expect(await counts()).toEqual(before);
+    expect(llm.calls).toHaveLength(0);
+
+    await post(`/findings/${f.id}/eval-case`);
+    const again = EvalCaseDraft.parse((await get(`/findings/${f.id}/eval-case/draft`)).json());
+    expect(again.draft).toBeNull();
+    expect(again.existing?.case.name).toBe('Draft title');
+  });
+
+  it('AC-46: the draft refuses an undecided finding with its 422 reason', async () => {
+    const w = await world(wsId);
+    const f = await w.mkFinding(w.review.id, 'a.ts', 2, 2, null);
+    const res = await get(`/findings/${f.id}/eval-case/draft`);
+    expect(res.statusCode).toBe(422);
+    expect(res.json().error.code).toBe('eval_case_undecided');
+  });
+
+  it('AC-47: Save with an edit stores the name and zone; refusals store nothing', async () => {
+    const w = await world(wsId);
+    const f = await w.mkFinding(w.review.id, 'a.ts', 2, 2, 'accepted');
+    const before = await counts();
+    const cases: Array<[object, number, string]> = [
+      [{ name: '  ', start_line: 2, end_line: 3 }, 422, 'eval_case_bad_name'],
+      [{ name: 'x'.repeat(201), start_line: 2, end_line: 3 }, 422, 'eval_case_bad_name'],
+      [{ name: 'n', start_line: 3, end_line: 2 }, 422, 'eval_case_bad_zone'],
+      [{ name: 'n', start_line: 40, end_line: 41 }, 422, 'eval_case_no_hunk'],
+      [{ name: 'n', start_line: 0, end_line: 2 }, 422, 'validation_error'],
+    ];
+    for (const [payload, status, code] of cases) {
+      const res = await post(`/findings/${f.id}/eval-case`, payload);
+      expect(res.statusCode, code).toBe(status);
+      expect(res.json().error.code).toBe(code);
+    }
+    expect(await counts()).toEqual(before);
+
+    const ok = await post(`/findings/${f.id}/eval-case`, { name: ' Mine ', start_line: 2, end_line: 3 });
+    expect(ok.statusCode).toBe(201);
+    const made = EvalCaseCreated.parse(ok.json());
+    expect(made.case.name).toBe('Mine');
+    expect(made.case.expectation).toMatchObject({ start_line: 2, end_line: 3 });
+
+    // AC-4: a repeat returns the stored case and ignores the edit
+    const again = await post(`/findings/${f.id}/eval-case`, { name: 'Other', start_line: 3, end_line: 3 });
+    expect(again.statusCode).toBe(200);
+    expect(EvalCaseCreated.parse(again.json()).case).toMatchObject({ id: made.case.id, name: 'Mine' });
+    expect(llm.calls).toHaveLength(0);
+  });
+
+  it('AC-51: PATCH changes the name and zone only; checks, conflict (not with itself) and 404', async () => {
+    const w = await world(wsId);
+    const acc = await w.mkFinding(w.review.id, 'a.ts', 2, 2, 'accepted');
+    const dis = await w.mkFinding(w.review.id, 'a.ts', 4, 4, 'dismissed');
+    const a = EvalCaseCreated.parse((await post(`/findings/${acc.id}/eval-case`)).json()).case;
+    const b = EvalCaseCreated.parse((await post(`/findings/${dis.id}/eval-case`)).json()).case;
+    const [rowBefore] = await db().select().from(t.evalCases).where(eq(t.evalCases.id, a.id));
+    const url = `/agents/${w.agent.id}/evals/cases/${a.id}`;
+
+    // widening onto its own old zone and a free range is fine (it does not conflict with itself)
+    const ok = await patch(url, { name: ' Renamed ', start_line: 1, end_line: 3 });
+    expect(ok.statusCode).toBe(200);
+    const row = EvalCaseRow.parse(ok.json());
+    expect(row).toMatchObject({ id: a.id, name: 'Renamed', latest_status: 'never_run' });
+    expect(row.expectation).toMatchObject({ type: 'must_find', file: 'a.ts', start_line: 1, end_line: 3 });
+    const [rowAfter] = await db().select().from(t.evalCases).where(eq(t.evalCases.id, a.id));
+    expect(rowAfter!.inputDiff).toBe(rowBefore!.inputDiff);
+    expect(rowAfter!.inputMeta).toEqual(rowBefore!.inputMeta);
+    expect(rowAfter!.sourceFindingId).toBe(rowBefore!.sourceFindingId);
+
+    // reaching the dismissed case's lines (4) conflicts with it
+    const clash = await patch(url, { name: 'Renamed', start_line: 1, end_line: 4 });
+    expect(clash.statusCode).toBe(409);
+    expect(clash.json().error.code).toBe('eval_case_conflict');
+    expect(clash.json().error.details).toEqual({ case_id: b.id, case_name: b.name });
+
+    for (const [payload, code] of [
+      [{ name: '', start_line: 1, end_line: 3 }, 'eval_case_bad_name'],
+      [{ name: 'n', start_line: 3, end_line: 1 }, 'eval_case_bad_zone'],
+      [{ name: 'n', start_line: 40, end_line: 41 }, 'eval_case_no_hunk'],
+    ] as const) {
+      const res = await patch(url, payload);
+      expect(res.statusCode).toBe(422);
+      expect(res.json().error.code).toBe(code);
+    }
+    const [final] = await db().select().from(t.evalCases).where(eq(t.evalCases.id, a.id));
+    expect(final!.name).toBe('Renamed');
+
+    const missing = await patch(`/agents/${w.agent.id}/evals/cases/${w.agent.id}`, { name: 'n', start_line: 1, end_line: 2 });
+    expect(missing.statusCode).toBe(404);
   });
 
   it('AC-32: the concurrent-insert fallback never returns another workspace\'s case', async () => {

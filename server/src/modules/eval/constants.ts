@@ -5,6 +5,8 @@ export const EVAL_CASE_UNDECIDED = 'eval_case_undecided';
 export const EVAL_CASE_NO_AGENT = 'eval_case_no_agent';
 export const EVAL_CASE_NO_PATCH = 'eval_case_no_patch';
 export const EVAL_CASE_NO_HUNK = 'eval_case_no_hunk';
+export const EVAL_CASE_BAD_NAME = 'eval_case_bad_name';
+export const EVAL_CASE_BAD_ZONE = 'eval_case_bad_zone';
 export const EVAL_CASE_CONFLICT = 'eval_case_conflict';
 export const EVAL_RUN_IN_PROGRESS = 'eval_run_in_progress';
 export const EVAL_SET_EMPTY = 'eval_set_empty';
@@ -12,6 +14,9 @@ export const EVAL_COMPARE_INVALID = 'eval_compare_invalid';
 
 /** `eval_runs.error` of a run that was still `running` when the process restarted. */
 export const RUN_INTERRUPTED = 'interrupted';
+
+/** Longest case name a human may save (AC-47). */
+export const MAX_CASE_NAME_CHARS = 200;
 
 /** Rows on the dashboard's recent-runs list. */
 export const RECENT_RUNS = 10;

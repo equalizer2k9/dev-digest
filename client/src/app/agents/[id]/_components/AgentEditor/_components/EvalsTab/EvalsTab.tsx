@@ -3,27 +3,44 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Badge, Button, ErrorState, Skeleton } from "@devdigest/ui";
-import type { Agent, EvalCaseRow } from "@devdigest/shared";
+import { Button, ErrorState, Skeleton } from "@devdigest/ui";
+import type { Agent, EvalCaseEdit, EvalCaseRow, EvalSingleRun } from "@devdigest/shared";
 import { ConfirmDialog } from "../../../../../../../components/confirm-dialog/ConfirmDialog";
 import { ApiError } from "../../../../../../../lib/api";
-import { useDeleteEvalCase, useEvalOverview, useRunEval } from "../../../../../../../lib/hooks/evals";
+import {
+  useDeleteEvalCase,
+  useEvalOverview,
+  useRunEval,
+  useRunEvalCase,
+  useUpdateEvalCase,
+} from "../../../../../../../lib/hooks/evals";
 import { EvalMetrics } from "../../../../../../../components/eval/EvalMetrics";
 import { EvalRunTable } from "../../../../../../../components/eval/EvalRunTable";
-import { caseLocation, latestCompleted, statusLineRun } from "./helpers";
-import { CASE_STATUS_COLORS, s } from "./styles";
+import { conflictName, errorKey } from "../../../../../../../components/eval/EvalCaseButton/helpers";
+import { EvalCaseRow as CaseRow } from "./_components/EvalCaseRow";
+import { latestCompleted, statusLineRun } from "./helpers";
+import { s } from "./styles";
 
 export function EvalsTab({ agent }: { agent: Agent }) {
   const t = useTranslations("eval");
   const { data, isLoading, isError, refetch } = useEvalOverview(agent.id);
   const runEval = useRunEval(agent.id);
   const deleteCase = useDeleteEvalCase(agent.id);
+  const runCase = useRunEvalCase(agent.id);
+  const updateCase = useUpdateEvalCase(agent.id);
   const [pendingDelete, setPendingDelete] = React.useState<EvalCaseRow | null>(null);
   const [runError, setRunError] = React.useState<"runFailed" | "runInProgress" | null>(null);
   const [deleteError, setDeleteError] = React.useState(false);
   const [picked, setPicked] = React.useState<string[]>([]);
+  // Single-case runs (AC-49) are per row and live only here: they are not runs, so nothing is refetched.
+  const [runningIds, setRunningIds] = React.useState<string[]>([]);
+  const [results, setResults] = React.useState<Record<string, EvalSingleRun>>({});
+  const [runErrors, setRunErrors] = React.useState<Record<string, string>>({});
+  const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [editError, setEditError] = React.useState<string | null>(null);
   const router = useRouter();
 
   if (isLoading) {
@@ -69,6 +86,40 @@ export function EvalsTab({ agent }: { agent: Agent }) {
     });
   };
 
+  const runOne = async (id: string) => {
+    setRunningIds((ids) => [...ids, id]);
+    setRunErrors(({ [id]: _drop, ...rest }) => rest);
+    setResults(({ [id]: _drop, ...rest }) => rest);
+    try {
+      const res = await runCase.mutateAsync(id);
+      setResults((r) => ({ ...r, [id]: res }));
+    } catch (err) {
+      const code = err instanceof ApiError ? err.code : undefined;
+      const msg = t(`turnInto.errors.${errorKey(code, "runGeneric")}`, { name: conflictName(err) ?? "" });
+      setRunErrors((r) => ({ ...r, [id]: msg }));
+    } finally {
+      setRunningIds((ids) => ids.filter((x) => x !== id));
+    }
+  };
+
+  const saveEdit = (id: string, edit: EvalCaseEdit) => {
+    setEditError(null);
+    updateCase.mutate(
+      { caseId: id, edit },
+      {
+        onSuccess: () => {
+          setEditingId(null);
+          // The old result was for the old zone.
+          setResults(({ [id]: _drop, ...rest }) => rest);
+        },
+        onError: (err) => {
+          const code = err instanceof ApiError ? err.code : undefined;
+          setEditError(t(`turnInto.errors.${errorKey(code, "updateGeneric")}`, { name: conflictName(err) ?? "" }));
+        },
+      },
+    );
+  };
+
   const confirmDelete = () => {
     if (!pendingDelete) return;
     const id = pendingDelete.id;
@@ -79,6 +130,11 @@ export function EvalsTab({ agent }: { agent: Agent }) {
 
   return (
     <div style={s.wrap}>
+      <div style={s.dashboardLink}>
+        <Link href="/eval" style={s.link}>
+          {t("evalsTab.viewDashboard")}
+        </Link>
+      </div>
       <div style={s.header}>
         <h2 style={s.h2}>{t("evalsTab.casesHeading")}</h2>
         <Button
@@ -108,24 +164,26 @@ export function EvalsTab({ agent }: { agent: Agent }) {
       {cases.length === 0 ? (
         <div style={s.empty}>{t("evalsTab.emptyCases")}</div>
       ) : (
-        cases.map((c) => {
-          const color = CASE_STATUS_COLORS[c.latest_status];
-          return (
-            <div key={c.id} style={s.row}>
-              <span style={s.name}>{c.name}</span>
-              <Badge>{t(c.expectation.type === "must_find" ? "type.mustFind" : "type.mustNotFlag")}</Badge>
-              <span className="mono" style={s.location}>
-                {caseLocation(c.expectation)}
-              </span>
-              <Badge color={color.color} bg={color.bg}>
-                {t(c.latest_status === "never_run" ? "status.neverRun" : `status.${c.latest_status}`)}
-              </Badge>
-              <Button kind="ghost" size="sm" icon="Trash" onClick={() => setPendingDelete(c)}>
-                {t("evalsTab.delete")}
-              </Button>
-            </div>
-          );
-        })
+        cases.map((c) => (
+          <CaseRow
+            key={c.id}
+            item={c}
+            running={runningIds.includes(c.id)}
+            result={results[c.id]}
+            runError={runErrors[c.id]}
+            editing={editingId === c.id}
+            saving={updateCase.isPending}
+            editError={editingId === c.id ? editError : null}
+            onRun={() => void runOne(c.id)}
+            onStartEdit={() => {
+              setEditError(null);
+              setEditingId(c.id);
+            }}
+            onCancelEdit={() => setEditingId(null)}
+            onSaveEdit={(edit) => saveEdit(c.id, edit)}
+            onDelete={() => setPendingDelete(c)}
+          />
+        ))
       )}
 
       {latest && (

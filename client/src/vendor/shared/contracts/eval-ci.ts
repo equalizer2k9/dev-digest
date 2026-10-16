@@ -114,6 +114,46 @@ export const EvalCaseCreated = z.object({
 });
 export type EvalCaseCreated = z.infer<typeof EvalCaseCreated>;
 
+/**
+ * Body of "save / run / edit a case": the only fields a human may change (AC-47, AC-51).
+ * Shape only — the readable reasons (empty name, bad zone, no hunk) come from the server.
+ */
+export const EvalCaseEdit = z.object({
+  name: z.string(),
+  start_line: z.number().int().min(1),
+  end_line: z.number().int().min(1),
+});
+export type EvalCaseEdit = z.infer<typeof EvalCaseEdit>;
+
+/** What the "Turn into eval case" modal opens with (AC-46). Stores nothing. */
+export const EvalCaseDraft = z.object({
+  existing: EvalCaseCreated.nullable(),
+  draft: z
+    .object({
+      agent_id: z.string(),
+      agent_name: z.string(),
+      name: z.string(),
+      expectation: EvalExpectation,
+      input_diff: z.string(),
+      pr_number: z.number().int(),
+      pr_title: z.string(),
+    })
+    .nullable(),
+});
+export type EvalCaseDraft = z.infer<typeof EvalCaseDraft>;
+
+/** Result of a single-case run (AC-50). Not a run: nothing is recorded. */
+export const EvalSingleRun = z.object({
+  status: EvalCaseStatus,
+  error: z.string().nullable(),
+  kept: z.number().int(),
+  dropped: z.number().int(),
+  kept_findings: z.array(EvalKeptFinding),
+  cost_usd: z.number().nullable(),
+  duration_ms: z.number().int(),
+});
+export type EvalSingleRun = z.infer<typeof EvalSingleRun>;
+
 /** Everything the Evals tab of an agent shows, in one poll. */
 export const EvalAgentOverview = z.object({
   agent_id: z.string(),

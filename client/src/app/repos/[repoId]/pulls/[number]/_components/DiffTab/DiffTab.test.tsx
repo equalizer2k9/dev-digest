@@ -22,6 +22,8 @@ vi.mock("@/lib/hooks/reviews", () => ({
 }));
 vi.mock("@/lib/hooks/evals", () => ({
   useCreateEvalCase: () => ({ mutate: vi.fn(), isPending: false }),
+  useLoadEvalCaseDraft: () => ({ mutate: vi.fn(), isPending: false }),
+  useRunDraftCase: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 import { DiffTab } from "./DiffTab";

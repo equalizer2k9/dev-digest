@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Container } from '../../platform/container.js';
 import { AppError, NotFoundError } from '../../platform/errors.js';
 import type { EvalCaseDbRow, EvalRepository } from './repository.js';
-import { createCaseFromFinding } from './cases.js';
+import { createCaseFromFinding, draftCaseFromFinding, updateCaseFromEdit } from './cases.js';
 import { frozenDiff } from './helpers.js';
 
 const WS = 'ws-1';
@@ -64,8 +64,10 @@ function setup() {
   reviewRepo.getPrFiles.mockResolvedValue([{ path: FILE, patch: PATCH }]);
   agentsRepo.getById.mockResolvedValue({ id: AGENT, name: 'Agent One' });
   repo.caseBySourceFinding.mockResolvedValue(undefined);
-  const run = () => createCaseFromFinding(container, repo as unknown as EvalRepository, WS, FINDING);
+  const run = (edit?: { name: string; start_line: number; end_line: number }) =>
+    createCaseFromFinding(container, repo as unknown as EvalRepository, WS, FINDING, edit);
   return {
+    container,
     reviewRepo,
     agentsRepo,
     llm,
@@ -266,5 +268,148 @@ describe('createCaseFromFinding', () => {
   it('AC-36: never calls the model', async () => {
     await s.run();
     expect(s.llm).not.toHaveBeenCalled();
+  });
+});
+
+describe('createCaseFromFinding with an edit (AC-47)', () => {
+  let s: ReturnType<typeof setup>;
+  beforeEach(() => {
+    s = setup();
+  });
+  const edit = (over: Partial<{ name: string; start_line: number; end_line: number }> = {}) => ({
+    name: 'My name',
+    start_line: 2,
+    end_line: 3,
+    ...over,
+  });
+  const refused = async (e: ReturnType<typeof edit>, code: string) => {
+    const err = await refusal(s.run(e));
+    expect(err.code).toBe(code);
+    expect(err.statusCode).toBe(422);
+    expect(s.repo.createCaseExclusive).not.toHaveBeenCalled();
+  };
+
+  it('saves the trimmed name and the edited zone; the title stays the finding\'s', async () => {
+    const out = await s.run(edit({ name: '  My name  ' }));
+    expect(out.created).toBe(true);
+    expect(out.case.name).toBe('My name');
+    expect(out.case.expectation).toEqual({
+      type: 'must_find',
+      file: FILE,
+      start_line: 2,
+      end_line: 3,
+      title: 'Null deref',
+    });
+    const [values] = s.repo.createCaseExclusive.mock.calls[0]!;
+    expect(values.inputDiff).toBe(frozenDiff(FILE, PATCH));
+  });
+
+  it('refuses an empty or whitespace name', async () => {
+    await refused(edit({ name: '   ' }), 'eval_case_bad_name');
+  });
+  it('refuses a name over 200 characters, accepts exactly 200', async () => {
+    await refused(edit({ name: 'x'.repeat(201) }), 'eval_case_bad_name');
+    expect((await s.run(edit({ name: 'x'.repeat(200) }))).created).toBe(true);
+  });
+  it('refuses a start line below 1', async () => {
+    await refused(edit({ start_line: 0 }), 'eval_case_bad_zone');
+  });
+  it('refuses a start line after the end line', async () => {
+    await refused(edit({ start_line: 4, end_line: 3 }), 'eval_case_bad_zone');
+  });
+  it('refuses a zone outside every hunk', async () => {
+    await refused(edit({ start_line: 30, end_line: 31 }), 'eval_case_no_hunk');
+  });
+  it('applies the opposite-type conflict to the edited zone', async () => {
+    s.setCases([existingCase('must_not_flag', 3, 3)]);
+    const err = await refusal(s.run(edit({ start_line: 2, end_line: 3 })));
+    expect(err.code).toBe('eval_case_conflict');
+    expect(err.statusCode).toBe(409);
+    // ...but the finding's own zone (2-2) would not have conflicted
+    expect((await s.run()).created).toBe(true);
+  });
+  it('AC-4: an existing case is returned unchanged and the edit is ignored', async () => {
+    s.repo.caseBySourceFinding.mockResolvedValue({
+      ...existingCase('must_find', 2, 2),
+      workspaceId: WS,
+      createdAt: new Date(),
+    });
+    const out = await s.run(edit({ name: '', start_line: 99, end_line: 1 }));
+    expect(out.created).toBe(false);
+    expect(out.case.name).toBe('Old case');
+    expect(s.repo.createCaseExclusive).not.toHaveBeenCalled();
+  });
+  it('never calls the model', async () => {
+    await s.run(edit());
+    expect(s.llm).not.toHaveBeenCalled();
+  });
+});
+
+describe('draftCaseFromFinding', () => {
+  it('returns the frozen one-file diff and the finding\'s zone, stores nothing', async () => {
+    const s = setup();
+    const d = await draftCaseFromFinding(s.container, WS, FINDING);
+    expect(d.inputDiff).toBe(frozenDiff(FILE, PATCH));
+    expect(d.name).toBe('Null deref');
+    expect(d.expectation).toMatchObject({ type: 'must_find', start_line: 2, end_line: 2 });
+    expect(s.repo.createCaseExclusive).not.toHaveBeenCalled();
+    expect(s.llm).not.toHaveBeenCalled();
+  });
+  it('refuses an undecided finding', async () => {
+    const s = setup();
+    s.reviewRepo.findingContext.mockResolvedValue(ctx({ acceptedAt: null, dismissedAt: null }));
+    expect((await refusal(draftCaseFromFinding(s.container, WS, FINDING))).code).toBe('eval_case_undecided');
+  });
+});
+
+describe('updateCaseFromEdit (AC-51)', () => {
+  const stored = () =>
+    ({
+      ...existingCase('must_find', 2, 2),
+      workspaceId: WS,
+      inputDiff: frozenDiff(FILE, PATCH),
+    }) as unknown as EvalCaseDbRow;
+  function mk() {
+    const row = stored();
+    const others: EvalCaseDbRow[] = [];
+    const repo = {
+      getCase: vi.fn(async () => row),
+      updateCaseExclusive: vi.fn(async (_w: string, _a: string, _c: string, values: any, decide: any) => {
+        const blocker = decide(others);
+        if (blocker) return { kind: 'conflict', row: blocker };
+        return { kind: 'updated', row: { ...row, ...values } };
+      }),
+    };
+    return { repo, others, run: (e: any) => updateCaseFromEdit(repo as unknown as EvalRepository, WS, AGENT, 'case-old', e) };
+  }
+
+  it('changes the name and the zone only', async () => {
+    const m = mk();
+    const out = await m.run({ name: ' Renamed ', start_line: 2, end_line: 3 });
+    expect(out.name).toBe('Renamed');
+    expect(out.expectedOutput).toEqual({ type: 'must_find', file: FILE, start_line: 2, end_line: 3, title: 'Old case' });
+    expect(out.inputDiff).toBe(frozenDiff(FILE, PATCH));
+  });
+  it('checks against the case\'s own frozen diff', async () => {
+    const m = mk();
+    expect((await refusal(m.run({ name: 'n', start_line: 30, end_line: 31 }))).code).toBe('eval_case_no_hunk');
+    expect((await refusal(m.run({ name: '', start_line: 2, end_line: 2 }))).code).toBe('eval_case_bad_name');
+    expect((await refusal(m.run({ name: 'n', start_line: 3, end_line: 2 }))).code).toBe('eval_case_bad_zone');
+    expect(m.repo.updateCaseExclusive).not.toHaveBeenCalled();
+  });
+  it('conflicts with an opposite-type case of the agent, not with a same-type one', async () => {
+    const m = mk();
+    m.others.push({ ...existingCase('must_not_flag', 3, 4), id: 'case-other', name: 'Other' });
+    const err = await refusal(m.run({ name: 'n', start_line: 2, end_line: 3 }));
+    expect(err.code).toBe('eval_case_conflict');
+    expect(err.statusCode).toBe(409);
+    expect(err.details).toEqual({ case_id: 'case-other', case_name: 'Other' });
+    m.others[0] = { ...existingCase('must_find', 3, 4), id: 'case-other' };
+    await expect(m.run({ name: 'n', start_line: 2, end_line: 3 })).resolves.toBeDefined();
+  });
+  it('an unknown case is a NotFoundError', async () => {
+    const m = mk();
+    m.repo.getCase.mockResolvedValue(undefined as never);
+    await expect(m.run({ name: 'n', start_line: 2, end_line: 2 })).rejects.toBeInstanceOf(NotFoundError);
   });
 });

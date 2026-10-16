@@ -31,6 +31,8 @@ export interface RecordData {
   verdict?: Verdict;
   grounded?: number;
   threshold?: number;
+  /** A workflow case's own assertion (`workflowPassed`); overrides the `!isError` fallback. */
+  passed?: boolean;
   extra?: Record<string, unknown>;
 }
 
@@ -40,18 +42,21 @@ export interface RecordData {
  * from being silently empty.
  */
 export function record(label: string, data: RecordData): void {
-  const { result, verdict, grounded, threshold, extra } = data;
+  const { result, verdict, grounded, threshold, passed, extra } = data;
   const state = expect.getState();
-  const nodeid = `${state.testPath ?? "?"} > ${state.currentTestName ?? label}`;
+  // A contrast case's two rows ("… [treatment]" / "… [control]") aggregate as two series.
+  const role = state.currentTestName ? (/ \[(treatment|control)\]$/.exec(label)?.[0] ?? "") : "";
+  const nodeid = `${state.testPath ?? "?"} > ${state.currentTestName ?? label}${role}`;
 
-  // outcome: grounding gate failure short-circuits to false; else the judge threshold; else
-  // "did the run itself succeed" (workflow tests have neither grounding nor a judge verdict).
+  // outcome: a workflow case's own assertion when given; else grounding gate failure
+  // short-circuits to false; else the judge threshold; else "did the run itself succeed".
   const outcome =
-    grounded !== undefined && grounded < 1
+    passed ??
+    (grounded !== undefined && grounded < 1
       ? false
       : verdict && threshold !== undefined
         ? verdict.score >= threshold
-        : !result.isError;
+        : !result.isError);
 
   const outDir = join(OUTPUTS, RUN_ID);
   mkdirSync(outDir, { recursive: true });

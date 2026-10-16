@@ -7,9 +7,13 @@ import { api } from "../api";
 import type {
   EvalAgentOverview,
   EvalCaseCreated,
+  EvalCaseDraft,
+  EvalCaseEdit,
+  EvalCaseRow,
   EvalCompare,
   EvalDashboard,
   EvalRunRecord,
+  EvalSingleRun,
 } from "@devdigest/shared";
 
 const POLL_MS = 2500;
@@ -23,13 +27,49 @@ export function useEvalOverview(agentId: string | null | undefined) {
   });
 }
 
-/** "Turn into eval case" on a finding; the variable is the finding id. */
+/** Opens the "Turn into eval case" modal (AC-46): reads the draft; no model call, stores nothing. */
+export function useLoadEvalCaseDraft() {
+  return useMutation({
+    mutationFn: (findingId: string) => api.get<EvalCaseDraft>(`/findings/${findingId}/eval-case/draft`),
+  });
+}
+
+/** Save in the modal: creates the case, with the edited name and zone when given (AC-47). */
 export function useCreateEvalCase() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (findingId: string) => api.post<EvalCaseCreated>(`/findings/${findingId}/eval-case`),
+    mutationFn: ({ findingId, edit }: { findingId: string; edit?: EvalCaseEdit }) =>
+      api.post<EvalCaseCreated>(`/findings/${findingId}/eval-case`, edit),
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ["eval-overview", res.agent_id] });
+      qc.invalidateQueries({ queryKey: ["eval-dashboard"] });
+    },
+  });
+}
+
+/** Run case in the modal (AC-48): reviews the unsaved case once. Stores nothing, so no invalidation. */
+export function useRunDraftCase() {
+  return useMutation({
+    mutationFn: ({ findingId, edit }: { findingId: string; edit: EvalCaseEdit }) =>
+      api.post<EvalSingleRun>(`/findings/${findingId}/eval-case/run`, edit),
+  });
+}
+
+/** Run on a stored case (AC-49). Not a run (AC-50): the overview and dashboard stay as they are. */
+export function useRunEvalCase(agentId: string) {
+  return useMutation({
+    mutationFn: (caseId: string) => api.post<EvalSingleRun>(`/agents/${agentId}/evals/cases/${caseId}/run`),
+  });
+}
+
+/** Edit on a stored case (AC-51): name and zone only. */
+export function useUpdateEvalCase(agentId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ caseId, edit }: { caseId: string; edit: EvalCaseEdit }) =>
+      api.patch<EvalCaseRow>(`/agents/${agentId}/evals/cases/${caseId}`, edit),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["eval-overview", agentId] });
       qc.invalidateQueries({ queryKey: ["eval-dashboard"] });
     },
   });

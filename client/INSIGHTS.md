@@ -6,6 +6,9 @@ or delete; cleanup only via `/engineering-insights review client`.
 
 ## What Works
 <!-- Approaches that worked where the obvious one failed -->
+- **2026-10-16** · ALWAYS render a `Modal` opened from inside a finding card through `createPortal(…, document.body)`.
+  - Why: rendered in place, the card confines the `position: fixed` overlay — later cards paint over the dialog and the page shows through.
+  - Evidence: `src/components/eval/EvalCaseModal/EvalCaseModal.tsx` (`inBody`) · live check on PR #21, `docs/hw7/hw6-followups/01-case-modal.png`
 
 ## What Doesn't Work
 <!-- Dead ends and antipatterns, each with what to do instead -->
@@ -99,6 +102,9 @@ or delete; cleanup only via `/engineering-insights review client`.
 - Done: `/repos/[repoId]/conventions` under SKILLS LAB (`g c`) — Run Scan / ReScan, candidate cards with a commit-pinned GitHub evidence link, Accept / Reject / in-place Edit (all optimistic with rollback), a conditional `Create skill` and the editable merged-skill modal; 39 new tests, suite 183 green, `pnpm build` clean.
 - Added: Codebase Patterns, Recurring Errors & Fixes.
 - Open: the toolbar's bulk control is the design's single `Accept all` ⇄ `Deselect all` toggle rather than two buttons — the spec writes it with a slash and only demands a pair for the SCAN buttons.
+### 2026-10-16 — HW6 follow-ups: eval case modal
+- Done: case modal, per-case Run/Edit, dashboard link; live-checked on PR #21.
+- Added: What Works
 
 ## Open Questions
 <!-- Unverified hypotheses and unanswered questions; close with a "Resolved" sub-bullet -->

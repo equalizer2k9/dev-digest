@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
-import { render, screen, cleanup, fireEvent, within } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, within, waitFor } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { Agent, EvalAgentOverview, EvalCaseRow, EvalRunRecord } from "@devdigest/shared";
 import evalMessages from "../../../../../../../../messages/en/eval.json";
@@ -8,6 +8,8 @@ import { ApiError } from "@/lib/api";
 
 const runMutate = vi.fn();
 const deleteMutate = vi.fn();
+const runCaseAsync = vi.fn();
+const updateMutate = vi.fn();
 const refetch = vi.fn();
 const overviewCall = vi.fn();
 const state: {
@@ -27,6 +29,8 @@ vi.mock("@/lib/hooks/evals", () => ({
   },
   useRunEval: () => ({ mutate: runMutate, isPending: state.runPending }),
   useDeleteEvalCase: () => ({ mutate: deleteMutate, isPending: false }),
+  useRunEvalCase: () => ({ mutateAsync: runCaseAsync, isPending: false }),
+  useUpdateEvalCase: () => ({ mutate: updateMutate, isPending: false }),
 }));
 
 import { EvalsTab } from "./EvalsTab";
@@ -35,6 +39,8 @@ afterEach(cleanup);
 beforeEach(() => {
   runMutate.mockReset();
   deleteMutate.mockReset();
+  runCaseAsync.mockReset();
+  updateMutate.mockReset();
   refetch.mockReset();
   push.mockReset();
   overviewCall.mockReset();
@@ -236,6 +242,118 @@ describe("EvalsTab", () => {
     expect(runMutate).not.toHaveBeenCalled();
     expect(deleteMutate).not.toHaveBeenCalled();
   });
+  describe("single-case run and edit", () => {
+    const RESULT = { status: "passed", error: null, kept: 1, dropped: 0, kept_findings: [], cost_usd: null, duration_ms: 1800 };
+    const rowOf = (name: string) => screen.getByText(name).closest("div")!.parentElement as HTMLElement;
+
+    it("links to the full dashboard", () => {
+      state.data = overview(THREE());
+      renderTab();
+      expect(screen.getByRole("link", { name: evalMessages.evalsTab.viewDashboard })).toHaveAttribute("href", "/eval");
+    });
+
+    it("every row has Run and Edit beside Delete", () => {
+      state.data = overview(THREE());
+      renderTab();
+      expect(screen.getAllByRole("button", { name: evalMessages.evalsTab.run })).toHaveLength(3);
+      expect(screen.getAllByRole("button", { name: evalMessages.evalsTab.edit })).toHaveLength(3);
+    });
+
+    it("Run shows the result inline on that row only; no refetch, history untouched", async () => {
+      state.data = overview(THREE(), [run("r1")]);
+      runCaseAsync.mockResolvedValue(RESULT);
+      renderTab();
+      fireEvent.click(screen.getAllByRole("button", { name: evalMessages.evalsTab.run })[1]!);
+      expect(runCaseAsync).toHaveBeenCalledWith("c2");
+      const result = await screen.findByTestId("single-run-result");
+      expect(rowOf("case-c2")).toContainElement(result);
+      expect(result).toHaveTextContent("—");
+      expect(screen.getAllByTestId("single-run-result")).toHaveLength(1);
+      // not a run: no overview refetch, no run mutation, the row's stored status is unchanged
+      expect(refetch).not.toHaveBeenCalled();
+      expect(runMutate).not.toHaveBeenCalled();
+      expect(within(rowOf("case-c2")).getByText(evalMessages.status.failed)).toBeInTheDocument();
+      expect(screen.getAllByRole("row")).toHaveLength(2);
+    });
+
+    it("the row shows a pending state while its run is in flight", async () => {
+      state.data = overview(THREE());
+      let done!: (v: unknown) => void;
+      runCaseAsync.mockReturnValue(new Promise((r) => (done = r)));
+      renderTab();
+      fireEvent.click(screen.getAllByRole("button", { name: evalMessages.evalsTab.run })[0]!);
+      expect(await screen.findByRole("button", { name: evalMessages.evalsTab.running })).toBeDisabled();
+      expect(screen.getAllByRole("button", { name: evalMessages.evalsTab.run })).toHaveLength(2);
+      done(RESULT);
+      await screen.findByTestId("single-run-result");
+      expect(screen.queryByRole("button", { name: evalMessages.evalsTab.running })).not.toBeInTheDocument();
+    });
+
+    it("a failed Run shows the reason inline", async () => {
+      state.data = overview(THREE());
+      runCaseAsync.mockRejectedValue(new Error("boom"));
+      renderTab();
+      fireEvent.click(screen.getAllByRole("button", { name: evalMessages.evalsTab.run })[0]!);
+      expect(await screen.findByText(evalMessages.turnInto.errors.runGeneric)).toBeInTheDocument();
+    });
+
+    it("Edit opens a form with name and lines prefilled; file and type are not inputs", () => {
+      state.data = overview(THREE());
+      renderTab();
+      fireEvent.click(screen.getAllByRole("button", { name: evalMessages.evalsTab.edit })[0]!);
+      expect(screen.getByLabelText(evalMessages.evalsTab.nameLabel)).toHaveValue("case-c1");
+      expect(screen.getByLabelText(evalMessages.evalsTab.startLabel)).toHaveValue("11");
+      expect(screen.getByLabelText(evalMessages.evalsTab.endLabel)).toHaveValue("14");
+      expect(screen.getAllByRole("textbox")).toHaveLength(3);
+    });
+
+    it("Save patches with the trimmed edit and closes the form", () => {
+      state.data = overview(THREE());
+      updateMutate.mockImplementation((_v, opts) => opts.onSuccess());
+      renderTab();
+      fireEvent.click(screen.getAllByRole("button", { name: evalMessages.evalsTab.edit })[0]!);
+      fireEvent.change(screen.getByLabelText(evalMessages.evalsTab.nameLabel), { target: { value: " new " } });
+      fireEvent.change(screen.getByLabelText(evalMessages.evalsTab.endLabel), { target: { value: "20" } });
+      fireEvent.click(screen.getByRole("button", { name: evalMessages.evalsTab.save }));
+      expect(updateMutate.mock.calls[0]![0]).toEqual({
+        caseId: "c1",
+        edit: { name: "new", start_line: 11, end_line: 20 },
+      });
+      expect(screen.queryByLabelText(evalMessages.evalsTab.nameLabel)).not.toBeInTheDocument();
+    });
+
+    it("a server refusal stays inline and keeps the form and edits", () => {
+      state.data = overview(THREE());
+      updateMutate.mockImplementation((_v, opts) =>
+        opts.onError(new ApiError("x", 409, "eval_case_conflict", { case_name: "other" })),
+      );
+      renderTab();
+      fireEvent.click(screen.getAllByRole("button", { name: evalMessages.evalsTab.edit })[0]!);
+      fireEvent.change(screen.getByLabelText(evalMessages.evalsTab.nameLabel), { target: { value: "mine" } });
+      fireEvent.click(screen.getByRole("button", { name: evalMessages.evalsTab.save }));
+      expect(screen.getByRole("alert")).toHaveTextContent("other");
+      expect(screen.getByLabelText(evalMessages.evalsTab.nameLabel)).toHaveValue("mine");
+    });
+
+    it("client validation disables Save with a reason", () => {
+      state.data = overview(THREE());
+      renderTab();
+      fireEvent.click(screen.getAllByRole("button", { name: evalMessages.evalsTab.edit })[0]!);
+      fireEvent.change(screen.getByLabelText(evalMessages.evalsTab.startLabel), { target: { value: "30" } });
+      expect(screen.getByRole("button", { name: evalMessages.evalsTab.save })).toBeDisabled();
+      expect(screen.getByRole("alert")).toHaveTextContent(evalMessages.caseModal.validation.startAfterEnd);
+    });
+
+    it("Cancel closes the form without patching", () => {
+      state.data = overview(THREE());
+      renderTab();
+      fireEvent.click(screen.getAllByRole("button", { name: evalMessages.evalsTab.edit })[0]!);
+      fireEvent.click(screen.getByRole("button", { name: evalMessages.evalsTab.cancel }));
+      expect(updateMutate).not.toHaveBeenCalled();
+      expect(screen.queryByLabelText(evalMessages.evalsTab.nameLabel)).not.toBeInTheDocument();
+    });
+  });
+
   describe("metrics and history", () => {
     const T = (n: number) => `2026-05-0${n}T10:00:00.000Z`;
     const stamp = (n: number) => new Date(T(n)).toLocaleString();

@@ -3,6 +3,7 @@ import {
   EvalExpectation,
   EvalFrozenMeta,
   type EvalCaseResult,
+  type EvalSingleRun,
   type Provider,
 } from '@devdigest/shared';
 import type { Container } from '../../platform/container.js';
@@ -38,6 +39,15 @@ function withIds(logger: EvalLogger | undefined, ids: Record<string, string>): E
     debug: wrap(logger.debug.bind(logger)),
   };
 }
+
+/** What the engine needs of a case: a stored row, or an unsaved draft (`id: null`). */
+export type EvalCaseLike = {
+  id: string | null;
+  name: string;
+  inputDiff: string | null;
+  inputMeta: unknown;
+  expectedOutput: unknown;
+};
 
 /**
  * Background execution of one eval run. Everything it needs (agent row, cases,
@@ -103,22 +113,59 @@ export class EvalRunExecutor {
     }
   }
 
-  private async evaluateCase(
-    c: EvalCaseDbRow,
+  /**
+   * AC-50: review ONE case (stored or unsaved) once with the agent's current configuration, through
+   * the same `evaluateCase` a run uses. Records nothing. Never throws: a failure is status `error`.
+   */
+  async runSingle(
+    c: EvalCaseLike,
     agent: AgentRow,
     skills: SkillPart[],
-    llm: Awaited<ReturnType<Container['llm']>>,
-    log: EvalLogger | undefined,
-  ): Promise<EvalCaseResult> {
+    logger?: EvalLogger,
+  ): Promise<EvalSingleRun> {
+    const start = Date.now();
+    const log = withIds(logger, { agentId: agent.id, ...(c.id ? { caseId: c.id } : {}) });
+    let result: EvalCaseResult;
+    try {
+      const llm = await this.container.llm(agent.provider as Provider);
+      result = await this.evaluateCase(c, agent, skills, llm, log);
+    } catch (err) {
+      const reason = cut((err as Error).message);
+      log?.warn({ event: 'eval_case', status: 'error', reason }, 'single eval case: provider unavailable');
+      result = { ...this.baseOf(c), status: 'error', kept: 0, dropped: 0, kept_findings: [], cost_usd: null, error: reason };
+    }
+    return {
+      status: result.status,
+      error: result.error,
+      kept: result.kept,
+      dropped: result.dropped,
+      kept_findings: result.kept_findings,
+      cost_usd: result.cost_usd,
+      duration_ms: Date.now() - start,
+    };
+  }
+
+  private baseOf(c: EvalCaseLike) {
     const exp = EvalExpectation.safeParse(c.expectedOutput);
-    const base = {
-      case_id: c.id,
+    return {
+      case_id: c.id ?? '',
       name: c.name,
       type: exp.success ? exp.data.type : ('must_find' as const),
       file: exp.success ? exp.data.file : '',
       start_line: exp.success ? exp.data.start_line : 0,
       end_line: exp.success ? exp.data.end_line : 0,
     };
+  }
+
+  private async evaluateCase(
+    c: EvalCaseLike,
+    agent: AgentRow,
+    skills: SkillPart[],
+    llm: Awaited<ReturnType<Container['llm']>>,
+    log: EvalLogger | undefined,
+  ): Promise<EvalCaseResult> {
+    const exp = EvalExpectation.safeParse(c.expectedOutput);
+    const base = this.baseOf(c);
     const failed = (reason: string): EvalCaseResult => ({
       ...base,
       status: 'error',
@@ -136,7 +183,7 @@ export class EvalRunExecutor {
       const verbose = this.container.config?.promptLogVerbose === true;
       const ids = {
         call: 'review' as const,
-        correlationId: c.id,
+        correlationId: c.id ?? 'draft',
         prId: meta.data.pr_id,
         provider: agent.provider,
         model: agent.model,

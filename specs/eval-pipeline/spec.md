@@ -43,7 +43,8 @@ Users:
 
 - G1. An accepted or dismissed finding becomes an eval case of its agent in one click. The case holds
   a frozen input and one `must_find` or `must_not_flag` expectation.
-- G2. The owner sees the agent's whole set of cases and can delete a case.
+- G2. The owner sees the agent's whole set of cases and can delete a case, edit its name and zone,
+  and run one case on its own (AC-49 to AC-51).
 - G3. An eval run starts only on request and runs in the background. It uses the same engine and
   grounding gate as a pull-request review, and gives the model only the agent's configuration and
   each case's frozen input.
@@ -58,8 +59,9 @@ Users:
 Non-goals:
 
 - NG1. An LLM judge, or any model call during scoring (R6).
-- NG2. A manual case editor: no case is created or edited by hand (stretch). The unused `caseEditor`
-  strings stay unused.
+- NG2. A manual case editor: no case is created by hand from a blank input (stretch). A case is
+  still born only from a decided finding. After the mentor review, its name and zone can be edited
+  before it is saved (AC-46, AC-47) and after (AC-51); its type and frozen input never can.
 - NG3. A metric trend chart (stretch).
 - NG4. Evals of skills (`owner_kind: skill`), and an Evals tab in the skill editor.
 - NG5. Any automatic run, for example on saving a prompt, on a schedule or on opening a page. Also no
@@ -134,21 +136,24 @@ Non-goals:
 - AC-1 (UI, R2, US-1). The system shall display a "Turn into eval case" control next to Accept and
   Dismiss on a finding card. The control is enabled only while the finding is accepted or
   dismissed.
-- AC-2 (R1, R2, C-2). WHEN the user activates the control on a decided finding, the system shall
-  create one eval case of the owner agent, with no further input. It shall then display a
-  confirmation that links to that agent's Evals tab. The case has:
+- AC-2 (R1, R2, C-2). WHEN the user saves the eval case modal of a decided finding (AC-46, AC-47),
+  the system shall create one eval case of the owner agent. It shall then display a confirmation
+  that links to that agent's Evals tab. The case has:
   - expectation type `must_find` for an accepted finding, or `must_not_flag` for a dismissed one;
-  - the finding's file, start line, end line and title as its expectation;
-  - the finding's title as its name;
+  - the finding's file and title, and the zone's start and end line as saved in the modal (the
+    finding's own lines unless the user changed them), as its expectation;
+  - the name as saved in the modal (the finding's title unless the user changed it);
   - a reference to the finding as its source.
 - AC-3 (R1). The system shall store the frozen input in the case at creation. The frozen input and
-  the expectation never change afterwards, even when:
+  the expectation type never change afterwards; the name and the zone change only through Edit
+  (AC-51). None of them changes when:
   - the source pull request is re-synced or gets a new head;
   - its reviews are re-run or deleted;
   - the source finding gets a new decision or is deleted.
 - AC-4 (R2). The system shall hold at most one case per source finding, including when requests
-  arrive at the same time. Activating the control again on a finding that has a case creates
-  nothing, and shows the AC-2 confirmation for the existing case.
+  arrive at the same time. Activating the control again on a finding that has a case opens no
+  modal, creates nothing, and shows the AC-2 confirmation for the existing case. A Save that
+  races another one for the same finding creates nothing and shows the same confirmation.
 - AC-5 (R3). IF any of the following holds THEN the system shall refuse to create the case, store
   nothing, and display a message that names the reason:
   - the pull request holds no non-empty patch text for the finding's file;
@@ -170,6 +175,57 @@ Non-goals:
     case was not in that run.
 - AC-7 (UI). WHEN the user confirms the deletion of a case, the system shall remove the case from the
   set. The stored metrics and per-case results of earlier runs stay unchanged.
+
+#### After the mentor review (2026-10-16)
+
+- AC-46 (UI, US-1). WHEN the user activates "Turn into eval case" on a decided finding that has no
+  case, the system shall open the eval case modal instead of creating a case. The modal shows:
+  - a fragment of the frozen input: the hunks of the finding's file that the zone meets, with the
+    zone's lines highlighted, redrawn when the zone changes;
+  - the name, editable, prefilled with the finding's title;
+  - the type, from the human decision (`must_find` for accepted, `must_not_flag` for dismissed),
+    read-only;
+  - the zone: the file, read-only, and the start and end line, editable, prefilled from the
+    finding;
+  - Run case, Save and Cancel.
+
+  Opening the modal makes no model call and stores nothing. IF the finding cannot become a case
+  for one of the first three reasons of AC-5, THEN the modal shows that reason, and Run case and
+  Save are disabled. Cancel closes the modal, stores nothing and makes no model call.
+- AC-47 (R3). WHEN the user activates Save in the modal, the system shall create the case through
+  the same creation path as AC-2, with every check of AC-4, AC-5 and AC-45 applied to the edited
+  name and zone, plus these zone checks (the same as in AC-51):
+  - the name is not empty after trimming, and is at most 200 characters;
+  - the start line is at least 1 and not after the end line;
+  - the zone meets at least one hunk of the frozen input (the second reason of AC-5).
+
+  IF a check fails THEN the system shall store nothing, keep the modal open with the user's edits,
+  and display the message that names the reason. On success it closes the modal and shows the AC-2
+  confirmation.
+- AC-48 (R5). WHEN the user activates Run case in the modal, the system shall review the unsaved
+  case once and display the result in the modal (AC-50). The unsaved case is the frozen input that
+  Save would store, with the edited zone as its expectation. The zone checks of AC-47 apply first.
+  It stores nothing: no case and no run.
+- AC-49 (UI, US-2). The Evals tab shall display Run and Edit next to Delete on each case. WHEN the
+  user activates Run on a case, the system shall review that stored case once and display the
+  result inline on its row (AC-50).
+- AC-50 (R4, R5, R12). A single-case run (Run case in the modal, or Run on a case):
+  - reviews the case exactly as a run reviews it (AC-10, AC-11, AC-33, EC-27), with the agent's
+    current configuration (AC-9) and through the same executor function, saved case or not;
+  - makes exactly one model call (AC-34);
+  - displays the case status (`passed`, `failed`, or `error` with its reason), the kept and
+    dropped counts, the duration, and the cost: "—" when unknown, as in AC-22;
+  - is not a run: it records nothing, and does not appear in the run history, Compare or the Eval
+    Dashboard. It does not change the case's status in AC-6, and AC-13 neither blocks it nor is
+    blocked by it.
+- AC-51 (UI, R3, R11). WHEN the user activates Edit on a case, the system shall let the user change
+  the case's name and zone (start and end line). The file, the type and the frozen input stay
+  read-only. WHEN the user saves the edit, the system shall apply the checks of AC-47 against the
+  case's own frozen input, and refuse a zone that conflicts with an opposite-type case of the same
+  agent (AC-45; the case itself does not count). IF a check fails THEN nothing changes and the
+  message names the reason. Earlier runs keep their per-case copies (AC-20).
+- AC-52 (UI, US-6). The Evals tab shall display a "View full dashboard" link that opens the Eval
+  Dashboard (`/eval`).
 
 ### Running
 
@@ -304,11 +360,13 @@ diff always takes the engine's single-pass path. The provider's existing structu
 may re-ask within that call, and only when the output fails the schema. With a model stub that
 returns valid output, the counts below are exact.
 
-- AC-34 (R5). A run over N cases shall make exactly N model calls, one per case.
+- AC-34 (R5). A run over N cases shall make exactly N model calls, one per case. A single-case
+  run (AC-50) makes exactly one.
 - AC-35 (R6, C-4). Computing matches, case statuses and metrics shall make zero model calls.
 - AC-36 (R13). None of the following shall make a model call or start a run:
   - opening the Evals tab, Compare, the Eval Dashboard or a pull request's findings;
-  - creating or deleting a case.
+  - opening, saving or cancelling the eval case modal (AC-46, AC-47);
+  - creating, editing or deleting a case.
 
 ### Boundary with `evals/`
 
@@ -653,6 +711,13 @@ answers. They are folded into AC-1 to AC-44, EC-1 to EC-25, NFR-10 to NFR-15 and
 revision of the same day added AC-45, EC-26 and NFR-16 and changed AC-5, AC-22 and EC-7.
 
 ## Changelog
+
+- 2026-10-16 — after mentor review (HW6 accepted, four follow-ups, built in HW7): AC-46 to AC-52
+  added. "Turn into eval case" opens an eval case modal (the design's `EvalCaseEditor`): frozen-diff
+  fragment with the zone highlighted, editable name and zone, read-only type, Run case, Save,
+  Cancel. The Evals tab gets Run and Edit per case and a "View full dashboard" link. A single-case
+  run is one model call, is never recorded as a run, and shows its cost. AC-2, AC-3, AC-4, AC-34,
+  AC-36, G2 and NG2 changed to match; no other criterion changes.
 
 - 2026-10-15 — EC-27 added: a per-case deadline, `EVAL_CASE_TIMEOUT_MS` = 120 s. A case still
   waiting for the model after it becomes `error` with the reason "timeout", and the run goes on.
