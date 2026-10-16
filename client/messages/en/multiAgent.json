@@ -1,0 +1,109 @@
+{
+  "picker": {
+    "title": "Choose agents",
+    "open": "Multi-agent review…",
+    "modalTitle": "Multi-agent review",
+    "estimate": "{cost} · {time}",
+    "total": "Total: {cost} · {time}",
+    "launch": "Run multi-agent review ({count})",
+    "max": "At most 5 agents can run together.",
+    "needTwo": "Pick at least 2 enabled agents.",
+    "none": "No enabled agents.",
+    "loading": "Loading estimates…",
+    "dash": "—"
+  },
+  "link": {
+    "latest": "Latest multi-agent review"
+  },
+  "error": {
+    "invalidAgents": "One of the chosen agents is no longer available. Refresh and pick again.",
+    "launch": "Could not start the multi-agent review. Try again."
+  },
+  "page": {
+    "crumbLab": "Workspace",
+    "crumb": "Multi-Agent Review",
+    "runFallback": "Run",
+    "loading": "Loading multi-agent review…",
+    "loadErrorTitle": "Could not load this multi-agent review",
+    "loadErrorBody": "Check that the API is running and try again.",
+    "refreshNotice": "Could not refresh. Showing the last known state.",
+    "wallClock": "Wall-clock",
+    "tokens": "Tokens",
+    "cost": "Cost",
+    "agents": "Agents",
+    "status": {
+      "running": "Running",
+      "done": "Done",
+      "failed": "Failed"
+    }
+  },
+  "column": {
+    "title": "Agent runs",
+    "deletedAgent": "Deleted agent",
+    "duration": "Duration",
+    "tokens": "Tokens",
+    "cost": "Cost",
+    "findings": "Findings",
+    "score": "Score",
+    "viewTrace": "View trace",
+    "cancel": "Cancel run",
+    "status": {
+      "queued": "Queued",
+      "running": "Running",
+      "done": "Done",
+      "failed": "Failed",
+      "cancelled": "Cancelled",
+      "unknown": "Pending"
+    }
+  },
+  "groups": {
+    "title": "Finding groups",
+    "empty": "No findings to group.",
+    "expand": "Show findings",
+    "collapse": "Hide findings",
+    "agentsLabel": "Flagged by"
+  },
+  "disagree": {
+    "title": "Where agents disagree",
+    "finding": "Finding",
+    "empty": "Nothing to compare yet.",
+    "noConflicts": "No conflicts between the agents.",
+    "onlyConflicts": "Show only conflicts",
+    "conflict": "Conflict"
+  },
+  "cell": {
+    "CRITICAL": "Critical",
+    "WARNING": "Warning",
+    "SUGGESTION": "Suggestion",
+    "did_not_flag": "Did not flag",
+    "failed": "Failed",
+    "pending": "Pending"
+  },
+  "list": {
+    "title": "Multi-agent reviews",
+    "subtitle": "Several agents on one pull request, side by side.",
+    "new": "New multi-agent review",
+    "loading": "Loading multi-agent reviews…",
+    "loadErrorTitle": "Could not load multi-agent reviews",
+    "loadErrorBody": "Check that the API is running and try again.",
+    "emptyTitle": "No multi-agent reviews yet",
+    "emptyBody": "Start one to compare several agents on the same pull request.",
+    "emptyCta": "Start your first one",
+    "table": {
+      "pullRequest": "Pull request",
+      "agents": "Agents",
+      "status": "Status",
+      "wallClock": "Wall-clock",
+      "cost": "Cost",
+      "started": "Started"
+    }
+  },
+  "newRun": {
+    "title": "New multi-agent review",
+    "repo": "Repository",
+    "pr": "Pull request",
+    "chooseRepo": "Choose a repository",
+    "choosePr": "Choose a pull request",
+    "noPulls": "No pull requests in this repository."
+  }
+}

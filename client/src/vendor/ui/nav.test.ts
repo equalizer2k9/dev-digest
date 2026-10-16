@@ -9,7 +9,7 @@ const contextItem = workspace?.items.find((i) => i.key === "context");
 
 describe("nav — Project Context", () => {
   it("follows Pull Requests in WORKSPACE", () => {
-    expect(workspace?.items.map((i) => i.key)).toEqual(["pulls", "context"]);
+    expect(workspace?.items.map((i) => i.key)).toEqual(["pulls", "context", "multi-agent"]);
   });
 
   it("carries the label and the repo-scoped href, with no g-chord", () => {
@@ -81,5 +81,13 @@ describe("nav — CI Runs", () => {
   it("has its own CI group with the label and href, not repo-scoped, no g-chord", () => {
     expect(ci?.items).toEqual([{ key: "ci-runs", label: "CI Runs", icon: "Activity", href: "/ci-runs" }]);
     expect(resolveHref(ci!.items[0]!.href, "repo-42")).toBe("/ci-runs");
+  });
+});
+
+describe("nav — Multi-Agent Review", () => {
+  it("is a workspace-wide WORKSPACE item with no repo token and no g-chord", () => {
+    const it = workspace?.items.find((i) => i.key === "multi-agent");
+    expect(it).toMatchObject({ label: "Multi-Agent Review", icon: "Layers", href: "/multi-agent" });
+    expect(it?.gKey).toBeUndefined();
   });
 });

@@ -14,8 +14,8 @@ import {
 import { notify } from "@/lib/toast";
 import { latestFindingsPerAgent } from "@/lib/findings";
 import type { PrFile } from "@devdigest/shared";
-import { FindingCard } from "../FindingCard";
-import { EvalCaseButton } from "../EvalCaseButton";
+import { FindingCard } from "@/components/findings/FindingCard";
+import { EvalCaseButton } from "@/components/eval/EvalCaseButton";
 import { DiffRoleGroup } from "../DiffRoleGroup";
 import { ROLE_META } from "./constants";
 import { countFilesWithFindings, groupFiles, pathsWithFindings } from "./helpers";

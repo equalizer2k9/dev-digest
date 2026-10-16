@@ -63,7 +63,7 @@ import { RepoCtx } from "../../lib/repo-context";
 import { IntentCard } from "../../app/repos/[repoId]/pulls/[number]/_components/IntentCard";
 import { ApiError } from "../../lib/api";
 import { FileCard } from "../diff-viewer";
-import { FindingCard } from "../../app/repos/[repoId]/pulls/[number]/_components/FindingCard";
+import { FindingCard } from "../findings/FindingCard";
 import { DiffRoleGroup } from "../../app/repos/[repoId]/pulls/[number]/_components/DiffRoleGroup";
 import { BlastRadius } from "../../app/repos/[repoId]/pulls/[number]/_components/BlastRadius";
 import { PrBriefBlock } from "../../app/repos/[repoId]/pulls/[number]/_components/PrBriefBlock";
@@ -77,6 +77,11 @@ import { EvalRunTable } from "../eval/EvalRunTable";
 import ciMessages from "../../../messages/en/ci.json";
 import { CiRunsTable } from "../ci/CiRunsTable";
 import { ExportWizard } from "../ci/ExportWizard";
+import multiAgentMessages from "../../../messages/en/multiAgent.json";
+import { MultiAgentPicker } from "../multi-agent";
+import { AgentColumns } from "../../app/multi-agent/[id]/_components/AgentColumns";
+import { FindingGroups } from "../../app/multi-agent/[id]/_components/FindingGroups";
+import { DisagreementsSection } from "../../app/multi-agent/[id]/_components/DisagreementsSection";
 import { s } from "./styles";
 import {
   SEVERITIES,
@@ -102,6 +107,11 @@ import {
   SHOWCASE_CI_REPOS,
   SHOWCASE_CI_FILES,
   SHOWCASE_CI_AGENT,
+} from "./constants";
+import {
+  SHOWCASE_MULTI_ESTIMATES,
+  SHOWCASE_MULTI_AGENTS,
+  SHOWCASE_MULTI_GROUPS,
 } from "./constants";
 
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
@@ -580,6 +590,39 @@ export function Gallery() {
                 onClose={() => {}}
                 initial={{ step: 1, repoId: SHOWCASE_CI_REPOS[0]!.id, files: SHOWCASE_CI_FILES }}
               />
+            </div>
+          </Group>
+        </QueryClientProvider>
+      </NextIntlClientProvider>
+
+      {/* Multi-agent review: presentational pieces on fixtures; hooks they call never fire a request. */}
+      <NextIntlClientProvider
+        locale="en"
+        messages={{ multiAgent: multiAgentMessages, prReview: prReviewMessages, eval: evalMessages }}
+      >
+        <QueryClientProvider client={galleryQc}>
+          <Group title="Multi-agent (MultiAgentPicker)">
+            <div style={s.w460}>
+              <MultiAgentPicker
+                estimates={SHOWCASE_MULTI_ESTIMATES}
+                loading={false}
+                selected={["ma-1", "ma-2"]}
+                onChange={() => {}}
+                onLaunch={() => {}}
+                launching={false}
+                error={null}
+              />
+            </div>
+          </Group>
+          <Group title="Multi-agent (AgentColumns / FindingGroups / DisagreementsSection)">
+            <div style={s.w460}>
+              <AgentColumns agents={SHOWCASE_MULTI_AGENTS} prNumber={21} />
+            </div>
+            <div style={s.w460}>
+              <FindingGroups groups={SHOWCASE_MULTI_GROUPS} agents={SHOWCASE_MULTI_AGENTS} multiRunId="mm-demo" />
+            </div>
+            <div style={s.w460}>
+              <DisagreementsSection groups={SHOWCASE_MULTI_GROUPS} agents={SHOWCASE_MULTI_AGENTS} />
             </div>
           </Group>
         </QueryClientProvider>

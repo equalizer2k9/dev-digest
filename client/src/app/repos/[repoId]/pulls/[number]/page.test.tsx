@@ -32,7 +32,7 @@ vi.mock("./_components/PrDetailHeader", () => ({
   ),
 }));
 vi.mock("./_components/FindingsTab", () => ({ FindingsTab: () => null }));
-vi.mock("./_components/RunTraceDrawer", () => ({ default: () => null }));
+vi.mock("@/components/run-trace/RunTraceDrawer", () => ({ default: () => null }));
 vi.mock("./_components/DiffTab", () => ({
   DiffTab: ({ target }: { target: unknown }) => <div data-testid="diff-tab">{JSON.stringify(target)}</div>,
 }));
