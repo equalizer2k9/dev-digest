@@ -336,15 +336,16 @@ export type CiRun = z.infer<typeof CiRun>;
  * Ingested back on refresh to populate `ci_runs` (L06).
  */
 export const CiResultArtifact = z.object({
-  findings_count: z.number().int(),
-  critical: z.number().int().nullish(),
-  warning: z.number().int().nullish(),
-  suggestion: z.number().int().nullish(),
-  cost_usd: z.number().nullable(),
-  duration_ms: z.number().int().nullish(),
+  // Bounds: the artifact is untrusted input (AC-10). Maxima are generous, finite caps.
+  findings_count: z.number().int().min(0).max(10_000),
+  critical: z.number().int().min(0).max(10_000).nullish(),
+  warning: z.number().int().min(0).max(10_000).nullish(),
+  suggestion: z.number().int().min(0).max(10_000).nullish(),
+  cost_usd: z.number().min(0).max(1_000).nullable(),
+  duration_ms: z.number().int().min(0).max(86_400_000).nullish(), // 24 h
   agent: z.string(),
   version: z.string().nullish(),
-  pr_number: z.number().int().nullish(),
+  pr_number: z.number().int().positive().max(2_147_483_647).nullish(), // int4 max
 });
 export type CiResultArtifact = z.infer<typeof CiResultArtifact>;
 

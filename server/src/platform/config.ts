@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { z } from 'zod';
 import { homedir } from 'node:os';
 import { join, isAbsolute, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /**
  * Central, zod-validated environment config. Loaded once at startup.
@@ -29,6 +30,8 @@ const EnvSchema = z.object({
   API_PORT: z.coerce.number().int().default(3001),
   WEB_PORT: z.coerce.number().int().default(3000),
   DEVDIGEST_CLONE_DIR: z.string().optional(),
+  // Export to CI: directory of the built agent-runner (defaults to <repo>/agent-runner/dist/).
+  CI_RUNNER_DIR: z.string().optional(),
   // Local-only: log short text previews of assembled prompt sections at debug.
   // Inert unless NODE_ENV=development (see promptLogVerbose below).
   PROMPT_LOG_VERBOSE: z.string().optional(),
@@ -47,6 +50,8 @@ export type AppConfig = {
   webPort: number;
   /** Absolute path where repos are cloned (~/.devdigest/workspace by default). */
   cloneDir: string;
+  /** Absolute path to the built CI runner (`agent-runner/dist/`) that Export to CI bundles. */
+  ciRunnerDir: string;
   /** Absolute path to the writable secrets store (BYO keys from the UI). */
   secretsPath: string;
   nodeEnv: 'development' | 'test' | 'production';
@@ -71,11 +76,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const cloneDirRaw =
     parsed.DEVDIGEST_CLONE_DIR ?? join(homedir(), '.devdigest', 'workspace');
   const cloneDir = isAbsolute(cloneDirRaw) ? cloneDirRaw : resolve(process.cwd(), cloneDirRaw);
+  const ciRunnerDir = parsed.CI_RUNNER_DIR
+    ? resolve(process.cwd(), parsed.CI_RUNNER_DIR)
+    : fileURLToPath(new URL('../../../agent-runner/dist/', import.meta.url));
   return {
     databaseUrl: parsed.DATABASE_URL,
     apiPort: parsed.API_PORT,
     webPort: parsed.WEB_PORT,
     cloneDir,
+    ciRunnerDir,
     secretsPath: join(homedir(), '.devdigest', 'secrets.json'),
     nodeEnv: parsed.NODE_ENV,
     logLevel: parsed.LOG_LEVEL ?? (parsed.NODE_ENV === 'test' ? 'silent' : 'info'),

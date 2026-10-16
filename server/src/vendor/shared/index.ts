@@ -27,4 +27,5 @@ export * from './contracts/observability.js';
 export * from './contracts/productionize.js';
 export * from './contracts/project-context.js';
 export * from './contracts/multi-agent.js';
+export * from './contracts/ci.js';
 export * from './adapters.js';

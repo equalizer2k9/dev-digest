@@ -11,11 +11,26 @@ import type {
   OpenPrPayload,
   CommitFilesPayload,
   IssueMeta,
+  WorkflowRunInfo,
+  ArtifactDownload,
 } from '@devdigest/shared';
 import { withRetry, withTimeout } from '../../platform/resilience.js';
 import { FileTooLargeError } from '../file-too-large.js';
+import { GitHubWorkflowPermissionError } from './errors.js';
 
 const TIMEOUT = 30_000;
+/** Largest CI artifact zip we download (AC-10); the real result file is a few hundred bytes. */
+const MAX_ARTIFACT_DOWNLOAD_BYTES = 1024 * 1024;
+
+/** 403, or any message naming `workflow`, on a write step = the token may not touch workflow files. */
+function asWorkflowPermission(err: unknown): unknown {
+  const status = (err as { status?: number } | null)?.status;
+  const message = err instanceof Error ? err.message : String(err);
+  if (status === 403 || /workflow/i.test(message)) {
+    return new GitHubWorkflowPermissionError(message.slice(0, 300));
+  }
+  return err;
+}
 
 function mapStatus(state: string, merged: boolean | undefined): PrStatus {
   if (merged) return 'merged';
@@ -285,43 +300,47 @@ export class OctokitGitHubClient implements GitHubClient {
             parentSha = baseRef.data.object.sha;
           }
 
-          // New tree layered on the parent's tree (so unrelated files are kept).
-          const parentCommit = await g.getCommit({ owner, repo: name, commit_sha: parentSha });
-          const tree = await g.createTree({
-            owner,
-            repo: name,
-            base_tree: parentCommit.data.tree.sha,
-            tree: payload.files.map((f) => ({
-              path: f.path,
-              mode: '100644',
-              type: 'blob',
-              content: f.contents,
-            })),
-          });
-
-          const commit = await g.createCommit({
-            owner,
-            repo: name,
-            message: payload.message,
-            tree: tree.data.sha,
-            parents: [parentSha],
-          });
-
-          if (branchExists) {
-            await g.updateRef({
+          try {
+            // New tree layered on the parent's tree (so unrelated files are kept).
+            const parentCommit = await g.getCommit({ owner, repo: name, commit_sha: parentSha });
+            const tree = await g.createTree({
               owner,
               repo: name,
-              ref: `heads/${payload.branch}`,
-              sha: commit.data.sha,
-              force: true,
+              base_tree: parentCommit.data.tree.sha,
+              tree: payload.files.map((f) => ({
+                path: f.path,
+                mode: '100644',
+                type: 'blob',
+                content: f.contents,
+              })),
             });
-          } else {
-            await g.createRef({
+
+            const commit = await g.createCommit({
               owner,
               repo: name,
-              ref: `refs/heads/${payload.branch}`,
-              sha: commit.data.sha,
+              message: payload.message,
+              tree: tree.data.sha,
+              parents: [parentSha],
             });
+
+            if (branchExists) {
+              await g.updateRef({
+                owner,
+                repo: name,
+                ref: `heads/${payload.branch}`,
+                sha: commit.data.sha,
+                force: true,
+              });
+            } else {
+              await g.createRef({
+                owner,
+                repo: name,
+                ref: `refs/heads/${payload.branch}`,
+                sha: commit.data.sha,
+              });
+            }
+          } catch (err) {
+            throw asWorkflowPermission(err);
           }
           return { branch: payload.branch };
         })(),
@@ -389,6 +408,66 @@ export class OctokitGitHubClient implements GitHubClient {
       if ((err as { status?: number }).status === 404) return null;
       throw err;
     }
+  }
+
+  async listWorkflowRuns(
+    repo: RepoRef,
+    workflowFile: string,
+    limit: number,
+  ): Promise<WorkflowRunInfo[]> {
+    try {
+      const res = await withRetry(() =>
+        withTimeout(
+          this.octokit.rest.actions.listWorkflowRuns({
+            owner: repo.owner,
+            repo: repo.name,
+            workflow_id: workflowFile,
+            status: 'completed',
+            per_page: limit,
+          }),
+          TIMEOUT,
+        ),
+      );
+      return res.data.workflow_runs.map((r) => ({
+        id: r.id,
+        html_url: r.html_url,
+        conclusion: r.conclusion ?? null,
+        pr_number: r.pull_requests?.[0]?.number ?? null,
+        head_repo: r.head_repository?.full_name ?? null,
+        completed_at: r.updated_at,
+      }));
+    } catch (err) {
+      // The workflow file is absent on the default branch until the install PR is merged.
+      if ((err as { status?: number }).status === 404) return [];
+      throw err;
+    }
+  }
+
+  async downloadArtifact(repo: RepoRef, runId: number, name: string): Promise<ArtifactDownload> {
+    return withRetry(() =>
+      withTimeout(
+        (async () => {
+          const list = await this.octokit.rest.actions.listWorkflowRunArtifacts({
+            owner: repo.owner,
+            repo: repo.name,
+            run_id: runId,
+            name,
+          });
+          const artifact = list.data.artifacts[0];
+          if (!artifact) return { kind: 'missing' } as const;
+          if (artifact.expired) return { kind: 'expired' } as const;
+          if (artifact.size_in_bytes > MAX_ARTIFACT_DOWNLOAD_BYTES) return { kind: 'too_large' } as const;
+          const res = await this.octokit.rest.actions.downloadArtifact({
+            owner: repo.owner,
+            repo: repo.name,
+            artifact_id: artifact.id,
+            archive_format: 'zip',
+          });
+          return { kind: 'ok', zip: new Uint8Array(res.data as ArrayBuffer) } as const;
+        })(),
+        TIMEOUT,
+      ),
+    );
   }
 
   async currentLogin(): Promise<string> {

@@ -1,6 +1,10 @@
 import type { Severity } from "@devdigest/ui";
 import type {
+  Agent,
   BlastRadiusResponse,
+  CiFile,
+  CiRunRow,
+  Repo,
   EvalRunRecord,
   ConventionCandidate,
   FindingRecord,
@@ -214,6 +218,52 @@ export const SHOWCASE_EVAL_RUNS: EvalRunRecord[] = [
   { ...SHOWCASE_EVAL_RUN, id: "er-2", status: "running", finished_at: null, recall: null, precision: null, citation_accuracy: null, passed: 0, total: 8, cost_usd: null },
   { ...SHOWCASE_EVAL_RUN, id: "er-3", has_errors: true, agent_version: 2, recall: 0.5, precision: null, passed: 3, cost_usd: null },
 ];
+
+const SHOWCASE_CI_RUN: CiRunRow = {
+  id: "ci-1",
+  repo: "acme/payments-api",
+  pr_number: 128,
+  agent_id: "agent-demo",
+  agent: "Security reviewer",
+  status: "succeeded",
+  findings_count: 4,
+  cost_usd: 0.0214,
+  duration_s: 83,
+  ran_at: "2026-05-01T10:00:00.000Z",
+  github_url: "https://github.com/acme/payments-api/actions/runs/101",
+};
+
+export const SHOWCASE_CI_RUNS: CiRunRow[] = [
+  SHOWCASE_CI_RUN,
+  { ...SHOWCASE_CI_RUN, id: "ci-2", pr_number: 127, status: "failed", findings_count: null, cost_usd: null, duration_s: 9 },
+  { ...SHOWCASE_CI_RUN, id: "ci-3", pr_number: 126, status: "no_findings", findings_count: 0, agent: null, agent_id: null },
+];
+
+export const SHOWCASE_CI_REPOS: Repo[] = [
+  {
+    id: "11111111-1111-4111-8111-111111111111",
+    workspace_id: "ws-demo",
+    owner: "acme",
+    name: "payments-api",
+    full_name: "acme/payments-api",
+    default_branch: "main",
+    clone_path: null,
+    last_polled_at: null,
+    created_by: null,
+  },
+];
+
+export const SHOWCASE_CI_FILES: CiFile[] = [
+  { path: ".devdigest/agents/security-reviewer.yaml", contents: "name: Security reviewer\n", editable: false },
+  { path: ".devdigest/runner/index.js", contents: "// bundled runner\n", editable: false },
+  {
+    path: ".github/workflows/devdigest-review.yml",
+    contents: "name: DevDigest review\non:\n  pull_request:\n    types: [opened, synchronize]\n",
+    editable: true,
+  },
+];
+
+export const SHOWCASE_CI_AGENT = { id: "agent-demo", name: "Security reviewer" } as Agent;
 
 /** Multi-agent review fixtures (MultiAgentPicker, AgentColumns, FindingGroups, DisagreementsSection). */
 export const SHOWCASE_MULTI_ESTIMATES: AgentEstimate[] = [

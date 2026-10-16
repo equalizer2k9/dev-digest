@@ -44,6 +44,12 @@ export const NAV: NavGroup[] = [
       { key: "eval", label: "Eval Dashboard", icon: "FlaskConical", href: "/eval" },
     ],
   },
+  {
+    // Export to CI: results of the agent reviews that ran inside GitHub Actions.
+    // Workspace-wide, so no :repoId and no g-chord.
+    section: "CI",
+    items: [{ key: "ci-runs", label: "CI Runs", icon: "Activity", href: "/ci-runs" }],
+  },
 ];
 
 export const SETTINGS_ITEM: NavItemDef = {

@@ -19,7 +19,12 @@
       "source": "Source",
       "findings": "Findings",
       "cost": "Cost",
-      "status": "Status"
+      "status": "Status",
+      "repo": "Repository",
+      "agent": "Agent",
+      "duration": "Duration",
+      "when": "When",
+      "link": "Link"
     },
     "view": "View",
     "status": {
@@ -27,7 +32,12 @@
       "noFindings": "No findings",
       "failed": "Failed",
       "running": "Running"
-    }
+    },
+    "loading": "Loading CI runs…",
+    "ingestError": "Could not fetch the latest runs from GitHub: {message}",
+    "agentNone": "—",
+    "openRun": "Open run",
+    "loadError": "Could not load CI runs."
   },
   "exportWizard": {
     "title": "Export to CI",
@@ -72,7 +82,27 @@
     "installCardTitle": "Open a PR with these files",
     "installCardBody": "DevDigest opens a PR in {repo} titled “Add DevDigest CI review” with the {count} generated files.",
     "ownerRepo": "owner/repo",
-    "secretNote": "Add {key} to the repo's Actions secrets before the workflow runs."
+    "secretNote": "Add {key} to the repo's Actions secrets before the workflow runs.",
+    "addToCi": "Add to CI",
+    "onlyGha": "GitHub Actions is the only target for now.",
+    "selectRepo": "Select a repository",
+    "previewError": "Could not generate the files.",
+    "buildHint": "The CI runner is not built yet. Run `pnpm --dir agent-runner build` in the DevDigest repo, then try again.",
+    "readOnly": "read-only",
+    "secretRef": "Reads the key from the repo's Actions secrets — it is never written into a file.",
+    "triggers": {
+      "opened": "Opened",
+      "synchronize": "New commits pushed",
+      "reopened": "Reopened"
+    },
+    "triggerRequired": "Pick at least one trigger.",
+    "requiredCheckHint": "DevDigest does not set a ruleset. To block merges, create a ruleset on `main` in GitHub that requires the `DevDigest Review` status check.",
+    "editedNote": "The workflow was edited here; your version is committed as written.",
+    "openPr": "Open PR",
+    "prOpened": "Pull request opened",
+    "viewPr": "View pull request",
+    "installError": "Could not open the pull request.",
+    "close": "Close"
   },
   "ciTab": {
     "heading": "Continuous Integration",
@@ -82,7 +112,20 @@
     "update": "Update CI",
     "noRepo": "Connect a repository first",
     "empty": "Not deployed to CI yet. Use “Publish to CI” to open a PR that adds the workflow + agent config.",
-    "installed": "installed {date}"
+    "installed": "installed {date}",
+    "tab": "CI",
+    "installations": "Installed in",
+    "noInstallations": "Not added to any repository yet.",
+    "failOn": "Fail CI on",
+    "failOnOptions": {
+      "never": "Never",
+      "critical": "Critical findings",
+      "warning": "Warnings or worse",
+      "any": "Any finding"
+    },
+    "failOnNote": "Applies to the next exported workflow run; saved on the agent.",
+    "runs": "CI runs",
+    "noRuns": "No CI runs for this agent yet."
   },
   "publishDialog": {
     "title": "Publish to CI",

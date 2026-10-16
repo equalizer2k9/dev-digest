@@ -17,6 +17,8 @@ import type {
   OpenPrPayload,
   CommitFilesPayload,
   IssueMeta,
+  WorkflowRunInfo,
+  ArtifactDownload,
   GitClient,
   CloneOptions,
   UnifiedDiff,
@@ -133,6 +135,14 @@ export interface MockGitHubOptions {
   comments?: PrReviewComment[];
   /** Repo files by path, served by getFileContent (anything else → null). */
   fileContents?: Record<string, string>;
+  /** Completed workflow runs served by listWorkflowRuns. */
+  workflowRuns?: WorkflowRunInfo[];
+  /** Artifact per run id, served by downloadArtifact (anything else → missing). */
+  artifacts?: Record<number, ArtifactDownload>;
+  /** Make listWorkflowRuns / downloadArtifact / commitFiles reject. */
+  listRunsError?: Error;
+  downloadError?: Error;
+  commitError?: Error;
 }
 
 export class MockGitHubClient implements GitHubClient {
@@ -140,6 +150,7 @@ export class MockGitHubClient implements GitHubClient {
   public openedPrs: OpenPrPayload[] = [];
   public committed: CommitFilesPayload[] = [];
   public createdComments: CreateReviewCommentInput[] = [];
+  public downloads: { runId: number; name: string }[] = [];
 
   constructor(private opts: MockGitHubOptions = {}) {}
 
@@ -229,6 +240,7 @@ export class MockGitHubClient implements GitHubClient {
   }
 
   async commitFiles(_repo: RepoRef, payload: CommitFilesPayload): Promise<{ branch: string }> {
+    if (this.opts.commitError) throw this.opts.commitError;
     this.committed.push(payload);
     return { branch: payload.branch };
   }
@@ -257,6 +269,21 @@ export class MockGitHubClient implements GitHubClient {
 
   async currentLogin(): Promise<string> {
     return this.opts.login ?? 'mock-user';
+  }
+
+  async listWorkflowRuns(
+    _repo: RepoRef,
+    _workflowFile: string,
+    limit: number,
+  ): Promise<WorkflowRunInfo[]> {
+    if (this.opts.listRunsError) throw this.opts.listRunsError;
+    return (this.opts.workflowRuns ?? []).slice(0, limit);
+  }
+
+  async downloadArtifact(_repo: RepoRef, runId: number, name: string): Promise<ArtifactDownload> {
+    this.downloads.push({ runId, name });
+    if (this.opts.downloadError) throw this.opts.downloadError;
+    return this.opts.artifacts?.[runId] ?? { kind: 'missing' };
   }
 }
 

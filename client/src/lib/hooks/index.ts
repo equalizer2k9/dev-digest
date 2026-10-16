@@ -13,4 +13,5 @@ export * from "./brief";
 export * from "./intent";
 export * from "./project-context";
 export * from "./evals";
+export * from "./ci";
 export * from "./multi-agent";
