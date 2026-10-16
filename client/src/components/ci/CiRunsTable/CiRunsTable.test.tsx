@@ -89,6 +89,9 @@ describe("helpers", () => {
   it("formats cost without inventing $0.00", () => {
     expect(formatCost(null)).toBe("—");
     expect(formatCost(0.0123)).toBe("$0.012");
+    // A real CI run on PR #26 cost $0.00049714 and showed "$0.000".
+    expect(formatCost(0.00049714)).toBe("$0.0005");
+    expect(formatCost(0)).toBe("$0.000");
   });
   it("maps statuses to message keys", () => {
     expect(statusKey("succeeded")).toBe("runs.status.succeeded");
