@@ -24,6 +24,13 @@ Spec: [SPEC-03 AC-46…AC-52](../../../specs/eval-pipeline/spec.md) · branch `f
 Found during the check and fixed: the modal rendered inside the finding card, so later cards painted
 over it — it now portals to `<body>`.
 
+Re-checked after moving onto `feat/homework-7` (with Multi-Agent Review and Export to CI), 2026-10-16. Both runs used Run case, then Cancel, so nothing was stored: General Reviewer still has 10 cases, and there are still 4 eval runs.
+
+| Where | Result | Screenshot |
+|---|---|---|
+| PR #21 → `routes.ts:113` → Turn into eval case | modal over the page (portal in `<body>`); Run case: Passed · 2 kept · 73.7 s · $0.001; Cancel | [08](08-modal-on-hw7-pr-page.png) |
+| `/multi-agent/<id>` → group → Security Reviewer's original, accepted for this check → Turn into eval case | same modal; Run case: Passed · 1 kept · 60.5 s · $0.001; Cancel | [09](09-modal-on-multi-agent-page.png) |
+
 ## Workflow eval: `eval:repeat workflow -n 2 --label wf-desc` vs wf-1 (HW6)
 
 Pass counts are the case assertions. The repeat summary used to print `!isError` per session;
