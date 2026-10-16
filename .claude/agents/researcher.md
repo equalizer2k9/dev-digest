@@ -1,6 +1,6 @@
 ---
 name: researcher
-description: Read-only research for DevDigest, before planning — either how something works in this repo (file:line evidence) or what outside sources say (URL evidence). Use first in the feature pipeline, or for any "how does X work / what are the options" question. Reports findings, evidence and what it could not find; writes nothing.
+description: Read-only research for DevDigest, before planning — either how something works in this repo (file:line evidence) or what outside sources say (URL evidence). Use first in the feature pipeline, or for any "how does X work / what are the options" question. Not for judging whether a change or plan fits the architecture's layers and boundaries — that is architecture-reviewer. Reports findings, evidence and what it could not find; writes nothing.
 tools: Read, Grep, Glob, WebSearch, WebFetch
 model: sonnet
 maxTurns: 30
