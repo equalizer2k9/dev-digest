@@ -25,6 +25,8 @@ export const NAV: NavGroup[] = [
       { key: "pulls", label: "Pull Requests", icon: "GitPullRequest", href: "/repos/:repoId/pulls", gKey: "p" },
       // Repo-scoped, view-only list of the clone's project documents. No g-chord.
       { key: "context", label: "Project Context", icon: "Folder", href: "/repos/:repoId/context" },
+      // Workspace-wide list of multi-agent runs. No g-chord.
+      { key: "multi-agent", label: "Multi-Agent Review", icon: "Layers", href: "/multi-agent" },
     ],
   },
   {

@@ -24,6 +24,9 @@ import * as reviewRepo from './repository/review.repo.js';
 import type { ReviewUsage } from './repository/review.repo.js';
 import * as runRepo from './repository/run.repo.js';
 import * as pullRepo from './repository/pull.repo.js';
+import * as multiRunRepo from './repository/multi-run.repo.js';
+import type { MultiRunHead, MultiRunAgentRun, MultiRunListRow } from './repository/multi-run.repo.js';
+export type { MultiRunHead, MultiRunAgentRun, MultiRunListRow };
 
 export class ReviewRepository {
   constructor(private db: Db) {}
@@ -155,6 +158,7 @@ export class ReviewRepository {
     prId: string;
     provider: string | null;
     model: string | null;
+    multiAgentRunId?: string | null;
   }): Promise<string> {
     return runRepo.createAgentRun(this.db, values);
   }
@@ -192,5 +196,41 @@ export class ReviewRepository {
 
   getRunTrace(runId: string): Promise<RunTrace | undefined> {
     return runRepo.getRunTrace(this.db, runId);
+  }
+
+  // ---- multi-agent runs ---------------------------------------------------
+
+  createMultiRun(values: { workspaceId: string; prId: string }): Promise<{ id: string; ranAt: Date }> {
+    return multiRunRepo.createMultiRun(this.db, values);
+  }
+
+  getMultiRun(workspaceId: string, id: string): Promise<MultiRunHead | undefined> {
+    return multiRunRepo.getMultiRun(this.db, workspaceId, id);
+  }
+
+  /** Linked agent runs in launch order, with the agent name (null = deleted). */
+  agentRunsForMultiRun(multiRunId: string): Promise<MultiRunAgentRun[]> {
+    return multiRunRepo.agentRunsForMultiRun(this.db, multiRunId);
+  }
+
+  reviewsWithFindingsForRuns(
+    runIds: string[],
+  ): Promise<{ runId: string; createdAt: Date; findings: FindingRow[] }[]> {
+    return multiRunRepo.reviewsWithFindingsForRuns(this.db, runIds);
+  }
+
+  listMultiRuns(
+    workspaceId: string,
+    opts: { prId?: string | undefined; limit: number },
+  ): Promise<MultiRunListRow[]> {
+    return multiRunRepo.listMultiRuns(this.db, workspaceId, opts);
+  }
+
+  finishedLocalRuns(
+    workspaceId: string,
+    agentId: string,
+    limit: number,
+  ): Promise<{ durationMs: number | null; costUsd: number | null }[]> {
+    return multiRunRepo.finishedLocalRuns(this.db, workspaceId, agentId, limit);
   }
 }

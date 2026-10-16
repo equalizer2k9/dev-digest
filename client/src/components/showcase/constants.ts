@@ -12,6 +12,7 @@ import type {
   ProjectContextEffective,
   SkillWithUsage,
 } from "@devdigest/shared";
+import type { AgentEstimate, FindingGroup, GroupMember, MultiRunAgent } from "@devdigest/shared";
 
 /** Constants for the Showcase Gallery (dev-only). */
 
@@ -212,4 +213,71 @@ export const SHOWCASE_EVAL_RUNS: EvalRunRecord[] = [
   SHOWCASE_EVAL_RUN,
   { ...SHOWCASE_EVAL_RUN, id: "er-2", status: "running", finished_at: null, recall: null, precision: null, citation_accuracy: null, passed: 0, total: 8, cost_usd: null },
   { ...SHOWCASE_EVAL_RUN, id: "er-3", has_errors: true, agent_version: 2, recall: 0.5, precision: null, passed: 3, cost_usd: null },
+];
+
+/** Multi-agent review fixtures (MultiAgentPicker, AgentColumns, FindingGroups, DisagreementsSection). */
+export const SHOWCASE_MULTI_ESTIMATES: AgentEstimate[] = [
+  { agent_id: "ma-1", agent_name: "General reviewer", duration_ms: 42000, cost_usd: 0.031, runs: 8 },
+  { agent_id: "ma-2", agent_name: "Security", duration_ms: 65000, cost_usd: 0.054, runs: 5 },
+  { agent_id: "ma-3", agent_name: "Performance", duration_ms: null, cost_usd: null, runs: 0 },
+];
+
+const multiAgent = (n: number, status: string, extra: Partial<MultiRunAgent> = {}): MultiRunAgent => ({
+  run_id: `mr-${n}`,
+  agent_id: `ma-${n}`,
+  agent_name: `Agent ${n}`,
+  status,
+  error: null,
+  duration_ms: 42000,
+  tokens_in: 1200,
+  tokens_out: 340,
+  cost_usd: 0.031,
+  findings_count: 2,
+  score: 82,
+  ...extra,
+});
+
+export const SHOWCASE_MULTI_AGENTS: MultiRunAgent[] = [
+  multiAgent(1, "done"),
+  multiAgent(2, "running", { duration_ms: null, cost_usd: null, findings_count: null, score: null }),
+  multiAgent(3, "failed", { error: "provider down", findings_count: null, score: null }),
+  multiAgent(4, "cancelled", { findings_count: null, score: null }),
+];
+
+const multiMember = (id: string, run_id: string, severity: GroupMember["severity"]): GroupMember => ({
+  ...SHOWCASE_FINDING,
+  id,
+  run_id,
+  severity,
+  title: "Unvalidated URL passed to fetch",
+  file: "src/fetcher.ts",
+  start_line: 12,
+  end_line: 18,
+});
+
+export const SHOWCASE_MULTI_GROUPS: FindingGroup[] = [
+  {
+    id: "mg-1",
+    representative: multiMember("mg-1", "mr-1", "CRITICAL"),
+    members: [multiMember("mg-1", "mr-1", "CRITICAL")],
+    cells: [
+      { run_id: "mr-1", value: "CRITICAL" },
+      { run_id: "mr-2", value: "pending" },
+      { run_id: "mr-3", value: "failed" },
+      { run_id: "mr-4", value: "failed" },
+    ],
+    conflict: false,
+  },
+  {
+    id: "mg-2",
+    representative: multiMember("mg-2", "mr-1", "WARNING"),
+    members: [multiMember("mg-2", "mr-1", "WARNING"), multiMember("mg-3", "mr-2", "SUGGESTION")],
+    cells: [
+      { run_id: "mr-1", value: "WARNING" },
+      { run_id: "mr-2", value: "SUGGESTION" },
+      { run_id: "mr-3", value: "did_not_flag" },
+      { run_id: "mr-4", value: "failed" },
+    ],
+    conflict: true,
+  },
 ];

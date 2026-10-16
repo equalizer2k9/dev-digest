@@ -9,7 +9,7 @@ const contextItem = workspace?.items.find((i) => i.key === "context");
 
 describe("nav — Project Context", () => {
   it("follows Pull Requests in WORKSPACE", () => {
-    expect(workspace?.items.map((i) => i.key)).toEqual(["pulls", "context"]);
+    expect(workspace?.items.map((i) => i.key)).toEqual(["pulls", "context", "multi-agent"]);
   });
 
   it("carries the label and the repo-scoped href, with no g-chord", () => {
@@ -72,5 +72,13 @@ describe("nav — Eval Dashboard", () => {
 
   it("is not repo-scoped", () => {
     expect(resolveHref(evalItem!.href, "repo-42")).toBe("/eval");
+  });
+});
+
+describe("nav — Multi-Agent Review", () => {
+  it("is a workspace-wide WORKSPACE item with no repo token and no g-chord", () => {
+    const it = workspace?.items.find((i) => i.key === "multi-agent");
+    expect(it).toMatchObject({ label: "Multi-Agent Review", icon: "Layers", href: "/multi-agent" });
+    expect(it?.gKey).toBeUndefined();
   });
 });
