@@ -4,12 +4,17 @@
 "use client";
 
 import React from "react";
+import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 import { Badge, Button, FormField, Modal, TextInput } from "@devdigest/ui";
 import type { EvalCaseDraft, EvalCaseEdit, EvalSingleRun } from "@devdigest/shared";
 import { EvalSingleRunResult } from "../EvalSingleRunResult";
 import { diffFragment, parseLine, validateEdit } from "./helpers";
 import { diffLine, s } from "./styles";
+
+/* The finding card is a containing block for `position: fixed`, so the modal goes to <body>. */
+const inBody = (node: React.ReactElement) =>
+  typeof document === "undefined" ? node : createPortal(node, document.body);
 
 export type EvalCaseModalDraft = NonNullable<EvalCaseDraft["draft"]>;
 
@@ -90,7 +95,7 @@ export function EvalCaseModal({
   );
 
   if (!draft) {
-    return (
+    return inBody(
       <Modal
         width={920}
         title={t("turnInto.label")}
@@ -101,14 +106,14 @@ export function EvalCaseModal({
         <div role="alert" style={s.refusal}>
           {refusal}
         </div>
-      </Modal>
+      </Modal>,
     );
   }
 
   const exp = draft.expectation;
   const positive = exp.type === "must_find";
 
-  return (
+  return inBody(
     <Modal
       width={920}
       title={t("caseModal.title", { name: draft.name })}
@@ -190,6 +195,6 @@ export function EvalCaseModal({
           )}
         </div>
       </div>
-    </Modal>
+    </Modal>,
   );
 }
