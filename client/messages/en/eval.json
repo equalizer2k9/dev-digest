@@ -78,7 +78,16 @@
     "run": "Run",
     "running": "Running…",
     "edit": "Edit",
-    "delete": "Delete"
+    "delete": "Delete",
+    "viewDashboard": "View full dashboard →",
+    "save": "Save",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "nameLabel": "Name",
+    "startLabel": "Start line",
+    "endLabel": "End line",
+    "fileLabel": "File",
+    "resultFor": "Result for {name}"
   },
   "page": {
     "crumbSkillsLab": "Skills Lab",
@@ -151,7 +160,12 @@
       "eval_case_no_patch": "This finding's file has no diff to freeze.",
       "eval_case_no_hunk": "This finding is not inside a changed hunk.",
       "eval_case_conflict": "This case clashes with the existing case \"{name}\".",
-      "generic": "Could not create the eval case."
+      "generic": "Could not create the eval case.",
+      "eval_case_bad_name": "The name must be 1 to 200 characters.",
+      "eval_case_bad_zone": "The start line must be at least 1 and not after the end line.",
+      "validation_error": "The name or the lines are not valid.",
+      "runGeneric": "Could not run the eval case.",
+      "updateGeneric": "Could not save the eval case."
     }
   },
   "deleteConfirm": {
@@ -164,5 +178,43 @@
   "runFailed": "Could not start the eval run.",
   "runInProgress": "A run of this agent is already in progress.",
   "loadError": "Could not load eval data.",
-  "retry": "Retry"
+  "retry": "Retry",
+  "caseModal": {
+    "title": "Eval case · {name}",
+    "subtitleFind": "Seeded from an accepted finding",
+    "subtitleNotFlag": "Seeded from a dismissed finding",
+    "subtitleRefused": "Cannot turn this finding into an eval case",
+    "nameLabel": "Name",
+    "diffLabel": "Frozen input · hunks the zone meets",
+    "noHunk": "The zone meets no hunk of the frozen diff.",
+    "expectationLabel": "Expectation",
+    "typeLabel": "Type",
+    "typePositive": "Positive case · must_find",
+    "typeNegative": "Negative case · must_not_flag",
+    "fileLabel": "File",
+    "startLabel": "Start line",
+    "endLabel": "End line",
+    "resultLabel": "Last result",
+    "noResult": "Not run yet. Run case reviews it once and stores nothing.",
+    "cancel": "Cancel",
+    "runCase": "Run case",
+    "running": "Running…",
+    "save": "Save",
+    "saving": "Saving…",
+    "validation": {
+      "nameEmpty": "The name must not be empty.",
+      "nameTooLong": "The name must be at most 200 characters.",
+      "lineInvalid": "The start and end line must be whole numbers.",
+      "startMin": "The start line must be at least 1.",
+      "startAfterEnd": "The start line must not be after the end line."
+    }
+  },
+  "singleRun": {
+    "expectedFind": "expected a finding in the zone",
+    "expectedNone": "expected no finding in the zone",
+    "summary": "{expected}, got {kept} kept · {dropped} dropped · {seconds}s",
+    "summaryNoExpectation": "got {kept} kept · {dropped} dropped · {seconds}s",
+    "cost": "cost",
+    "errorReason": "Reason: {error}"
+  }
 }

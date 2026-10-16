@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { Gallery } from "../components/showcase";
 import { DiffViewer } from "../components/diff-viewer";
@@ -26,6 +26,17 @@ describe("web smoke (both themes)", () => {
       expect(screen.getAllByText("Confidence").length).toBeGreaterThan(0);
       expect(screen.getByText("91%")).toBeInTheDocument();
     });
+  });
+
+  it("the gallery opens the eval case modal and the single-run results", () => {
+    render(
+      <div data-theme="dark">
+        <Gallery />
+      </div>
+    );
+    expect(screen.getAllByTestId("single-run-result")).toHaveLength(3);
+    fireEvent.click(screen.getByRole("button", { name: "Open Eval case modal" }));
+    expect(screen.getByText("Eval case · Hardcoded secret")).toBeInTheDocument();
   });
 
   it("diff viewer parses a unified patch", () => {

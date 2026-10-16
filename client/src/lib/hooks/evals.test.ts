@@ -9,7 +9,7 @@ let overview: { cases: { id: string }[]; runs: { id: string; status: string }[] 
   runs: [run("r0", "completed")],
 };
 
-const { get, post, del } = vi.hoisted(() => ({
+const { get, post, patch, del } = vi.hoisted(() => ({
   get: vi.fn(async (path: string): Promise<unknown> => {
     if (path.startsWith("/agents/a1/evals")) return overview;
     return { ok: true };
@@ -19,9 +19,10 @@ const { get, post, del } = vi.hoisted(() => ({
     if (path === "/agents/a1/evals/runs") return { id: "r9", status: "running" };
     return { ok: true };
   }),
+  patch: vi.fn(async (_path: string, _body?: unknown): Promise<unknown> => ({ id: "c1" })),
   del: vi.fn(async (_path: string): Promise<unknown> => undefined),
 }));
-vi.mock("../api", () => ({ API_BASE: "http://api.test", api: { get, post, del } }));
+vi.mock("../api", () => ({ API_BASE: "http://api.test", api: { get, post, patch, del } }));
 
 import {
   useCreateEvalCase,
@@ -29,7 +30,11 @@ import {
   useEvalCompare,
   useEvalDashboard,
   useEvalOverview,
+  useLoadEvalCaseDraft,
+  useRunDraftCase,
   useRunEval,
+  useRunEvalCase,
+  useUpdateEvalCase,
 } from "./evals";
 
 afterEach(() => {
@@ -39,6 +44,7 @@ afterEach(() => {
 beforeEach(() => {
   get.mockClear();
   post.mockClear();
+  patch.mockClear();
   del.mockClear();
   overview = { cases: [{ id: "c1" }, { id: "c2" }], runs: [run("r0", "completed")] };
 });
@@ -91,9 +97,80 @@ describe("useCreateEvalCase", () => {
     const invalidate = vi.spyOn(qc, "invalidateQueries");
     const { result } = renderHook(() => useCreateEvalCase(), { wrapper });
     await act(async () => {
+      await result.current.mutateAsync({ findingId: "f1" });
+    });
+    expect(post).toHaveBeenCalledWith("/findings/f1/eval-case", undefined);
+    const keys = invalidate.mock.calls.map((c) => JSON.stringify((c[0] as { queryKey: unknown }).queryKey));
+    expect(keys).toContain(JSON.stringify(["eval-overview", "a1"]));
+    expect(keys).toContain(JSON.stringify(["eval-dashboard"]));
+  });
+});
+
+describe("useCreateEvalCase with an edit", () => {
+  it("sends the edited name and zone as the body", async () => {
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useCreateEvalCase(), { wrapper });
+    const edit = { name: "n", start_line: 3, end_line: 5 };
+    await act(async () => {
+      await result.current.mutateAsync({ findingId: "f1", edit });
+    });
+    expect(post).toHaveBeenCalledWith("/findings/f1/eval-case", edit);
+  });
+});
+
+describe("useLoadEvalCaseDraft", () => {
+  it("GETs the draft and stores nothing", async () => {
+    const { qc, wrapper } = setup();
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    const { result } = renderHook(() => useLoadEvalCaseDraft(), { wrapper });
+    await act(async () => {
       await result.current.mutateAsync("f1");
     });
-    expect(post).toHaveBeenCalledWith("/findings/f1/eval-case");
+    expect(get).toHaveBeenCalledWith("/findings/f1/eval-case/draft");
+    expect(post).not.toHaveBeenCalled();
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+});
+
+describe("useRunDraftCase", () => {
+  it("POSTs the edit to the draft run endpoint and invalidates nothing", async () => {
+    const { qc, wrapper } = setup();
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    const { result } = renderHook(() => useRunDraftCase(), { wrapper });
+    const edit = { name: "n", start_line: 1, end_line: 2 };
+    await act(async () => {
+      await result.current.mutateAsync({ findingId: "f1", edit });
+    });
+    expect(post).toHaveBeenCalledWith("/findings/f1/eval-case/run", edit);
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+});
+
+describe("useRunEvalCase", () => {
+  it("POSTs without a body and does not touch the overview or the dashboard", async () => {
+    const { qc, wrapper } = setup();
+    qc.setQueryData(["eval-overview", "a1"], overview);
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    const { result } = renderHook(() => useRunEvalCase("a1"), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync("c1");
+    });
+    expect(post).toHaveBeenCalledWith("/agents/a1/evals/cases/c1/run");
+    expect(invalidate).not.toHaveBeenCalled();
+    expect(qc.getQueryData(["eval-overview", "a1"])).toBe(overview);
+  });
+});
+
+describe("useUpdateEvalCase", () => {
+  it("PATCHes the case and invalidates the overview and the dashboard", async () => {
+    const { qc, wrapper } = setup();
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    const { result } = renderHook(() => useUpdateEvalCase("a1"), { wrapper });
+    const edit = { name: "n", start_line: 1, end_line: 2 };
+    await act(async () => {
+      await result.current.mutateAsync({ caseId: "c1", edit });
+    });
+    expect(patch).toHaveBeenCalledWith("/agents/a1/evals/cases/c1", edit);
     const keys = invalidate.mock.calls.map((c) => JSON.stringify((c[0] as { queryKey: unknown }).queryKey));
     expect(keys).toContain(JSON.stringify(["eval-overview", "a1"]));
     expect(keys).toContain(JSON.stringify(["eval-dashboard"]));

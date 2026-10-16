@@ -74,6 +74,8 @@ import { ConventionCard } from "../../app/repos/[repoId]/conventions/_components
 import evalMessages from "../../../messages/en/eval.json";
 import { EvalMetrics } from "../eval/EvalMetrics";
 import { EvalRunTable } from "../eval/EvalRunTable";
+import { EvalCaseModal } from "../eval/EvalCaseModal";
+import { EvalSingleRunResult } from "../eval/EvalSingleRunResult";
 import ciMessages from "../../../messages/en/ci.json";
 import { CiRunsTable } from "../ci/CiRunsTable";
 import { ExportWizard } from "../ci/ExportWizard";
@@ -95,6 +97,8 @@ import {
   SHOWCASE_INTENT,
   SHOWCASE_SKILL,
   SHOWCASE_EVAL_RUNS,
+  SHOWCASE_EVAL_DRAFT,
+  SHOWCASE_EVAL_SINGLE_RUNS,
   SHOWCASE_CONVENTION,
   SHOWCASE_CONTEXT_DOCS,
   SHOWCASE_CONTEXT_EFFECTIVE,
@@ -133,6 +137,7 @@ export function Gallery() {
   const [modal, setModal] = React.useState(false);
   const [skillDrawer, setSkillDrawer] = React.useState(false);
   const [confirm, setConfirm] = React.useState(false);
+  const [evalModal, setEvalModal] = React.useState(false);
   // ConventionCard owns its accept/reject/edit mutations, so the gallery needs a
   // query client of its own — nothing here ever reaches the network.
   const [galleryQc] = React.useState(() => new QueryClient());
@@ -566,12 +571,20 @@ export function Gallery() {
 
       {/* Eval pipeline: shared metrics tiles and run table. Presentational, `eval` namespace. */}
       <NextIntlClientProvider locale="en" messages={{ eval: evalMessages }}>
-        <Group title="Evals (EvalMetrics / EvalRunTable)">
+        <Group title="Evals (EvalMetrics / EvalRunTable / EvalSingleRunResult / EvalCaseModal)">
           <EvalMetrics run={SHOWCASE_EVAL_RUNS[0]!} />
           <EvalMetrics run={SHOWCASE_EVAL_RUNS[1]!} />
           <div style={s.w460}>
             <EvalRunTable runs={SHOWCASE_EVAL_RUNS} showAgent selectable selected={["er-1"]} onToggle={() => {}} />
           </div>
+          <div style={s.w460}>
+            {SHOWCASE_EVAL_SINGLE_RUNS.map((r) => (
+              <EvalSingleRunResult key={r.status} result={r} expectationType="must_find" />
+            ))}
+          </div>
+          <Button kind="ghost" onClick={() => setEvalModal(true)}>
+            Open Eval case modal
+          </Button>
         </Group>
       </NextIntlClientProvider>
 
@@ -627,6 +640,18 @@ export function Gallery() {
           </Group>
         </QueryClientProvider>
       </NextIntlClientProvider>
+
+      {evalModal && (
+        <NextIntlClientProvider locale="en" messages={{ eval: evalMessages }}>
+          <EvalCaseModal
+            draft={SHOWCASE_EVAL_DRAFT}
+            result={SHOWCASE_EVAL_SINGLE_RUNS[0]}
+            onSave={() => setEvalModal(false)}
+            onRun={() => {}}
+            onCancel={() => setEvalModal(false)}
+          />
+        </NextIntlClientProvider>
+      )}
 
       {confirm && (
         <ConfirmDialog

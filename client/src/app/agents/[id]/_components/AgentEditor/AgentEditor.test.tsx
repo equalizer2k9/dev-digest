@@ -29,6 +29,8 @@ vi.mock("../../../../../lib/hooks/evals", () => ({
   }),
   useRunEval: () => ({ mutate: vi.fn(), isPending: false }),
   useDeleteEvalCase: () => ({ mutate: vi.fn(), isPending: false }),
+  useRunEvalCase: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpdateEvalCase: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 vi.mock("../../../../../lib/repo-context", () => ({
