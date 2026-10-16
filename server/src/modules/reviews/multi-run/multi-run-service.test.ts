@@ -85,8 +85,7 @@ function build(over: {
   } as unknown as Container;
   const service = new MultiRunService(
     container,
-    repo as unknown as ReviewRepository,
-    { runReview } as unknown as ReviewService,
+    { repo: repo as unknown as ReviewRepository, reviews: { runReview } as unknown as ReviewService },
   );
   return { service, repo, runReview, container };
 }

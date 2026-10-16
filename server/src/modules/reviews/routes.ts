@@ -1,12 +1,12 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
+import { z } from 'zod';
 import { MultiRunRequest, PrIntentResponse, RunRequest, SmartDiffResponse } from '@devdigest/shared';
 import type { RunEvent } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { NotFoundError } from '../../platform/errors.js';
 import { ReviewService } from './service.js';
-import { ReviewRepository } from './repository.js';
 import { MultiRunService } from './multi-run/multi-run-service.js';
 import multiRunRoutes from './multi-run/routes.js';
 
@@ -24,30 +24,45 @@ import multiRunRoutes from './multi-run/routes.js';
  *   POST   /findings/:id/(accept|dismiss)              → finding actions
  */
 const FINDING_ACTIONS = ['accept', 'dismiss'] as const;
+
+/**
+ * Body of `POST /pulls/:id/review`: either the legacy single/all shape or
+ * `{ agentIds }`. `RunRequest` strips unknown keys, so the multi shape is picked
+ * by the raw body's own `agentIds` key and validated strictly (a bad list stays
+ * a 422, never a fall-through to the legacy 400). Empty body = legacy `{}`.
+ */
+const ReviewRunBody = z.unknown().transform((raw, ctx) => {
+  const body = raw ?? {};
+  const multi = typeof body === 'object' && Object.prototype.hasOwnProperty.call(body, 'agentIds');
+  const parsed = multi ? MultiRunRequest.safeParse(body) : RunRequest.safeParse(body);
+  if (!parsed.success) {
+    for (const issue of parsed.error.issues) ctx.addIssue(issue);
+    return z.NEVER;
+  }
+  return multi
+    ? ({ kind: 'multi', agentIds: (parsed.data as MultiRunRequest).agentIds } as const)
+    : ({ kind: 'single', body: parsed.data as RunRequest } as const);
+});
 export default async function reviewsRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
   const { container } = app;
   const service = new ReviewService(container);
-  const multiRuns = new MultiRunService(container, new ReviewRepository(container.db), service);
-  await app.register(multiRunRoutes, { service: multiRuns });
+  const multiRuns = new MultiRunService(container);
+  await app.register(multiRunRoutes);
 
   // ---- Run a review (manual trigger) -------------------------------
   // Tight per-route limit: each call can fan out to expensive LLM runs.
-  // Body stays a tolerant manual parse (both fields optional; empty body is OK).
+  // Body is validated at the boundary by ReviewRunBody (both legacy fields optional; empty body is OK).
   app.post(
     '/pulls/:id/review',
-    { schema: { params: IdParams }, config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
+    { schema: { params: IdParams, body: ReviewRunBody }, config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
     async (req) => {
     const { workspaceId } = await getContext(container, req);
-    const raw = req.body ?? {};
-    // Multi-agent branch: RunRequest strips unknown keys, so `agentIds` must be
-    // detected on the raw body. Parsed in-handler on purpose — this route's body
-    // is one of two shapes (specs/review-flow.md). A ZodError becomes a 422.
-    if (typeof raw === 'object' && Object.prototype.hasOwnProperty.call(raw, 'agentIds')) {
-      const { agentIds } = MultiRunRequest.parse(raw);
-      return multiRuns.launch(workspaceId, req.params.id, agentIds, req.log);
+    const parsed = req.body;
+    if (parsed.kind === 'multi') {
+      return multiRuns.launch(workspaceId, req.params.id, parsed.agentIds, req.log);
     }
-    const body = RunRequest.parse(raw);
+    const body = parsed.body;
     const targets = await service.resolveTargets(workspaceId, {
       ...(body.agentId !== undefined ? { agentId: body.agentId } : {}),
       ...(body.all !== undefined ? { all: body.all } : {}),

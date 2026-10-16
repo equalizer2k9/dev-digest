@@ -10,7 +10,7 @@ import type { Container } from '../../../platform/container.js';
 import { NotFoundError, ValidationError } from '../../../platform/errors.js';
 import type { AgentRow } from '../../../db/rows.js';
 import type { ReviewRepository, MultiRunAgentRun } from '../repository.js';
-import type { ReviewService } from '../service.js';
+import { ReviewService } from '../service.js';
 import type { Logger } from '../run-executor.js';
 import { findingRowToDto } from '../helpers.js';
 import { ESTIMATE_WINDOW, MULTI_RUN_LIST_LIMIT } from './constants.js';
@@ -35,11 +35,17 @@ function finishedAt(
  * functions together.
  */
 export class MultiRunService {
+  private repo: ReviewRepository;
+  private reviews: ReviewService;
+
+  /** Built from the Container alone; `deps` lets unit tests swap the collaborators. */
   constructor(
     private container: Container,
-    private repo: ReviewRepository,
-    private reviews: ReviewService,
-  ) {}
+    deps: { repo?: ReviewRepository; reviews?: ReviewService } = {},
+  ) {
+    this.repo = deps.repo ?? container.reviewRepo;
+    this.reviews = deps.reviews ?? new ReviewService(container);
+  }
 
   /** Agents in request order; any id outside the enabled set is one generic error (A-11). */
   async resolveTargets(workspaceId: string, agentIds: string[]): Promise<AgentRow[]> {

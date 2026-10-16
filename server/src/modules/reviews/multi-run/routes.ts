@@ -3,7 +3,7 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { AgentEstimates, MultiRunDetail, MultiRunList, MultiRunListQuery } from '@devdigest/shared';
 import { getContext } from '../../_shared/context.js';
 import { IdParams } from '../../_shared/schemas.js';
-import type { MultiRunService } from './multi-run-service.js';
+import { MultiRunService } from './multi-run-service.js';
 
 /**
  * Multi-agent run reads (the launch is `POST /pulls/:id/review` with `agentIds`).
@@ -12,13 +12,10 @@ import type { MultiRunService } from './multi-run-service.js';
  *   GET /multi-runs/estimates  → AgentEstimates (every enabled agent)
  *   GET /multi-runs/:id        → MultiRunDetail (404 for another workspace)
  */
-export default async function multiRunRoutes(
-  appBase: FastifyInstance,
-  opts: { service: MultiRunService },
-): Promise<void> {
+export default async function multiRunRoutes(appBase: FastifyInstance): Promise<void> {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
   const { container } = app;
-  const { service } = opts;
+  const service = new MultiRunService(container);
 
   app.get(
     '/multi-runs',
