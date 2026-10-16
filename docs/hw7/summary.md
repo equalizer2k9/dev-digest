@@ -7,7 +7,7 @@
 | Runs overlapped | 20.2 min — B ran entirely inside A | |
 | Commits (feature + review fixes + live-check fixes + docs) | 7 | 7 + merge with A |
 | Review: CRITICAL / major → closed | arch 2 / 3 → 5 closed; security 0 | arch 1 / 4 → 5 closed; security 0 |
-| Live-check bugs (fixed, a test each) | 3 (trace drawer without findings, originals without author, section title) | 1 (cost < $0.001 shown as "$0.000") |
+| Live-check bugs (fixed, a test each) | 4 (trace drawer without findings, originals without author, section title, column cost "$0.000" — [#29](https://github.com/equalizer2k9/dev-digest/pull/29)) | 1 (cost < $0.001 shown as "$0.000") |
 | PR | [#24](https://github.com/equalizer2k9/dev-digest/pull/24) | [#27](https://github.com/equalizer2k9/dev-digest/pull/27) |
 
 **What went wrong.** The worktree fan-out never happened: both `/run-plan` sessions wrote to the main working copy, which breaks the single-writer rule. The sessions stepped around each other's files and committed in turns, so 7 commits interleaved on one local branch. B's gate even ran over A's uncommitted code. I split the commits with cherry-pick: conflicts in 4 files on A, 2 on B, and the 6 expected shared files when B merged with A. Every resolution was checked line by line (mixed version = base + A lines + B lines). Next time: `git worktree add` per feature before `/run-plan`, and `run-plan` refuses a copy with another session's uncommitted changes.
@@ -27,4 +27,4 @@ Human review time: [заповнюю я]
 **Takeaways.**
 1. Three agents cost 1.8× one, not 3×, and take 1.9× the time: wall-clock is set by the slowest agent (Security, 76.9 s), and provider-side cost per run varied 2× at similar token counts.
 2. The parallel runs cost nothing in tokens (A + B ≈ 1.56M fresh vs 1.07M for one HW5 run), but merging them cost a split, 12 conflicted file resolutions and a re-run of every gate. Isolation is cheaper than reconciliation.
-3. Live checks found 4 bugs that 1 018 + 668 green tests missed, all in the UI wiring. Each now has a test.
+3. Live checks found 5 bugs that 1 018 + 668 green tests missed, all in the UI wiring. One was the same "$0.000" in two features, because three copies of the cost formatter existed; #29 merges them into `lib/cost.ts`. Each bug now has a test.
