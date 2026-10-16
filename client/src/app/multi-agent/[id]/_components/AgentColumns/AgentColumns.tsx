@@ -10,7 +10,8 @@ import type { GroupMember, MultiRunAgent } from "@devdigest/shared";
 import RunTraceDrawer from "@/components/run-trace/RunTraceDrawer";
 import { useCancelRun } from "@/lib/hooks/reviews";
 import { isInProgress } from "@/lib/hooks/multi-agent";
-import { formatCost, formatDuration } from "@/components/multi-agent";
+import { formatDuration } from "@/components/multi-agent";
+import { formatCost } from "@/lib/cost";
 import { statusKey } from "./helpers";
 import { s } from "./styles";
 

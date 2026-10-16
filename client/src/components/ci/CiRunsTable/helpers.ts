@@ -10,15 +10,6 @@ export function formatDuration(seconds: number | null): string {
   return `${Math.floor(total / 60)}m ${total % 60}s`;
 }
 
-/**
- * USD with 3 decimals, 4 below a tenth of a cent so a real cost never reads "$0.000";
- * null → dash (an unpriced run is not $0.00).
- */
-export function formatCost(usd: number | null): string {
-  if (usd == null) return DASH;
-  return usd > 0 && usd < 0.001 ? `$${usd.toFixed(4)}` : `$${usd.toFixed(3)}`;
-}
-
 const STATUS_KEYS: Record<string, string> = {
   succeeded: "runs.status.succeeded",
   no_findings: "runs.status.noFindings",

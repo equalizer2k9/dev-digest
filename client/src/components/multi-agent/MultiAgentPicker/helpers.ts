@@ -29,10 +29,6 @@ export function canLaunch(n: number): boolean {
   return n >= MIN_AGENTS && n <= MAX_AGENTS;
 }
 
-export function formatCost(v: number | null | undefined, dash = DASH): string {
-  return v == null ? dash : `$${v.toFixed(3)}`;
-}
-
 export function formatDuration(ms: number | null | undefined, dash = DASH): string {
   if (ms == null) return dash;
   const s = Math.round(ms / 1000);

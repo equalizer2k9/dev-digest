@@ -5,7 +5,8 @@ import { NextIntlClientProvider } from "next-intl";
 import type { CiRunRow } from "@devdigest/shared";
 import messages from "../../../../messages/en/ci.json";
 import { CiRunsTable } from "./CiRunsTable";
-import { formatCost, formatDuration, statusKey } from "./helpers";
+import { formatCost } from "@/lib/cost";
+import { formatDuration, statusKey } from "./helpers";
 
 afterEach(cleanup);
 

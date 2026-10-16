@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { AgentEstimate } from "@devdigest/shared";
-import { canLaunch, formatCost, formatDuration, toggle, totalEstimate } from "./helpers";
+import { formatCost } from "@/lib/cost";
+import { canLaunch, formatDuration, toggle, totalEstimate } from "./helpers";
 
 const est = (id: string, cost: number | null, ms: number | null): AgentEstimate => ({
   agent_id: id,
