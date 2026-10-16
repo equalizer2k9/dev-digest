@@ -1,11 +1,5 @@
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-/** Default location of the built runner: `<repo>/agent-runner/dist/` (D-6). */
-export const DEFAULT_RUNNER_DIR = fileURLToPath(
-  new URL('../../../../agent-runner/dist/', import.meta.url),
-);
 
 async function walk(dir: string, rel: string, out: { name: string; contents: string }[]): Promise<void> {
   const entries = await readdir(path.join(dir, rel), { withFileTypes: true });

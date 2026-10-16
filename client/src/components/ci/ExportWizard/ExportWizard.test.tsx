@@ -3,8 +3,8 @@ import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { Agent, CiFile, CiInstallResult } from "@devdigest/shared";
-import messages from "../../../../../../../../../../messages/en/ci.json";
-import { ApiError } from "../../../../../../../../../lib/api";
+import messages from "../../../../messages/en/ci.json";
+import { ApiError } from "@/lib/api";
 
 const previewMutate = vi.fn();
 const installMutate = vi.fn();
@@ -21,8 +21,8 @@ const REPOS = [
   { id: "22222222-2222-4222-8222-222222222222", full_name: "acme/web" },
 ];
 
-vi.mock("../../../../../../../../../lib/hooks/core", () => ({ useRepos: () => ({ data: REPOS }) }));
-vi.mock("../../../../../../../../../lib/hooks/ci", () => ({
+vi.mock("@/lib/hooks/core", () => ({ useRepos: () => ({ data: REPOS }) }));
+vi.mock("@/lib/hooks/ci", () => ({
   usePreviewCi: () => ({ mutate: previewMutate, ...preview }),
   useInstallCi: () => ({ mutate: installMutate, ...install }),
 }));

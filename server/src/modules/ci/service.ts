@@ -10,8 +10,7 @@ import type {
   RepoRef,
 } from '@devdigest/shared';
 import type { Container } from '../../platform/container.js';
-import { AppError, NotFoundError } from '../../platform/errors.js';
-import { isWorkflowPermission } from '../../adapters/github/errors.js';
+import { AppError, NotFoundError, isWorkflowPermission } from '../../platform/errors.js';
 import {
   checkArtifact,
   ciStatusFor,
@@ -37,7 +36,7 @@ import {
 } from './constants.js';
 import { enabledSkills, validateManifestText } from './manifest.js';
 import { CiRepository, type CiInstallationDbRow, type GhaInstallationRow } from './repository.js';
-import { DEFAULT_RUNNER_DIR, readRunnerBuild } from './runner-build.js';
+import { readRunnerBuild } from './runner-build.js';
 import { buildWorkflow } from './workflow.js';
 
 export interface CiLogger {
@@ -47,7 +46,7 @@ export interface CiLogger {
 
 export interface CiServiceDeps {
   repo?: CiRepository;
-  /** Directory of the built runner; defaults to `agent-runner/dist/`. */
+  /** Directory of the built runner; defaults to `config.ciRunnerDir`. */
   runnerDir?: string;
 }
 
@@ -80,7 +79,7 @@ export class CiService {
     deps: CiServiceDeps = {},
   ) {
     this.repo = deps.repo ?? new CiRepository(container.db);
-    this.runnerDir = deps.runnerDir ?? DEFAULT_RUNNER_DIR;
+    this.runnerDir = deps.runnerDir ?? container.config.ciRunnerDir;
   }
 
   async installations(workspaceId: string, agentId: string): Promise<CiInstallation[]> {

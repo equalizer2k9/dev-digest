@@ -6,10 +6,10 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Button, SelectInput } from "@devdigest/ui";
 import type { Agent, CiFailOn } from "@devdigest/shared";
-import { CiRunsTable } from "../../../../../../../components/ci/CiRunsTable";
-import { useUpdateAgent } from "../../../../../../../lib/hooks/agents";
-import { useCiInstallations, useCiRuns } from "../../../../../../../lib/hooks/ci";
-import { ExportWizard } from "./_components/ExportWizard";
+import { CiRunsTable } from "@/components/ci/CiRunsTable";
+import { useUpdateAgent } from "@/lib/hooks/agents";
+import { useCiInstallations, useCiRuns } from "@/lib/hooks/ci";
+import { ExportWizard } from "@/components/ci/ExportWizard";
 import { CI_FAIL_ON_VALUES } from "./constants";
 import { s } from "./styles";
 

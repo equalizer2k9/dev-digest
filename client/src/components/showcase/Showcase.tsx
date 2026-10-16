@@ -76,7 +76,7 @@ import { EvalMetrics } from "../eval/EvalMetrics";
 import { EvalRunTable } from "../eval/EvalRunTable";
 import ciMessages from "../../../messages/en/ci.json";
 import { CiRunsTable } from "../ci/CiRunsTable";
-import { ExportWizard } from "../../app/agents/[id]/_components/AgentEditor/_components/CiTab/_components/ExportWizard";
+import { ExportWizard } from "../ci/ExportWizard";
 import { s } from "./styles";
 import {
   SEVERITIES,

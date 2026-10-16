@@ -7,9 +7,9 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Button, Card, Checkbox, ExportWizardSteps, IconBtn, Textarea } from "@devdigest/ui";
 import type { Agent, CiFile, CiPostAs, CiTrigger } from "@devdigest/shared";
-import { ApiError } from "../../../../../../../../../lib/api";
-import { useRepos } from "../../../../../../../../../lib/hooks/core";
-import { useInstallCi, usePreviewCi } from "../../../../../../../../../lib/hooks/ci";
+import { ApiError } from "@/lib/api";
+import { useRepos } from "@/lib/hooks/core";
+import { useInstallCi, usePreviewCi } from "@/lib/hooks/ci";
 import {
   DEFAULT_POST_AS,
   DEFAULT_TRIGGERS,
@@ -70,7 +70,7 @@ export function ExportWizard({ agent, onClose, initial }: ExportWizardProps) {
   const editWorkflow = (text: string) => setEdited(workflow && text === workflow.contents ? null : text);
 
   const previewError = preview.error;
-  const runnerMissing = previewError instanceof ApiError && previewError.status === 409;
+  const runnerMissing = previewError instanceof ApiError && previewError.code === ERR_RUNNER_MISSING;
 
   const renderBody = () => {
     if (step === STEP_TARGET) {
