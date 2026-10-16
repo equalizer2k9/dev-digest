@@ -74,6 +74,11 @@ import { ConventionCard } from "../../app/repos/[repoId]/conventions/_components
 import evalMessages from "../../../messages/en/eval.json";
 import { EvalMetrics } from "../eval/EvalMetrics";
 import { EvalRunTable } from "../eval/EvalRunTable";
+import multiAgentMessages from "../../../messages/en/multiAgent.json";
+import { MultiAgentPicker } from "../multi-agent";
+import { AgentColumns } from "../../app/multi-agent/[id]/_components/AgentColumns";
+import { FindingGroups } from "../../app/multi-agent/[id]/_components/FindingGroups";
+import { DisagreementsSection } from "../../app/multi-agent/[id]/_components/DisagreementsSection";
 import { s } from "./styles";
 import {
   SEVERITIES,
@@ -95,6 +100,11 @@ import {
   SHOWCASE_CONTEXT_REPO_ID,
   SHOWCASE_CONTEXT_OWNER_ID,
   SHOWCASE_CONVENTION_PENDING,
+} from "./constants";
+import {
+  SHOWCASE_MULTI_ESTIMATES,
+  SHOWCASE_MULTI_AGENTS,
+  SHOWCASE_MULTI_GROUPS,
 } from "./constants";
 
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
@@ -548,6 +558,39 @@ export function Gallery() {
             <EvalRunTable runs={SHOWCASE_EVAL_RUNS} showAgent selectable selected={["er-1"]} onToggle={() => {}} />
           </div>
         </Group>
+      </NextIntlClientProvider>
+
+      {/* Multi-agent review: presentational pieces on fixtures; hooks they call never fire a request. */}
+      <NextIntlClientProvider
+        locale="en"
+        messages={{ multiAgent: multiAgentMessages, prReview: prReviewMessages, eval: evalMessages }}
+      >
+        <QueryClientProvider client={galleryQc}>
+          <Group title="Multi-agent (MultiAgentPicker)">
+            <div style={s.w460}>
+              <MultiAgentPicker
+                estimates={SHOWCASE_MULTI_ESTIMATES}
+                loading={false}
+                selected={["ma-1", "ma-2"]}
+                onChange={() => {}}
+                onLaunch={() => {}}
+                launching={false}
+                error={null}
+              />
+            </div>
+          </Group>
+          <Group title="Multi-agent (AgentColumns / FindingGroups / DisagreementsSection)">
+            <div style={s.w460}>
+              <AgentColumns agents={SHOWCASE_MULTI_AGENTS} prNumber={21} />
+            </div>
+            <div style={s.w460}>
+              <FindingGroups groups={SHOWCASE_MULTI_GROUPS} agents={SHOWCASE_MULTI_AGENTS} multiRunId="mm-demo" />
+            </div>
+            <div style={s.w460}>
+              <DisagreementsSection groups={SHOWCASE_MULTI_GROUPS} agents={SHOWCASE_MULTI_AGENTS} />
+            </div>
+          </Group>
+        </QueryClientProvider>
       </NextIntlClientProvider>
 
       {confirm && (

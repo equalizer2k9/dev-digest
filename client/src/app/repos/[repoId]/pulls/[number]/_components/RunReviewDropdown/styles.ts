@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 
-/** Co-located styles for RunReviewDropdown. This component renders only library
-   primitives (Button/Dropdown) and has no inline styles; the map is kept for
-   convention parity and future use. */
-export const s = {} satisfies Record<string, CSSProperties>;
+/** Co-located styles for RunReviewDropdown. */
+export const s = {
+  root: { display: "inline-flex", alignItems: "center", gap: 10 } satisfies CSSProperties,
+  latestLink: { fontSize: 12, color: "var(--accent)", whiteSpace: "nowrap" } satisfies CSSProperties,
+} as const;
