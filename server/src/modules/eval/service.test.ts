@@ -17,8 +17,10 @@ const repo = vi.hoisted(() => ({
   deleteCase: vi.fn(),
   insertRunning: vi.fn(),
   reapInterrupted: vi.fn(),
+  getCase: vi.fn(),
+  updateCaseExclusive: vi.fn(),
 }));
-const executor = vi.hoisted(() => ({ execute: vi.fn() }));
+const executor = vi.hoisted(() => ({ execute: vi.fn(), runSingle: vi.fn() }));
 
 vi.mock('./repository.js', () => ({ EvalRepository: vi.fn(() => repo) }));
 vi.mock('./run-executor.js', () => ({ EvalRunExecutor: vi.fn(() => executor) }));
@@ -335,5 +337,120 @@ describe('EvalService.dashboard', () => {
       ['r2', 'Beta'],
       ['r1', 'Alpha'],
     ]);
+  });
+});
+
+describe('EvalService single-case runs and edits', () => {
+  let s: ReturnType<typeof setup>;
+  const single = {
+    status: 'passed',
+    error: null,
+    kept: 1,
+    dropped: 0,
+    kept_findings: [],
+    cost_usd: null,
+    duration_ms: 5,
+  };
+  const FILE = 'src/a.ts';
+  const PATCH = '@@ -1,3 +1,4 @@\n a\n+b\n c\n d';
+  const row = (over: Record<string, unknown> = {}) => ({
+    id: 'c1',
+    workspaceId: WS,
+    agentId: AGENT.id,
+    name: 'Case one',
+    sourceFindingId: 'f1',
+    createdAt: new Date('2026-01-01T00:00:00Z'),
+    inputDiff: `diff --git a/${FILE} b/${FILE}\n--- a/${FILE}\n+++ b/${FILE}\n${PATCH}\n`,
+    inputMeta: { pr_id: 'pr-1', pr_number: 1, pr_title: 't', pr_description: '', file: FILE },
+    expectedOutput: { type: 'must_find', file: FILE, start_line: 2, end_line: 2, title: 'T' },
+    ...over,
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    s = setup();
+    executor.runSingle.mockResolvedValue(single);
+    repo.getCase.mockResolvedValue(row());
+    repo.listRuns.mockResolvedValue([]);
+  });
+
+  it('AC-50: runCase reviews the stored case once and records nothing', async () => {
+    s.agentsRepo.linkedSkills.mockResolvedValue([linked('Skill A', 2), linked('Off', 1, false)]);
+    const out = await s.service.runCase(WS, AGENT.id, 'c1');
+    expect(out).toEqual(single);
+    expect(executor.runSingle).toHaveBeenCalledTimes(1);
+    const [c, agent, skills] = executor.runSingle.mock.calls[0]!;
+    expect(c.id).toBe('c1');
+    expect(agent).toBe(AGENT);
+    expect(skills.map((x: { name: string }) => x.name)).toEqual(['Skill A']);
+    expect(repo.insertRunning).not.toHaveBeenCalled();
+    expect(executor.execute).not.toHaveBeenCalled();
+  });
+
+  it('AC-50: runCase is not blocked by a running run (the run table is not consulted)', async () => {
+    repo.insertRunning.mockResolvedValue(null);
+    repo.listRuns.mockResolvedValue([{ status: 'running', results: null }]);
+    await expect(s.service.runCase(WS, AGENT.id, 'c1')).resolves.toEqual(single);
+    expect(repo.listRuns).not.toHaveBeenCalled();
+  });
+
+  it('runCase: an agent or case outside the workspace is a 404 with no model call', async () => {
+    s.agentsRepo.getById.mockResolvedValueOnce(undefined);
+    await expect(s.service.runCase(WS, AGENT.id, 'c1')).rejects.toBeInstanceOf(NotFoundError);
+    repo.getCase.mockResolvedValueOnce(undefined);
+    await expect(s.service.runCase(WS, AGENT.id, 'c1')).rejects.toBeInstanceOf(NotFoundError);
+    expect(executor.runSingle).not.toHaveBeenCalled();
+  });
+
+  describe('updateCase', () => {
+    const edit = { name: ' New ', start_line: 2, end_line: 3 };
+    beforeEach(() => {
+      repo.updateCaseExclusive.mockImplementation(async (_w, _a, _c, values, decide) => {
+        const blocker = decide([]);
+        return blocker ? { kind: 'conflict', row: blocker } : { kind: 'updated', row: row(values) };
+      });
+    });
+
+    it('AC-51: returns the edited row and keeps the latest status', async () => {
+      repo.listRuns.mockResolvedValue([
+        { status: 'completed', results: [{ case_id: 'c1', status: 'failed' }] },
+      ]);
+      const out = await s.service.updateCase(WS, AGENT.id, 'c1', edit);
+      expect(out).toMatchObject({ id: 'c1', name: 'New', latest_status: 'failed' });
+      expect(out.expectation).toMatchObject({ type: 'must_find', file: FILE, start_line: 2, end_line: 3 });
+      expect(repo.insertRunning).not.toHaveBeenCalled();
+    });
+
+    it('AC-51: never_run when no completed run has the case', async () => {
+      expect((await s.service.updateCase(WS, AGENT.id, 'c1', edit)).latest_status).toBe('never_run');
+    });
+
+    it('AC-51: a refused edit changes nothing', async () => {
+      const err = (await s.service.updateCase(WS, AGENT.id, 'c1', { ...edit, start_line: 40, end_line: 41 }).catch((e) => e)) as AppError;
+      expect(err.code).toBe('eval_case_no_hunk');
+      expect(repo.updateCaseExclusive).not.toHaveBeenCalled();
+    });
+
+    it('AC-51: a case of another workspace or agent is a 404', async () => {
+      repo.getCase.mockResolvedValue(undefined);
+      await expect(s.service.updateCase(WS, AGENT.id, 'c1', edit)).rejects.toBeInstanceOf(NotFoundError);
+    });
+
+    it('AC-51: the opposite-type conflict check is handed only the OTHER cases', async () => {
+      repo.updateCaseExclusive.mockImplementation(async (_w, _a, _c, _v, decide) => {
+        // The repository excludes the case itself; the case's own zone must never block it.
+        expect(decide([])).toBeNull();
+        const other = row({
+          id: 'c2',
+          name: 'Opposite',
+          expectedOutput: { type: 'must_not_flag', file: FILE, start_line: 3, end_line: 3, title: 'O' },
+        });
+        return { kind: 'conflict', row: decide([other as never]) };
+      });
+      const err = (await s.service.updateCase(WS, AGENT.id, 'c1', edit).catch((e) => e)) as AppError;
+      expect(err.code).toBe('eval_case_conflict');
+      expect(err.statusCode).toBe(409);
+      expect(err.details).toEqual({ case_id: 'c2', case_name: 'Opposite' });
+    });
   });
 });

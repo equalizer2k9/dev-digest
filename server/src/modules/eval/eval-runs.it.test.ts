@@ -7,6 +7,7 @@ import {
   EvalCompare,
   EvalDashboard,
   EvalRunRecord,
+  EvalSingleRun,
 } from '@devdigest/shared';
 import { startPg, dockerAvailable, type PgFixture } from '../../../test/helpers/pg.js';
 import { seed } from '../../db/seed.js';
@@ -314,5 +315,79 @@ d('eval runs (Postgres)', () => {
     const times = dash.recent_runs.map((r) => r.started_at);
     expect([...times].sort().reverse()).toEqual(times);
     expect(dash.recent_runs[0]!.started_at >= latest.started_at).toBe(true);
+  });
+  // ---- single-case runs (AC-48..AC-50) ----
+
+  const runRows = (agentId: string) => db().select().from(t.evalRuns).where(eq(t.evalRuns.agentId, agentId));
+
+  it('AC-49/AC-50: Run on a stored case makes one call, shows the result and records nothing', async () => {
+    const f = await fixture({ prompt: 'TARGET-A' });
+    llm.requests = [];
+    const res = await call('POST', `/agents/${f.agentId}/evals/cases/${f.caseIds['a.ts']}/run`);
+    expect(res.statusCode).toBe(200);
+    const out = EvalSingleRun.parse(res.json());
+    expect(out).toMatchObject({ status: 'passed', error: null, kept: 1, dropped: 0, cost_usd: 0.01 });
+    expect(llm.requests).toHaveLength(1);
+    expect(await runRows(f.agentId)).toHaveLength(0);
+    const o = await overview(f.agentId);
+    expect(o.runs).toHaveLength(0);
+    expect(o.cases.every((c) => c.latest_status === 'never_run')).toBe(true);
+    expect(EvalDashboard.parse((await call('GET', '/evals/dashboard')).json()).recent_runs.map((r) => r.agent_id))
+      .not.toContain(f.agentId);
+  });
+
+  it('AC-50: a running run neither blocks Run on a case nor is blocked by it', async () => {
+    const f = await fixture({ prompt: 'TARGET-A' });
+    const [running] = await db()
+      .insert(t.evalRuns)
+      .values({ workspaceId: wsId, agentId: f.agentId, agentVersion: 1, status: 'running' })
+      .returning();
+    try {
+      const res = await call('POST', `/agents/${f.agentId}/evals/cases/${f.caseIds['a.ts']}/run`);
+      expect(res.statusCode).toBe(200);
+      expect(await runRows(f.agentId)).toHaveLength(1);
+    } finally {
+      await db().delete(t.evalRuns).where(eq(t.evalRuns.id, running!.id));
+    }
+    await call('POST', `/agents/${f.agentId}/evals/cases/${f.caseIds['a.ts']}/run`);
+    expect((await runAndWait(f.agentId)).status).toBe('completed');
+  });
+
+  it('AC-32: Run on a case of another agent is a 404 with no model call', async () => {
+    const f = await fixture();
+    const g = await fixture();
+    llm.requests = [];
+    const res = await call('POST', `/agents/${f.agentId}/evals/cases/${g.caseIds['a.ts']}/run`);
+    expect(res.statusCode).toBe(404);
+    expect(llm.requests).toHaveLength(0);
+  });
+
+  it('AC-48: Run case on an unsaved case reviews it once and stores nothing', async () => {
+    const f = await fixture({ prompt: 'TARGET-A' });
+    const [rev] = await db().select().from(t.reviews).where(eq(t.reviews.prId, f.prId));
+    const [fin] = await db()
+      .insert(t.findings)
+      .values({
+        reviewId: rev!.id, file: 'a.ts', startLine: 3, endLine: 3, severity: 'WARNING', category: 'bug',
+        title: 'second', rationale: 'r', confidence: 0.9, acceptedAt: new Date(),
+      })
+      .returning();
+    const casesBefore = (await overview(f.agentId)).cases.length;
+    llm.requests = [];
+    const res = await call('POST', `/findings/${fin!.id}/eval-case/run`, { name: 'try', start_line: 2, end_line: 3 });
+    expect(res.statusCode).toBe(200);
+    expect(EvalSingleRun.parse(res.json()).status).toBe('passed');
+    expect(llm.requests).toHaveLength(1);
+    expect((await overview(f.agentId)).cases).toHaveLength(casesBefore);
+    expect(await runRows(f.agentId)).toHaveLength(0);
+
+    // the zone checks come first: no model call
+    llm.requests = [];
+    const bad = await call('POST', `/findings/${fin!.id}/eval-case/run`, { name: 'try', start_line: 40, end_line: 41 });
+    expect(bad.statusCode).toBe(422);
+    expect(bad.json().error.code).toBe('eval_case_no_hunk');
+    const empty = await call('POST', `/findings/${fin!.id}/eval-case/run`, { name: ' ', start_line: 2, end_line: 3 });
+    expect(empty.json().error.code).toBe('eval_case_bad_name');
+    expect(llm.requests).toHaveLength(0);
   });
 });

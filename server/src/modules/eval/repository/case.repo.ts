@@ -24,6 +24,69 @@ export async function caseBySourceFinding(
   return row;
 }
 
+/** One case of an agent, workspace-scoped. */
+export async function getCase(
+  db: Db,
+  workspaceId: string,
+  agentId: string,
+  caseId: string,
+): Promise<EvalCaseDbRow | undefined> {
+  const [row] = await db
+    .select()
+    .from(t.evalCases)
+    .where(
+      and(
+        eq(t.evalCases.workspaceId, workspaceId),
+        eq(t.evalCases.agentId, agentId),
+        eq(t.evalCases.id, caseId),
+      ),
+    );
+  return row;
+}
+
+export type UpdateCaseResult =
+  | { kind: 'updated'; row: EvalCaseDbRow }
+  | { kind: 'conflict'; row: EvalCaseDbRow }
+  | { kind: 'missing' };
+
+/**
+ * Same serialisation as `createCaseExclusive`: the agent row is locked `FOR UPDATE`, so the
+ * conflict check (`decide`, given the agent's OTHER cases) and the update cannot interleave with a
+ * creation or another edit for the same agent. Only name and expectation change.
+ */
+export function updateCaseExclusive(
+  db: Db,
+  workspaceId: string,
+  agentId: string,
+  caseId: string,
+  values: { name: string; expectedOutput: unknown },
+  decide: (otherCases: EvalCaseDbRow[]) => EvalCaseDbRow | null,
+): Promise<UpdateCaseResult> {
+  return db.transaction(async (tx) => {
+    await tx
+      .select({ id: t.agents.id })
+      .from(t.agents)
+      .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.id, agentId)))
+      .for('update');
+
+    const agentCases = await tx
+      .select()
+      .from(t.evalCases)
+      .where(and(eq(t.evalCases.workspaceId, workspaceId), eq(t.evalCases.agentId, agentId)));
+    if (!agentCases.some((c) => c.id === caseId)) return { kind: 'missing' };
+
+    const blocker = decide(agentCases.filter((c) => c.id !== caseId));
+    if (blocker) return { kind: 'conflict', row: blocker };
+
+    const [row] = await tx
+      .update(t.evalCases)
+      .set(values)
+      .where(and(eq(t.evalCases.workspaceId, workspaceId), eq(t.evalCases.id, caseId)))
+      .returning();
+    return row ? { kind: 'updated', row } : { kind: 'missing' };
+  });
+}
+
 /** An agent's cases, newest first. */
 export function listCases(db: Db, workspaceId: string, agentId: string): Promise<EvalCaseDbRow[]> {
   return db

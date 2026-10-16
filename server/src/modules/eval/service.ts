@@ -2,6 +2,10 @@ import type { SkillPart } from '@devdigest/reviewer-core';
 import {
   type EvalAgentOverview,
   type EvalCaseCreated,
+  type EvalCaseDraft,
+  type EvalCaseEdit,
+  type EvalCaseRow,
+  type EvalSingleRun,
   type EvalCaseResult,
   type EvalCompare,
   type EvalDashboard,
@@ -9,7 +13,14 @@ import {
 } from '@devdigest/shared';
 import type { Container } from '../../platform/container.js';
 import { AppError, NotFoundError } from '../../platform/errors.js';
-import { createCaseFromFinding, toCaseRow } from './cases.js';
+import {
+  applyEdit,
+  createCaseFromFinding,
+  draftCaseFromFinding,
+  existingCaseFor,
+  toCaseRow,
+  updateCaseFromEdit,
+} from './cases.js';
 import {
   EVAL_COMPARE_INVALID,
   EVAL_RUN_IN_PROGRESS,
@@ -18,6 +29,7 @@ import {
 } from './constants.js';
 import { compareRuns, toRunRecord } from './helpers.js';
 import { EvalRepository } from './repository.js';
+import type { AgentRow } from '../../db/rows.js';
 import { EvalRunExecutor, type EvalLogger } from './run-executor.js';
 
 /**
@@ -46,14 +58,7 @@ export class EvalService {
       throw new AppError(EVAL_SET_EMPTY, 'Add at least one eval case before running', 422);
     }
 
-    const linked = (await this.container.agentsRepo.linkedSkills(agentId)).filter((l) => l.skill.enabled);
-    const skills: SkillPart[] = linked.map((l) => ({
-      id: l.skill.id,
-      name: l.skill.name,
-      version: l.skill.version,
-      body: l.skill.body,
-      trusted: l.skill.source === 'manual' || l.skill.source === 'extracted',
-    }));
+    const skills = await this.skillSnapshot(agentId);
 
     const run = await this.repo.insertRunning({
       workspaceId,
@@ -74,9 +79,84 @@ export class EvalService {
     return toRunRecord(run, agent.name);
   }
 
+  /** The agent's enabled linked skills, in order, as the engine takes them. */
+  private async skillSnapshot(agentId: string): Promise<SkillPart[]> {
+    const linked = (await this.container.agentsRepo.linkedSkills(agentId)).filter((l) => l.skill.enabled);
+    return linked.map((l) => ({
+      id: l.skill.id,
+      name: l.skill.name,
+      version: l.skill.version,
+      body: l.skill.body,
+      trusted: l.skill.source === 'manual' || l.skill.source === 'extracted',
+    }));
+  }
+
+  /** What the "Turn into eval case" modal opens with. No model call, stores nothing (AC-46). */
+  async caseDraft(workspaceId: string, findingId: string): Promise<EvalCaseDraft> {
+    const ctx = await this.container.reviewRepo.findingContext(findingId);
+    if (!ctx || ctx.pull.workspaceId !== workspaceId) throw new NotFoundError('Finding not found');
+    const existing = await existingCaseFor(this.container, this.repo, workspaceId, findingId);
+    if (existing) return { existing, draft: null };
+    const d = await draftCaseFromFinding(this.container, workspaceId, findingId);
+    return {
+      existing: null,
+      draft: {
+        agent_id: d.agent.id,
+        agent_name: d.agent.name,
+        name: d.name,
+        expectation: d.expectation,
+        input_diff: d.inputDiff,
+        pr_number: d.prNumber,
+        pr_title: d.prTitle,
+      },
+    };
+  }
+
   /** Freeze a decided finding into an eval case of its agent (idempotent per finding). */
-  createCase(workspaceId: string, findingId: string): Promise<EvalCaseCreated> {
-    return createCaseFromFinding(this.container, this.repo, workspaceId, findingId);
+  createCase(workspaceId: string, findingId: string, edit?: EvalCaseEdit): Promise<EvalCaseCreated> {
+    return createCaseFromFinding(this.container, this.repo, workspaceId, findingId, edit);
+  }
+
+  /** Review the unsaved case once (AC-48). Draft and zone checks first; stores nothing. */
+  async runDraftCase(
+    workspaceId: string,
+    findingId: string,
+    edit: EvalCaseEdit,
+    logger?: EvalLogger,
+  ): Promise<EvalSingleRun> {
+    const d = applyEdit(await draftCaseFromFinding(this.container, workspaceId, findingId), edit);
+    const skills = await this.skillSnapshot(d.agent.id);
+    return this.executor.runSingle(
+      { id: null, name: d.name, inputDiff: d.inputDiff, inputMeta: d.meta, expectedOutput: d.expectation },
+      d.agent,
+      skills,
+      logger,
+    );
+  }
+
+  /** Review one stored case once (AC-49). Not a run: records nothing, ignores a running run. */
+  async runCase(workspaceId: string, agentId: string, caseId: string, logger?: EvalLogger): Promise<EvalSingleRun> {
+    const agent: AgentRow | undefined = await this.container.agentsRepo.getById(workspaceId, agentId);
+    if (!agent) throw new NotFoundError('Agent not found');
+    const row = await this.repo.getCase(workspaceId, agentId, caseId);
+    if (!row) throw new NotFoundError('Eval case not found');
+    const skills = await this.skillSnapshot(agentId);
+    return this.executor.runSingle(row, agent, skills, logger);
+  }
+
+  /** Change a stored case's name and zone (AC-51). */
+  async updateCase(
+    workspaceId: string,
+    agentId: string,
+    caseId: string,
+    edit: EvalCaseEdit,
+  ): Promise<EvalCaseRow> {
+    const row = await updateCaseFromEdit(this.repo, workspaceId, agentId, caseId, edit);
+    // Keep the status the overview shows: the case's result in the latest completed run.
+    const runs = await this.repo.listRuns(workspaceId, agentId);
+    const latest = runs.find((r) => r.status === 'completed');
+    const status = (latest?.results ?? []).find((r) => r.case_id === row.id)?.status ?? 'never_run';
+    return toCaseRow(row, status);
   }
 
   /** Everything the Evals tab shows: cases (newest first), their latest status, and the runs. */

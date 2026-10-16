@@ -384,3 +384,73 @@ describe('EvalRunExecutor', () => {
     expect((records as Record<string, unknown>[]).some((r) => r.caseId === 'a')).toBe(true);
   });
 });
+
+describe('EvalRunExecutor.runSingle (AC-50)', () => {
+  let s: ReturnType<typeof setup>;
+  beforeEach(() => {
+    s = setup();
+  });
+  const unsaved = (c: EvalCaseDbRow) => ({
+    id: null,
+    name: c.name,
+    inputDiff: c.inputDiff,
+    inputMeta: c.inputMeta,
+    expectedOutput: c.expectedOutput,
+  });
+
+  it('makes exactly one model call and records nothing', async () => {
+    const out = await s.executor.runSingle(mkCase('a'), agentRow(), SKILLS);
+    expect(s.llm.requests).toHaveLength(1);
+    expect(s.repo.finishRun).not.toHaveBeenCalled();
+    expect(s.repo.failRun).not.toHaveBeenCalled();
+    expect(out.status).toBe('failed');
+    expect(out.duration_ms).toBeGreaterThanOrEqual(0);
+  });
+
+  it('a stored case and the same case unsaved send the same request and score the same', async () => {
+    const c = mkCase('a');
+    s.llm.fallback = () => review([finding(`src/a.ts`, 2, 2)]);
+    const stored = await s.executor.runSingle(c, agentRow(), SKILLS);
+    const draft = await s.executor.runSingle(unsaved(c), agentRow(), SKILLS);
+    expect(s.llm.requests).toHaveLength(2);
+    expect(s.llm.requests[0]!.messages).toEqual(s.llm.requests[1]!.messages);
+    expect(draft).toEqual({ ...stored, duration_ms: draft.duration_ms });
+    expect(stored.status).toBe('passed');
+    expect(stored.kept_findings).toHaveLength(1);
+  });
+
+  it('the request equals the one a run makes for the same case', async () => {
+    const c = mkCase('a');
+    await s.executor.execute(RUN, agentRow(), [c], SKILLS);
+    await s.executor.runSingle(c, agentRow(), SKILLS);
+    expect(s.llm.requests[1]!.messages).toEqual(s.llm.requests[0]!.messages);
+  });
+
+  it('a provider that cannot be built is status error with the reason, no throw', async () => {
+    s.llmFactory.mockRejectedValueOnce(new ConfigError('no key'));
+    const out = await s.executor.runSingle(mkCase('a'), agentRow(), []);
+    expect(out).toMatchObject({ status: 'error', kept: 0, dropped: 0, kept_findings: [], cost_usd: null });
+    expect(out.error).toContain('no key');
+    expect(s.llm.requests).toHaveLength(0);
+  });
+
+  it('a model failure is status error', async () => {
+    s.llm.handlers[0] = () => new Error('boom');
+    const out = await s.executor.runSingle(mkCase('a'), agentRow(), []);
+    expect(out.status).toBe('error');
+    expect(out.error).toBeTruthy();
+  });
+
+  it('an unknown cost passes through as null', async () => {
+    s.llm.cost = null;
+    const out = await s.executor.runSingle(mkCase('a'), agentRow(), []);
+    expect(out.cost_usd).toBeNull();
+  });
+
+  it('EC-27: a hanging model becomes error "timeout"', async () => {
+    const t = setup(new RecordingLLM(), 20);
+    t.llm.handlers[0] = () => HANG;
+    const out = await t.executor.runSingle(mkCase('a'), agentRow(), []);
+    expect(out).toMatchObject({ status: 'error', error: 'timeout' });
+  });
+});

@@ -12,6 +12,7 @@ import type {
   CreateCaseResult,
   EvalCaseDbRow,
   NewEvalCase,
+  UpdateCaseResult,
 } from './repository/case.repo.js';
 
 /**
@@ -25,6 +26,7 @@ export type {
   DashboardAgentRow,
   EvalCaseDbRow,
   NewEvalCase,
+  UpdateCaseResult,
   EvalRunDbRow,
   EvalRunWithAgent,
   FinishedRunValues,
@@ -45,6 +47,20 @@ export class EvalRepository {
     decide: (agentCases: EvalCaseDbRow[]) => EvalCaseDbRow | null,
   ): Promise<CreateCaseResult> {
     return caseRepo.createCaseExclusive(this.db, values, decide);
+  }
+
+  getCase(workspaceId: string, agentId: string, caseId: string): Promise<EvalCaseDbRow | undefined> {
+    return caseRepo.getCase(this.db, workspaceId, agentId, caseId);
+  }
+
+  updateCaseExclusive(
+    workspaceId: string,
+    agentId: string,
+    caseId: string,
+    values: { name: string; expectedOutput: unknown },
+    decide: (otherCases: EvalCaseDbRow[]) => EvalCaseDbRow | null,
+  ): Promise<UpdateCaseResult> {
+    return caseRepo.updateCaseExclusive(this.db, workspaceId, agentId, caseId, values, decide);
   }
 
   listCases(workspaceId: string, agentId: string): Promise<EvalCaseDbRow[]> {
