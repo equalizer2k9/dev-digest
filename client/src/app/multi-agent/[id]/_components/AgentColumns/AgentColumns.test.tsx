@@ -68,6 +68,12 @@ describe("AgentColumns", () => {
     expect(screen.getByTestId("drawer")).toHaveAttribute("data-findings", "f1,f3");
   });
 
+  it("a sub-cent run cost shows as $0.0005, not $0.000", () => {
+    wrap([agent("r1", { cost_usd: 0.00049714 })]);
+    expect(screen.getByText("$0.0005")).toBeInTheDocument();
+    expect(screen.queryByText("$0.000")).not.toBeInTheDocument();
+  });
+
   it("deleted agent label when agent_name is null (EC-3)", () => {
     wrap([agent("r1", { agent_name: null, agent_id: null })]);
     expect(screen.getByText(messages.column.deletedAgent)).toBeInTheDocument();

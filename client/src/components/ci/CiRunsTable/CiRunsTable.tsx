@@ -5,7 +5,8 @@
 import { useTranslations } from "next-intl";
 import { Badge } from "@devdigest/ui";
 import type { CiRunRow } from "@devdigest/shared";
-import { STATUS_COLORS, formatCost, formatDuration, isHttpsUrl, statusKey } from "./helpers";
+import { formatCost } from "@/lib/cost";
+import { STATUS_COLORS, formatDuration, isHttpsUrl, statusKey } from "./helpers";
 import { s } from "./styles";
 
 export interface CiRunsTableProps {

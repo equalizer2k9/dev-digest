@@ -6,7 +6,8 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Button, Checkbox } from "@devdigest/ui";
 import type { AgentEstimate } from "@devdigest/shared";
-import { canLaunch, formatCost, formatDuration, toggle, totalEstimate } from "./helpers";
+import { formatCost } from "@/lib/cost";
+import { canLaunch, formatDuration, toggle, totalEstimate } from "./helpers";
 import { MIN_AGENTS } from "./constants";
 import { s } from "./styles";
 
