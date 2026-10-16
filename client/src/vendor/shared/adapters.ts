@@ -140,6 +140,20 @@ export interface CommitFilesPayload {
   files: CommitFile[];
 }
 
+export interface WorkflowRunInfo {
+  id: number;
+  html_url: string;
+  conclusion: string | null;
+  pr_number: number | null;
+  head_repo: string | null;
+  completed_at: string;
+}
+
+export type ArtifactDownload =
+  | { kind: 'ok'; zip: Uint8Array }
+  | { kind: 'missing' }
+  | { kind: 'expired' };
+
 export interface GitHubClient {
   listPullRequests(repo: RepoRef): Promise<PrMeta[]>;
   getPullRequest(repo: RepoRef, n: number): Promise<PrDetail>;
@@ -175,6 +189,10 @@ export interface GitHubClient {
   ): Promise<string | null>;
   /** GET /user — for "posting as @user". */
   currentLogin(): Promise<string>;
+  /** Completed runs of one workflow file, newest first, at most `limit`. */
+  listWorkflowRuns(repo: RepoRef, workflowFile: string, limit: number): Promise<WorkflowRunInfo[]>;
+  /** The named artifact of a run, as zip bytes. */
+  downloadArtifact(repo: RepoRef, runId: number, name: string): Promise<ArtifactDownload>;
 }
 
 // ---------- Git (simple-git, heavy) ----------
