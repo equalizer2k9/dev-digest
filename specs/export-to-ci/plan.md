@@ -64,6 +64,15 @@ GitHubClient.downloadArtifact(repo, runId: number, name: string): Promise<Artifa
 
 ## Files
 
+### File ownership (Part B)
+
+| owner | files |
+|---|---|
+| B | `server/src/modules/ci/**`, `server/src/adapters/github/octokit.ts` + `GitHubClient` (`vendor/shared/adapters.ts`, both copies) + mocks, `contracts/ci.ts` (both copies), `server/package.json` + lock (only via `pnpm add yaml@^2.6.1`), client `app/agents/[id]` CI tab + `ExportWizard`, `client/src/app/ci-runs/**`, `client/src/components/ci/**`, CI hooks, `client/messages/en/ci.json`, `agent-runner/src/**` (T-S10 and build fixes only) |
+| shared, append only | `client/src/components/showcase/Showcase.tsx` (+ `constants.ts`) — each feature only adds its own imports and sections; a merge conflict on B's merge is expected (resolve by keeping both sides) |
+| shared, append only | `server/src/modules/index.ts`, `vendor/shared/index.ts` (both copies), `client/src/lib/hooks/index.ts`, sidebar/nav, `docs/retros/ledger.md`, `AGENTS.md` |
+| not touched by B | DB schema and migrations, every Part A path |
+
 | path | new/modify | what changes | AC |
 |---|---|---|---|
 | `server/src/vendor/shared/contracts/ci.ts` | new | shapes above | AC-1–AC-12 |
@@ -92,7 +101,7 @@ GitHubClient.downloadArtifact(repo, runId: number, name: string): Promise<Artifa
 | `client/src/lib/hooks/index.ts` | modify | `export * from "./ci";` | — |
 | `client/messages/en/ci.json` | modify | new keys (existing keys stay) | NFR-9 |
 | `client/src/components/ci/CiRunsTable/{CiRunsTable.tsx,index.ts,helpers.ts,styles.ts,CiRunsTable.test.tsx}` | new | table shared by `/ci-runs` and the CI tab | AC-12 |
-| `client/src/components/showcase/Showcase.tsx`, `constants.ts` | modify | `CiRunsTable` group with a fixture | — |
+| `client/src/components/showcase/Showcase.tsx`, `constants.ts` | modify (shared, append only) | `CiRunsTable` and `ExportWizard` sections with fixtures, no network | — (`client/AGENTS.md:27`) |
 | `client/src/app/ci-runs/page.tsx` | new | thin page | AC-9, AC-11 |
 | `client/src/app/ci-runs/_components/CiRunsView/{CiRunsView.tsx,index.ts,styles.ts,CiRunsView.test.tsx}` | new | ingest on open + Refresh, busy, notice, empty/loading | AC-9, AC-11 |
 | `client/src/vendor/ui/nav.ts` | modify | one item `{ key: "ci-runs", … href: "/ci-runs" }` (`activeKeyFor` already maps it, `components/app-shell/helpers.ts:38`) | NFR-4 |
@@ -345,6 +354,7 @@ Depends on: —
 ### T-C3 — Shared CiRunsTable
 AC: AC-12
 Files: `client/src/components/ci/CiRunsTable/*`, `client/src/components/showcase/Showcase.tsx`, `client/src/components/showcase/constants.ts`
+Showcase (`client/AGENTS.md:27`): a `CiRunsTable` section with fixture `CiRunRow[]` (succeeded, failed, no_findings, `agent: null`) from `constants.ts`, inside the intl provider with `ci.json`; no hooks, no network.
 Props: `{ runs: CiRunRow[] }` (presentational). `helpers.ts`: `formatDuration`, `formatCost`, `statusKey` (→ `runs.status.*`).
 Test: `CiRunsTable.test.tsx` —
 - A row shows repo, `#<pr>`, agent, status label, findings, cost, duration, time, and a link with `href = github_url`, `target="_blank"`, `rel` containing `noopener`.
@@ -377,7 +387,8 @@ Depends on: T-C3
 
 ### T-C5 — Export wizard
 AC: AC-1, AC-3, AC-6, AC-8 (UI side), NFR-1, NFR-2
-Files: `.../AgentEditor/_components/CiTab/_components/ExportWizard/*`
+Files: `.../AgentEditor/_components/CiTab/_components/ExportWizard/*`, `client/src/components/showcase/Showcase.tsx`, `client/src/components/showcase/constants.ts` (shared, append only)
+Showcase (`client/AGENTS.md:27`): an `ExportWizard` section — inside the gallery's existing `QueryClientProvider`, the repos and CI preview queries are pre-seeded with fixtures via `setQueryData` (same pattern as the `contextKeys` seeding already in `Showcase.tsx`), so it renders the Preview step with no network; no mutation fires on mount.
 Props: `{ agent: Agent; onClose(): void }`. Data from `useRepos()` (`client/src/lib/hooks/core.ts:65`), `usePreviewCi`, `useInstallCi`. Steps through `ExportWizardSteps` with labels from `exportWizard.steps.*`.
 `helpers.ts` (pure):
 - `canContinue(step, state)`: Target needs a repo; Preview needs files and no error; Configure needs ≥ 1 trigger (A-4).
@@ -484,7 +495,7 @@ Security mapping:
 | GitHub error text could leak into logs or the UI | `server/src/app.ts:142-160` | only the message, cut to 300 chars; no headers or token; rendered as text |
 | React StrictMode double-mount would ingest twice on page open | `CiRunsView` | `useRef` guard; the server dedupes anyway |
 | `role="alert"` and duplicate button names in RTL | client INSIGHTS 2026-09-22 | assert on copy; distinct labels (Refresh / Open PR / Continue) |
-| Showcase without a QueryClient | client INSIGHTS 2026-09-22 | `CiRunsTable` is presentational |
+| Showcase without a QueryClient / network | client INSIGHTS 2026-09-22; `client/src/test/smoke.test.tsx` | `CiRunsTable` is presentational; `ExportWizard` reads only pre-seeded queries; `Showcase.tsx` is shared with A — append-only, conflict on B's merge expected |
 | A client runtime import from `@devdigest/shared` breaks the build | `client/src/lib/feature-models.ts:6-11` | `import type` only |
 | `agent-runner` resolves `@devdigest/shared` from the server copy, so T-S1 changes its build input | `agent-runner/CLAUDE.md` (tsconfig aliases) | T-S9 runs runner typecheck, test and build; only build fixes allowed |
 | Do not touch: migrations, lock files, `package.json`, `docker compose down -v`, `server/clones/` | root `CLAUDE.md` | none planned |

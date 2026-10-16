@@ -12,13 +12,14 @@ Two groups: **server** (T-1 to T-9) and **client** (T-10 to T-14). Files marked 
 
 ### File ownership (Part A)
 
-Requirements' "Власники файлів" table, extended by the user on 2026-10-16 with two new A-only paths.
+Requirements' "Власники файлів" table, extended by the user on 2026-10-16 with two new A-only paths and the showcase as a shared file.
 
 | owner | files |
 |---|---|
 | A | `server/src/modules/reviews/**`, the one generated migration (+ its `meta/` output), `server/src/db/schema/runs.ts`, `contracts/multi-agent.ts` (both `vendor/shared` copies), PR page `RunReviewDropdown`, `client/src/app/multi-agent/**`, multi-run hooks (`client/src/lib/hooks/multi-agent.ts`), **`client/messages/en/multiAgent.json`** (new), **`client/src/components/multi-agent/**`** (new) |
 | shared, append one line only | `vendor/shared/index.ts` (both copies), `client/src/lib/hooks/index.ts`, sidebar/nav (`client/src/vendor/ui/nav.ts`), `docs/retros/ledger.md`, `AGENTS.md` |
-| not touched by A | `client/src/components/showcase/**` (shared file, not needed for this homework), every Part B path |
+| shared, append only | `client/src/components/showcase/Showcase.tsx` (+ `constants.ts`) — each feature only adds its own imports and sections; a merge conflict on B's merge is expected (resolve by keeping both sides) |
+| not touched by A | every Part B path |
 
 
 | path | new/modify | what changes | AC |
@@ -50,6 +51,7 @@ Requirements' "Власники файлів" table, extended by the user on 202
 | `client/messages/en/multiAgent.json` | new (A) | every caption of the picker and both pages | NFR-9 |
 | `client/src/components/multi-agent/MultiAgentPicker/{MultiAgentPicker.tsx,index.ts,constants.ts,helpers.ts,styles.ts,MultiAgentPicker.test.tsx,helpers.test.ts}` | new (A) | presentational picker shared by the PR page and `/multi-agent` | AC-1, AC-6 |
 | `client/src/components/multi-agent/index.ts` | new (A) | barrel | — |
+| `client/src/components/showcase/Showcase.tsx`, `constants.ts` | modify (shared, append only) | sections for `MultiAgentPicker`, `AgentColumns`, `FindingGroups`, `DisagreementsSection` with fixtures, no network | — (`client/AGENTS.md:27`) |
 | `client/src/app/repos/[repoId]/pulls/[number]/_components/RunReviewDropdown/{RunReviewDropdown.tsx,constants.ts,styles.ts,RunReviewDropdown.test.tsx}` | modify | "Multi-agent review…" item opens a `Modal` with the picker; launch → navigate; error keeps the selection; link to the latest multi run | AC-1, AC-2, AC-3 |
 | `client/src/app/multi-agent/[id]/page.tsx` | new | thin page: `AppShell` + `MultiRunView` | AC-7, AC-8 |
 | `client/src/app/multi-agent/[id]/_components/MultiRunView/*` | new | header, error notice, composes the sections below | AC-7, AC-8 |
@@ -316,10 +318,10 @@ Verify: `pnpm typecheck && pnpm exec vitest run src/lib/hooks/multi-agent.test.t
 Skills: frontend-architecture, react-best-practices, react-testing-library
 Depends on: T-1
 
-### T-11 — `MultiAgentPicker` (shared component) + messages
+### T-11 — `MultiAgentPicker` (shared component) + messages + showcase
 AC: AC-6, AC-1
-Files: `client/messages/en/multiAgent.json`, `client/src/components/multi-agent/index.ts`, `client/src/components/multi-agent/MultiAgentPicker/{MultiAgentPicker.tsx,index.ts,constants.ts,helpers.ts,styles.ts,MultiAgentPicker.test.tsx,helpers.test.ts}`
-Not touched: `client/src/components/showcase/**` (user decision 2026-10-16: not needed for the homework, shared file).
+Files: `client/messages/en/multiAgent.json`, `client/src/components/multi-agent/index.ts`, `client/src/components/multi-agent/MultiAgentPicker/{MultiAgentPicker.tsx,index.ts,constants.ts,helpers.ts,styles.ts,MultiAgentPicker.test.tsx,helpers.test.ts}`, `client/src/components/showcase/Showcase.tsx`, `client/src/components/showcase/constants.ts` (shared, append only)
+Showcase (`client/AGENTS.md:27`): one section per new Part A component — `MultiAgentPicker`, `AgentColumns`, `FindingGroups`, `DisagreementsSection` — each rendered with fixture data from `constants.ts` (estimates, agent runs in every status, groups with a conflict and without), wrapped in the existing intl provider with `multiAgent.json`; no hooks, no network. The column/group/disagreement sections are added once T-13 creates those components (T-13 appends them).
 Props (presentational, no data hooks): `{ estimates: AgentEstimate[] | undefined; loading: boolean; selected: string[]; onChange(ids: string[]): void; onLaunch(): void; launching: boolean; error: string | null }`
 Helpers: `totalEstimate(estimates, selected): { cost_usd: number | null; duration_ms: number | null }` (sum / max over values that exist, `null` when none) · `toggle(selected, id, max = MAX_AGENTS): string[]` (keeps request order; refuses a sixth) · `canLaunch(n) = MIN_AGENTS ≤ n ≤ MAX_AGENTS` · `formatCost` / `formatDuration` with `"—"` for `null`. `constants.ts`: `MIN_AGENTS = 2`, `MAX_AGENTS = 5`.
 Messages (`multiAgent.json`, camelCase keys): `picker.title`, `picker.estimate`, `picker.total`, `picker.launch` (`"Run multi-agent review ({count})"`), `picker.max`, `picker.needTwo`, `picker.none`, `picker.loading`, `picker.dash`, plus the page keys used by T-12 to T-14 (`page.*`, `column.*`, `groups.*`, `disagree.*`, `cell.*`, `list.*`, `newRun.*`, `link.latest`, `column.deletedAgent`, `error.*`). The `Checkbox` has no `disabled` prop (`client/src/vendor/ui/kit/Checkbox.tsx:5-16`), so the cap is enforced in `toggle` and explained by `picker.max`.
@@ -363,7 +365,7 @@ Depends on: T-10, T-11
 
 ### T-13 — Multi-Agent Review page `/multi-agent/[id]`
 AC: AC-7, AC-8, AC-9, AC-10, AC-11
-Files: `client/src/app/multi-agent/[id]/page.tsx`; `client/src/app/multi-agent/[id]/_components/{MultiRunView,AgentColumns,FindingGroups,DisagreementsSection}/*` (each: `<Name>.tsx`, `index.ts`, `styles.ts`, optional `constants.ts`/`helpers.ts`, `<Name>.test.tsx`)
+Files: `client/src/app/multi-agent/[id]/page.tsx`; `client/src/app/multi-agent/[id]/_components/{MultiRunView,AgentColumns,FindingGroups,DisagreementsSection}/*` (each: `<Name>.tsx`, `index.ts`, `styles.ts`, optional `constants.ts`/`helpers.ts`, `<Name>.test.tsx`); showcase: append `AgentColumns`, `FindingGroups`, `DisagreementsSection` sections to `client/src/components/showcase/Showcase.tsx` + fixtures in `constants.ts` (see T-11)
 Change:
 - `page.tsx`: `"use client"`, `useParams<{ id: string }>()`, `AppShell` with a crumb, renders `MultiRunView`. The pattern follows `client/src/app/agents/[id]/page.tsx:17-56`.
 - `MultiRunView`: calls `useMultiRun(id)`. It shows a loading placeholder, a full `ErrorState` only when there is no data, and an inline notice when `isError && data` (EC-11). The header holds PR `#number title`, agent names, wall-clock (`"—"` when null), total tokens, total cost and a status badge. Then it renders the three sections.
@@ -445,7 +447,7 @@ Every task appears in at least one row. T-2 and T-7 are wiring (no AC of their o
 | onion-architecture | T-3, T-4, T-6, T-7, T-8, T-9 | route → service → repository; pure helpers have no I/O; executor stays the only runner |
 | fastify-best-practices | T-9 | nested plugin registration, `params`/`querystring`/`response` schemas, rate-limit config, error envelope |
 | typescript-expert | T-3, T-4, T-5, T-6 | pure-function typing, drizzle self-reference typing if needed |
-| frontend-architecture | T-10, T-11, T-12, T-13, T-14 | `_components/<Name>/` layout, cross-route `src/components/multi-agent`, hooks-only data, the `multiAgent` namespace (no showcase entry) |
+| frontend-architecture | T-10, T-11, T-12, T-13, T-14 | `_components/<Name>/` layout, cross-route `src/components/multi-agent`, hooks-only data, the `multiAgent` namespace, showcase sections |
 | react-best-practices | T-10, T-11, T-12, T-13, T-14 | derived filter state (no effect), controlled selection, polling in the query, one drawer at a time |
 | react-testing-library | T-10, T-11, T-12, T-13, T-14 | hook tests with fake timers, component tests reading copy from `multiAgent.json` |
 | next-best-practices | T-12, T-13, T-14 | client pages with `useParams`, `useRouter().push`, `next/link` |
@@ -473,7 +475,7 @@ Every task appears in at least one row. T-2 and T-7 are wiring (no AC of their o
 | An inner join drops reviews whose run was deleted | server INSIGHTS 2026-09-20 (`INSIGHTS.md:31-33`); `review.repo.ts:69-76` | every join through `reviews.run_id` is a `leftJoin` |
 | Picker sits in a modal opened from the dropdown, not inline checkboxes in the menu | `client/src/vendor/ui/kit/Dropdown.tsx:12-15`; `kit/types.ts:5-16` | design-system change is outside Part A's files; NFR-1's content is kept and NG10 waives pixel parity. Recorded as a deviation from the literal "in the dropdown". |
 | **Outside the ownership list:** the `/multi-agent/[id]` page imports page-local `FindingCard`, `EvalCaseButton` and `RunTraceDrawer` from `pulls/[number]/_components` (layering violation) | `.claude/skills/frontend-architecture/SKILL.md:109`; `client/src/app/repos/[repoId]/pulls/[number]/_components/{FindingCard,EvalCaseButton,RunTraceDrawer}` | NFR-2 requires these existing components. Moving them to `src/components/` is a refactor of PR-page files outside Part A, so they are imported read-only and unchanged. Follow-up: promote them. |
-| No showcase entry for `MultiAgentPicker`, although `client/AGENTS.md` asks for one | `client/AGENTS.md` ("New or changed UI component → showcase") | user decision 2026-10-16: shared file, not needed for the homework; a follow-up can add it |
+| Showcase sections fail the smoke test if a component needs a QueryClient or the network | client INSIGHTS 2026-09-22; `client/src/test/smoke.test.tsx` | the four sections render presentational components with fixtures only; `Showcase.tsx` is shared with B — append-only, conflict on B's merge expected |
 | Shared files edited by both features | `server/src/vendor/shared/index.ts:17-29`, `client/src/vendor/shared/index.ts:17-29`, `client/src/lib/hooks/index.ts:4-15`, `client/src/vendor/ui/nav.ts:21-29` | exactly one appended line each; `server/src/modules/index.ts` untouched (the routes register inside `reviews`) |
 | Polling stops after an error | `client/src/lib/hooks/reviews.ts:29-35` pattern | `refetchInterval` reads `state.data`, which survives an error; `retry: false`; covered by the EC-11 hook test |
 | Two SSE streams per column exceed the six-connection limit | NFR-4; `client/src/lib/hooks/reviews.ts:202-250` | no `useRunEvents` on the page; SSE only inside the one open `RunTraceDrawer` (`RunTraceDrawer.tsx:45-46`) |
