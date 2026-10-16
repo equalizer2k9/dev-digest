@@ -22,7 +22,7 @@ CI run on test PR #26 (PR #27): $0.00049714, 14.2 s, 1 critical, check red, merg
 
 **Track C** ([#28](https://github.com/equalizer2k9/dev-digest/pull/28)): the mentor's follow-ups (case modal, per-case Run/Edit, dashboard link). Dispatch 0/2 → 2/2 after rewording `architecture-reviewer`. The `eval:repeat` summary counted `!isError` instead of the case assertion, so it showed HW6 dispatch as 2/2 when the real result was 0/2; fixed, and rescoring the stored records matches the traces.
 
-Час рев'ю людини: ≈ 74 хв (оцінка з логів сесій: проміжки між відповіддю агента й наступним промтом, без перерв > 30 хв; включає читання звітів, PR і узгодження рішень) — A ≈ 9, B ≈ 3, C ≈ 51, спільне: спеки A+B ≈ 1, фінал ≈ 12, розведення комітів 0 (лише перерва 59 хв).
+Час рев'ю людини: ≈ 74 хв (оцінка з логів сесій: проміжки між відповіддю агента й наступним промтом, без перерв > 30 хв; включає читання звітів і PR та координацію паралельних треків — за фічами не розкладається)
 
 **Takeaways.**
 1. Three agents cost 1.8× one, not 3×, and take 1.9× the time: wall-clock is set by the slowest agent (Security, 76.9 s), and provider-side cost per run varied 2× at similar token counts.
