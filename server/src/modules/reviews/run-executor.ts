@@ -152,7 +152,10 @@ export class ReviewRunExecutor {
       }
     }
 
-    for (const { agent, runId } of jobs) {
+    // Concurrent fan-out: the diff and intent above are prepared once. Each job
+    // persists its own failure/cancel, so allSettled never lets one agent stop
+    // another. RunLogger.forRun builds a fresh instance per run (no shared state).
+    const runJob = async ({ agent, runId }: { agent: AgentRow; runId: string }) => {
       const agentStart = Date.now();
       logger?.info(
         { runId, agent: agent.name, provider: agent.provider, model: agent.model, prId: pull.id },
@@ -183,7 +186,8 @@ export class ReviewRunExecutor {
           `review: agent "${agent.name}" ${cancelled ? 'cancelled' : 'failed'}`,
         );
       }
-    }
+    };
+    await Promise.allSettled(jobs.map((job) => runJob(job)));
   }
 
   /** Execute a single agent's review against a PR, streaming progress. */

@@ -370,3 +370,136 @@ describe('ReviewRunExecutor — project documents', () => {
     expect((await runWith([], withDocs)).modelCalls).toBe((await runWith([])).modelCalls);
   });
 });
+
+describe('ReviewRunExecutor — concurrent agents', () => {
+  const AGENT_A = { ...AGENT, id: 'agent-a', name: 'Agent A' } as unknown as AgentRow;
+  const AGENT_B = { ...AGENT, id: 'agent-b', name: 'Agent B' } as unknown as AgentRow;
+
+  type Done = { runId: string; status: string; error?: string | null };
+
+  function setup(opts: {
+    llmFor?: (agent: string) => unknown;
+    cancel?: string[];
+  } = {}) {
+    const bus = new RunBus();
+    for (const id of opts.cancel ?? []) bus.cancel(id);
+    let diffCalls = 0;
+    let prFilesCalls = 0;
+    const completed: Done[] = [];
+    const reviews: { runId: string | null }[] = [];
+    const container = {
+      runBus: bus,
+      llm: async (provider: string) => (opts.llmFor ? opts.llmFor(provider) : new MockLLMProvider('openai', { structured: REVIEW })),
+      tokenizer: { count: (text: string) => text.length },
+      git: {
+        diff: async () => {
+          diffCalls += 1;
+          return DIFF;
+        },
+      },
+    } as unknown as Container;
+    const repo = {
+      getPrFiles: async () => {
+        prFilesCalls += 1;
+        return [];
+      },
+      insertReview: async (v: { runId: string | null }) => {
+        reviews.push({ runId: v.runId });
+        return { id: `review-${v.runId}` };
+      },
+      insertFindings: async () => [],
+      markReviewed: async () => undefined,
+      completeAgentRun: async (runId: string, row: { status: string; error?: string | null }) => {
+        completed.push({ runId, status: row.status, error: row.error ?? null });
+      },
+      saveRunTrace: async () => undefined,
+    } as unknown as ReviewRepository;
+    const agents = { linkedSkills: async () => [] } as unknown as Container['agentsRepo'];
+    const executor = new ReviewRunExecutor(container, repo, agents);
+    return {
+      run: (jobs: { agent: AgentRow; runId: string }[]) =>
+        executor.executeRuns('ws-1', PULL, REPO_ROW, jobs),
+      completed,
+      reviews,
+      diffCalls: () => diffCalls,
+      prFilesCalls: () => prFilesCalls,
+    };
+  }
+
+  const jobsAB = [
+    { agent: AGENT_A, runId: 'run-a' },
+    { agent: AGENT_B, runId: 'run-b' },
+  ];
+
+  it('starts every agent’s model call before any of them finishes (AC-4)', async () => {
+    let started = 0;
+    let finished = 0;
+    let startedWhenFirstFinished = 0;
+    let open!: () => void;
+    const gate = new Promise<void>((r) => (open = r));
+    const timer = setTimeout(open, 500);
+    const inner = new MockLLMProvider('openai', { structured: REVIEW });
+    const llm = {
+      id: 'openai',
+      calls: inner.calls,
+      completeStructured: async (req: never) => {
+        started += 1;
+        if (started === 2) open();
+        await gate;
+        if (finished === 0) startedWhenFirstFinished = started;
+        finished += 1;
+        return inner.completeStructured(req);
+      },
+    };
+    const s = setup({ llmFor: () => llm });
+    await s.run(jobsAB);
+    clearTimeout(timer);
+    expect(startedWhenFirstFinished).toBe(2);
+    expect(s.completed.map((c) => c.status)).toEqual(['done', 'done']);
+  });
+
+  it('loads the diff once for two agents (AC-4)', async () => {
+    const s = setup();
+    await s.run(jobsAB);
+    expect(s.diffCalls()).toBe(1);
+    expect(s.prFilesCalls()).toBe(0);
+  });
+
+  it.each([
+    ['A first', jobsAB],
+    ['B first', [jobsAB[1]!, jobsAB[0]!]],
+  ])('one agent failing does not stop the other (AC-5, %s)', async (_label, jobs) => {
+    // Each agent gets its own provider id so the container can hand A a model
+    // that throws and B a working one.
+    const failing = {
+      id: 'openai',
+      calls: [],
+      completeStructured: async () => {
+        throw new Error('provider down');
+      },
+    };
+    const s = setup({
+      llmFor: (provider) =>
+        provider === 'prov-a' ? failing : new MockLLMProvider('openai', { structured: REVIEW }),
+    });
+    await s.run(
+      jobs.map((j) => ({
+        ...j,
+        agent: { ...j.agent, provider: j.runId === 'run-a' ? 'prov-a' : 'prov-b' } as unknown as AgentRow,
+      })),
+    );
+    const a = s.completed.find((c) => c.runId === 'run-a')!;
+    const b = s.completed.find((c) => c.runId === 'run-b')!;
+    expect(a.status).toBe('failed');
+    expect(a.error).toBe('provider down');
+    expect(b.status).toBe('done');
+    expect(s.reviews.map((r) => r.runId)).toEqual(['run-b']);
+  });
+
+  it('a cancelled agent ends as cancelled while the other completes (AC-5)', async () => {
+    const s = setup({ cancel: ['run-a'] });
+    await s.run(jobsAB);
+    expect(s.completed.find((c) => c.runId === 'run-a')!.status).toBe('cancelled');
+    expect(s.completed.find((c) => c.runId === 'run-b')!.status).toBe('done');
+  });
+});

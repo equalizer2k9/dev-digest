@@ -1,15 +1,20 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { PrIntentResponse, RunRequest, SmartDiffResponse } from '@devdigest/shared';
+import { MultiRunRequest, PrIntentResponse, RunRequest, SmartDiffResponse } from '@devdigest/shared';
 import type { RunEvent } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { NotFoundError } from '../../platform/errors.js';
 import { ReviewService } from './service.js';
+import { ReviewRepository } from './repository.js';
+import { MultiRunService } from './multi-run/multi-run-service.js';
+import multiRunRoutes from './multi-run/routes.js';
 
 /**
  * reviews module.
  *   POST   /pulls/:id/review  {agentId} | {all:true}  → run review(s); returns runs
+ *   POST   /pulls/:id/review  {agentIds:[2..5]}        → one multi-agent run (+ multi_run_id)
+ *   GET    /multi-runs[/estimates|/:id]                → see ./multi-run/routes.ts
  *   GET    /runs/:id/events                            → SSE stream of RunEvent (replay-first)
  *   GET    /runs/:id/trace                             → the single-document RunTrace
  *   GET    /pulls/:id/reviews                          → persisted reviews + findings for a PR
@@ -23,6 +28,8 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
   const { container } = app;
   const service = new ReviewService(container);
+  const multiRuns = new MultiRunService(container, new ReviewRepository(container.db), service);
+  await app.register(multiRunRoutes, { service: multiRuns });
 
   // ---- Run a review (manual trigger) -------------------------------
   // Tight per-route limit: each call can fan out to expensive LLM runs.
@@ -32,7 +39,15 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
     { schema: { params: IdParams }, config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
     async (req) => {
     const { workspaceId } = await getContext(container, req);
-    const body = RunRequest.parse(req.body ?? {});
+    const raw = req.body ?? {};
+    // Multi-agent branch: RunRequest strips unknown keys, so `agentIds` must be
+    // detected on the raw body. Parsed in-handler on purpose — this route's body
+    // is one of two shapes (specs/review-flow.md). A ZodError becomes a 422.
+    if (typeof raw === 'object' && Object.prototype.hasOwnProperty.call(raw, 'agentIds')) {
+      const { agentIds } = MultiRunRequest.parse(raw);
+      return multiRuns.launch(workspaceId, req.params.id, agentIds, req.log);
+    }
+    const body = RunRequest.parse(raw);
     const targets = await service.resolveTargets(workspaceId, {
       ...(body.agentId !== undefined ? { agentId: body.agentId } : {}),
       ...(body.all !== undefined ? { all: body.all } : {}),
