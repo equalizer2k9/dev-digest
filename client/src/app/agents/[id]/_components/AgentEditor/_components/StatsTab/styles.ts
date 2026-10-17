@@ -7,4 +7,6 @@ export const s = {
   line: { display: "block" } satisfies CSSProperties,
   note: { fontSize: 13, color: "var(--text-muted)", padding: "12px 0" } satisfies CSSProperties,
   emptyTitle: { fontSize: 16, fontWeight: 700, marginBottom: 4 } satisfies CSSProperties,
+  /** The cost badge wraps inside a narrow KPI card instead of being clipped. */
+  costBadge: { whiteSpace: "normal", maxWidth: "100%" } satisfies CSSProperties,
 } as const;

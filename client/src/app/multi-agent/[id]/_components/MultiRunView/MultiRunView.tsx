@@ -4,20 +4,26 @@
 
 import React from "react";
 import { useTranslations } from "next-intl";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Badge, ErrorState, Skeleton } from "@devdigest/ui";
 import { AppShell } from "@/components/app-shell";
 import { formatDuration } from "@/components/multi-agent";
 import { formatCost } from "@/lib/cost";
 import { useMultiRun } from "@/lib/hooks/multi-agent";
 import { AgentColumns } from "../AgentColumns";
+import { AgentTabs } from "../AgentTabs";
 import { FindingGroups } from "../FindingGroups";
 import { DisagreementsSection } from "../DisagreementsSection";
-import { STATUS_COLORS, formatTokens } from "./helpers";
+import { STATUS_COLORS, VIEWS, formatTokens, parseView, withView } from "./helpers";
 import { s } from "./styles";
 
 export function MultiRunView({ id }: { id: string }) {
   const t = useTranslations("multiAgent");
   const { data, isLoading, isError, refetch } = useMultiRun(id);
+  const router = useRouter();
+  const pathname = usePathname();
+  const search = useSearchParams();
+  const view = parseView(search?.get("view") ?? null);
   const dash = t("picker.dash");
   const crumb = [
     { label: t("page.crumbLab") },
@@ -58,6 +64,19 @@ export function MultiRunView({ id }: { id: string }) {
             <Badge color={colors.color} bg={colors.bg}>
               {t(`page.status.${data.status}`)}
             </Badge>
+            <div role="group" aria-label={t("page.view.label")} style={s.switch}>
+              {VIEWS.map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  aria-pressed={view === v}
+                  style={s.switchBtn(view === v)}
+                  onClick={() => router.replace(`${pathname}${withView(search, v)}`, { scroll: false })}
+                >
+                  {t(`page.view.${v}`)}
+                </button>
+              ))}
+            </div>
           </div>
           <div style={s.agents}>
             {t("page.agents")}: {names}
@@ -80,11 +99,20 @@ export function MultiRunView({ id }: { id: string }) {
         {isError && <div style={s.notice}>{t("page.refreshNotice")}</div>}
         <section>
           <h2 style={s.sectionTitle}>{t("column.title")}</h2>
-          <AgentColumns
-            agents={data.agents}
-            prNumber={data.pr.number}
-            findings={data.groups.flatMap((g) => g.members)}
-          />
+          {view === "tabs" ? (
+            <AgentTabs
+              agents={data.agents}
+              groups={data.groups}
+              prNumber={data.pr.number}
+              multiRunId={data.id}
+            />
+          ) : (
+            <AgentColumns
+              agents={data.agents}
+              prNumber={data.pr.number}
+              findings={data.groups.flatMap((g) => g.members)}
+            />
+          )}
         </section>
         <section>
           <h2 style={s.sectionTitle}>{t("groups.title")}</h2>

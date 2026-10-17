@@ -62,7 +62,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
               <span style={s.line}>{t("kpi.priced", { priced: data.priced_runs, runs: data.runs })}</span>
             </>
           }
-          badge={<Badge>{t("costBadge")}</Badge>}
+          badge={<Badge style={s.costBadge}>{t("costBadge")}</Badge>}
         />
         <KpiCard
           label={t("stats.avgDuration")}

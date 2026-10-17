@@ -35,6 +35,11 @@
       "running": "Running",
       "done": "Done",
       "failed": "Failed"
+    },
+    "view": {
+      "label": "View",
+      "columns": "Columns",
+      "tabs": "Tabs"
     }
   },
   "column": {
@@ -105,5 +110,10 @@
     "chooseRepo": "Choose a repository",
     "choosePr": "Choose a pull request",
     "noPulls": "No pull requests in this repository."
+  },
+  "tabs": {
+    "label": "Agents",
+    "noAgents": "No agents in this run.",
+    "noFindings": "This agent reported no findings."
   }
 }
