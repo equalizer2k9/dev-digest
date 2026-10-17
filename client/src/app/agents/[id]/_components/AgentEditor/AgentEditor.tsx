@@ -1,6 +1,7 @@
-/* AgentEditor — the five-tab agent editor: Config (model, prompt, strategy…),
+/* AgentEditor — the six-tab agent editor: Config (model, prompt, strategy…),
    Skills (which skills this agent assembles, and in what order), Context
-   (which repository documents it reads) Evals (its eval cases and runs) and CI (installations, fail threshold, CI runs).
+   (which repository documents it reads), Evals (its eval cases and runs), Stats (its runs,
+   cost and accept rate over a period) and CI (installations, fail threshold, CI runs).
    Tab state lives in ?tab= on the route above. */
 "use client";
 
@@ -13,6 +14,7 @@ import { ConfigTab } from "./_components/ConfigTab";
 import { ContextTab } from "./_components/ContextTab";
 import { EvalsTab } from "./_components/EvalsTab";
 import { SkillsTab } from "./_components/SkillsTab";
+import { StatsTab } from "./_components/StatsTab";
 import { TABS } from "./constants";
 import { s } from "./styles";
 
@@ -31,6 +33,8 @@ export function AgentEditor({ agent, tab, onTab }: { agent: Agent; tab: string; 
           <ContextTab agent={agent} />
         ) : tab === "evals" ? (
           <EvalsTab agent={agent} />
+        ) : tab === "stats" ? (
+          <StatsTab agent={agent} />
         ) : tab === "ci" ? (
           <CiTab agent={agent} />
         ) : (

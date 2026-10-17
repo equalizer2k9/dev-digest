@@ -48,7 +48,11 @@ export const NAV: NavGroup[] = [
     // Export to CI: results of the agent reviews that ran inside GitHub Actions.
     // Workspace-wide, so no :repoId and no g-chord.
     section: "CI",
-    items: [{ key: "ci-runs", label: "CI Runs", icon: "Activity", href: "/ci-runs" }],
+    items: [
+      { key: "ci-runs", label: "CI Runs", icon: "Activity", href: "/ci-runs" },
+      // Per-agent runs, cost and accept rate over a period. Workspace-wide, no g-chord.
+      { key: "agent-performance", label: "Agent Performance", icon: "BarChart", href: "/agent-performance" },
+    ],
   },
 ];
 

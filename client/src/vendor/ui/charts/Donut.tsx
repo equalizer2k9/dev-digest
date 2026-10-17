@@ -13,11 +13,14 @@ export function Donut({
   size = 130,
   stroke = 22,
   valuePrefix = "$",
+  legend = true,
 }: {
   segments: DonutSegment[];
   size?: number;
   stroke?: number;
   valuePrefix?: string;
+  /** Built-in legend (label + `$value`). Pass false to render your own. */
+  legend?: boolean;
 }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
@@ -40,6 +43,7 @@ export function Donut({
           ))}
         </Pie>
       </PieChart>
+      {legend && (
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {segments.map((s, i) => (
           <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
@@ -52,6 +56,7 @@ export function Donut({
           </div>
         ))}
       </div>
+      )}
     </div>
   );
 }

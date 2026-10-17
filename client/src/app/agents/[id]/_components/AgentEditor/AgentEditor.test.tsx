@@ -5,6 +5,7 @@ import type { Agent } from "@devdigest/shared";
 import messages from "../../../../../../messages/en/agents.json";
 import contextMessages from "../../../../../../messages/en/context.json";
 import evalMessages from "../../../../../../messages/en/eval.json";
+import perfMessages from "../../../../../../messages/en/agentPerformance.json";
 import { ToastProvider } from "../../../../../lib/toast";
 
 // Mock the data hooks so the editor renders without a network/query client.
@@ -18,7 +19,31 @@ vi.mock("../../../../../lib/hooks/skills", () => ({
   useSetAgentSkills: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams("tab=stats"),
+}));
+
+vi.mock("../../../../../lib/hooks/agent-performance", () => ({
+  useAgentStats: () => ({
+    data: {
+      agent_id: "ag1",
+      agent_name: "Security Reviewer",
+      runs: 3,
+      priced_runs: 3,
+      unpriced_runs: 0,
+      decided: 4,
+      accepted: 3,
+      accept_rate: 0.75,
+      low_sample: true,
+      avg_cost_usd: 0.1,
+      avg_latency_ms: 5000,
+    },
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  }),
+}));
 
 vi.mock("../../../../../lib/hooks/evals", () => ({
   useEvalOverview: () => ({
@@ -78,7 +103,7 @@ const AGENT: Agent = {
 
 function renderWithIntl(ui: React.ReactElement) {
   return render(
-    <NextIntlClientProvider locale="en" messages={{ agents: messages, context: contextMessages, eval: evalMessages }}>
+    <NextIntlClientProvider locale="en" messages={{ agents: messages, context: contextMessages, eval: evalMessages, agentPerformance: perfMessages }}>
       <ToastProvider>{ui}</ToastProvider>
     </NextIntlClientProvider>,
   );
@@ -92,14 +117,20 @@ describe("A2 Agent Editor (smoke)", () => {
     expect(screen.getByText("Save agent")).toBeInTheDocument();
   });
 
-  it("offers exactly five tabs: Config, Skills, Context, Evals and CI", () => {
+  it("offers six tabs in order: Config, Skills, Context, Evals, Stats, CI", () => {
     renderWithIntl(<AgentEditor agent={AGENT} tab="config" onTab={() => {}} />);
-    expect(screen.getByText("Config")).toBeInTheDocument();
-    expect(screen.getByText("Skills")).toBeInTheDocument();
-    expect(screen.getByText(messages.editor.tabs.context)).toBeInTheDocument();
-    expect(screen.getByText("Evals")).toBeInTheDocument();
-    expect(screen.queryByText("Stats")).not.toBeInTheDocument();
-    expect(screen.getByText(messages.editor.tabs.ci)).toBeInTheDocument();
+    const labels = [
+      "Config",
+      "Skills",
+      messages.editor.tabs.context,
+      "Evals",
+      messages.editor.tabs.stats,
+      messages.editor.tabs.ci,
+    ];
+    const nodes = labels.map((l) => screen.getByText(l));
+    nodes.slice(1).forEach((n, i) => {
+      expect(nodes[i]!.compareDocumentPosition(n) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
   });
 
   it("the Config tab edits name, description, provider, model, strategy and the system prompt", () => {
@@ -129,6 +160,13 @@ describe("A2 Agent Editor (smoke)", () => {
   it("renders the Context tab and not the Config form", () => {
     renderWithIntl(<AgentEditor agent={AGENT} tab="context" onTab={() => {}} />);
     expect(screen.getByText("docs/a.md")).toBeInTheDocument();
+    expect(screen.queryByText("Configuration")).not.toBeInTheDocument();
+  });
+
+  it("renders the Stats tab cards and not the Config form", () => {
+    renderWithIntl(<AgentEditor agent={AGENT} tab="stats" onTab={() => {}} />);
+    expect(screen.getByText(perfMessages.stats.acceptRate)).toBeInTheDocument();
+    expect(screen.getByText(perfMessages.stats.avgCost)).toBeInTheDocument();
     expect(screen.queryByText("Configuration")).not.toBeInTheDocument();
   });
 });

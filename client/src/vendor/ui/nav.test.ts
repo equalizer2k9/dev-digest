@@ -79,8 +79,21 @@ describe("nav — CI Runs", () => {
   const ci = NAV.find((g) => g.section === "CI");
 
   it("has its own CI group with the label and href, not repo-scoped, no g-chord", () => {
-    expect(ci?.items).toEqual([{ key: "ci-runs", label: "CI Runs", icon: "Activity", href: "/ci-runs" }]);
+    expect(ci?.items[0]).toEqual({ key: "ci-runs", label: "CI Runs", icon: "Activity", href: "/ci-runs" });
     expect(resolveHref(ci!.items[0]!.href, "repo-42")).toBe("/ci-runs");
+  });
+
+  it("lists Agent Performance after CI Runs: workspace-wide, no g-chord", () => {
+    expect(ci?.items.map((i) => i.key)).toEqual(["ci-runs", "agent-performance"]);
+    const perf = ci!.items[1]!;
+    expect(perf).toEqual({
+      key: "agent-performance",
+      label: "Agent Performance",
+      icon: "BarChart",
+      href: "/agent-performance",
+    });
+    expect(perf.gKey).toBeUndefined();
+    expect(resolveHref(perf.href, "repo-42")).toBe("/agent-performance");
   });
 });
 

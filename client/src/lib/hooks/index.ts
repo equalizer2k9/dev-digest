@@ -15,3 +15,4 @@ export * from "./project-context";
 export * from "./evals";
 export * from "./ci";
 export * from "./multi-agent";
+export * from "./agent-performance";

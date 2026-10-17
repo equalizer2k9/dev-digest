@@ -84,6 +84,9 @@ import { MultiAgentPicker } from "../multi-agent";
 import { AgentColumns } from "../../app/multi-agent/[id]/_components/AgentColumns";
 import { FindingGroups } from "../../app/multi-agent/[id]/_components/FindingGroups";
 import { DisagreementsSection } from "../../app/multi-agent/[id]/_components/DisagreementsSection";
+import agentPerformanceMessages from "../../../messages/en/agentPerformance.json";
+import { KpiCard } from "../agent-performance/KpiCard";
+import { PeriodSelector } from "../agent-performance/PeriodSelector";
 import { s } from "./styles";
 import {
   SEVERITIES,
@@ -116,6 +119,7 @@ import {
   SHOWCASE_MULTI_ESTIMATES,
   SHOWCASE_MULTI_AGENTS,
   SHOWCASE_MULTI_GROUPS,
+  SHOWCASE_PERF_PERIOD,
 } from "./constants";
 
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
@@ -639,6 +643,19 @@ export function Gallery() {
             </div>
           </Group>
         </QueryClientProvider>
+      </NextIntlClientProvider>
+
+      {/* Agent Performance: presentational pieces on fixtures, no hooks and no request. */}
+      <NextIntlClientProvider locale="en" messages={{ agentPerformance: agentPerformanceMessages }}>
+        <Group title="Agent Performance (PeriodSelector / KpiCard)">
+          <PeriodSelector value={SHOWCASE_PERF_PERIOD} onChange={() => {}} />
+          <div style={s.w200}>
+            <KpiCard label="Total cost" value="$1.24" caption="30D · 2 of 3 priced" />
+          </div>
+          <div style={s.w200}>
+            <KpiCard label="Avg accept rate" value={null} caption="0 / 0 decided" />
+          </div>
+        </Group>
       </NextIntlClientProvider>
 
       {evalModal && (
