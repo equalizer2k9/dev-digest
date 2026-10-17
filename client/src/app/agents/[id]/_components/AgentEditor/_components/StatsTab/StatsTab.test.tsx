@@ -100,7 +100,7 @@ describe("StatsTab", () => {
   it("AC-11 loading: no numeric value", () => {
     hookState({ isLoading: true });
     view();
-    expect(screen.getByText(messages.loading)).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(messages.loading);
     noNumbers();
     expect(screen.queryByText(messages.stats.totalRuns)).toBeNull();
   });

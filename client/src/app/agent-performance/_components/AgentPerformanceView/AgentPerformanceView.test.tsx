@@ -121,7 +121,7 @@ describe("AgentPerformanceView", () => {
   it("AC-11 loading: shows the loading copy and no numbers or data blocks", () => {
     state.isLoading = true;
     view();
-    expect(screen.getByText(messages.loading)).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(messages.loading);
     noNumbers();
     expect(screen.queryByText(messages.kpi.totalRuns)).toBeNull();
     expect(screen.queryByText(messages.breakdown.title)).toBeNull();

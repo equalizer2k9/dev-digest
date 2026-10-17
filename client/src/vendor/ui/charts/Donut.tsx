@@ -44,18 +44,18 @@ export function Donut({
         </Pie>
       </PieChart>
       {legend && (
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {segments.map((s, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
-            <span style={{ width: 9, height: 9, borderRadius: 2, background: s.color }} />
-            <span style={{ color: "var(--text-secondary)", flex: 1 }}>{s.label}</span>
-            <span className="mono tnum" style={{ color: "var(--text-primary)", fontWeight: 600 }}>
-              {valuePrefix}
-              {s.value.toFixed(2)}
-            </span>
-          </div>
-        ))}
-      </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {segments.map((s, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
+              <span style={{ width: 9, height: 9, borderRadius: 2, background: s.color }} />
+              <span style={{ color: "var(--text-secondary)", flex: 1 }}>{s.label}</span>
+              <span className="mono tnum" style={{ color: "var(--text-primary)", fontWeight: 600 }}>
+                {valuePrefix}
+                {s.value.toFixed(2)}
+              </span>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

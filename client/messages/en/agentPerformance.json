@@ -3,7 +3,6 @@
   "crumb": "Agent Performance",
   "loading": "Loading agent performance…",
   "loadError": "Could not load agent performance.",
-  "retry": "Retry",
   "empty": {
     "title": "No runs in this period",
     "body": "Pick a different period, or run a review to populate per-agent performance."

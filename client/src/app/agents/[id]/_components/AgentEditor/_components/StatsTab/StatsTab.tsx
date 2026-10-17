@@ -35,7 +35,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
   const body = () => {
     if (isLoading) {
       return (
-        <div>
+        <div role="status" aria-live="polite" aria-busy="true">
           <div style={s.note}>{t("loading")}</div>
           <Skeleton height={80} />
         </div>

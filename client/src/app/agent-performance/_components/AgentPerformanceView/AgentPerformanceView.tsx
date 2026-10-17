@@ -25,7 +25,7 @@ export function AgentPerformanceView({ period, onPeriod }: { period: PeriodParam
   const body = () => {
     if (isLoading) {
       return (
-        <div>
+        <div role="status" aria-live="polite" aria-busy="true">
           <div style={s.note}>{t("loading")}</div>
           <Skeleton height={80} />
         </div>
