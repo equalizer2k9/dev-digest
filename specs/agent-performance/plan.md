@@ -59,7 +59,7 @@ Two groups. The **server** group (T-S1 to T-S7) runs first. The **client** group
 
 | owner | files |
 |---|---|
-| server | `server/src/modules/agent-performance/**`, `server/src/modules/index.ts` (one import + one entry), `server/test/agent-performance-contracts.test.ts` |
+| server | `server/src/modules/agent-performance/**`, `server/src/modules/index.ts` (one import + one entry), `server/test/agent-performance-contracts.test.ts`, `server/test/agent-performance-repository.it.test.ts` |
 | server (**touched by both groups' code; edited only by the server group, in T-S1**) | `server/src/vendor/shared/contracts/observability.ts`, `client/src/vendor/shared/contracts/observability.ts`. The client group only reads them; any later change goes back to the server group and edits both copies together |
 | client | `client/src/lib/agent-performance.ts` (+ test), `client/src/lib/hooks/agent-performance.ts` (+ test), `client/src/lib/hooks/index.ts` (one line), `client/messages/en/agentPerformance.json`, `client/messages/en/agents.json` (one key), `client/src/components/agent-performance/**`, `client/src/app/agent-performance/**`, `client/src/app/agents/[id]/_components/AgentEditor/{constants.ts,AgentEditor.tsx,AgentEditor.test.tsx}`, `.../AgentEditor/_components/StatsTab/**`, `client/src/vendor/ui/charts/Donut.tsx`, `client/src/vendor/ui/nav.ts` + `nav.test.ts`, `client/src/components/showcase/{Showcase.tsx,constants.ts}` (append only) |
 | not touched | `server/src/db/schema/**`, `server/src/db/migrations/**`, every `package.json` and lock file, `contracts/*` other than `observability.ts`, both `vendor/shared/index.ts`, `server/src/modules/agents/**`, `server/src/modules/reviews/**`, `client/src/lib/cost.ts` |
@@ -74,6 +74,7 @@ Two groups. The **server** group (T-S1 to T-S7) runs first. The **client** group
 | `server/src/modules/agent-performance/helpers.period.test.ts` | new | period resolution + bounds | AC-2, AC-3 |
 | `server/src/modules/agent-performance/helpers.test.ts` | new | aggregation | AC-1, AC-2, AC-4–AC-9 |
 | `server/src/modules/agent-performance/repository.ts` | new | `AgentPerformanceRepository.runsInPeriod(ws, period)` (D-4) | AC-2, AC-5 |
+| `server/test/agent-performance-repository.it.test.ts` | new | ONE integration test on real Postgres (testcontainers, `test/helpers/pg.ts`) | AC-2, AC-5, AC-8 |
 | `server/src/modules/agent-performance/service.ts` + `service.test.ts` | new | `AgentPerformanceService`: `performance`, `stats` | AC-1, AC-3, AC-12 |
 | `server/src/modules/agent-performance/routes.ts` + `routes.test.ts` | new | two GET routes; ONE route test | AC-1, AC-12 |
 | `server/src/modules/index.ts` | modify | `import agentPerformance from './agent-performance/routes.js'` + entry | — |
@@ -197,8 +198,19 @@ Query (D-4):
 - `groupBy(t.agentRuns.id)`; six `count(${t.findings.id}) filter (where …)` columns, each `.mapWith(Number)`.
 - Reads the tables of `schema/runs.ts:8-37` and `schema/reviews.ts:10-47` only. No write, and no import from another module.
 
-Test: covered by T-S3 (rules) and T-S6 (wiring). Manual (T-S7): run it on the seeded DB and compare against a hand SQL count; `EXPLAIN ANALYZE` stays under 1 s (NFR-12). No index is planned (D13).
-Verify: `pnpm typecheck` in `server/`
+Files (test): `server/test/agent-performance-repository.it.test.ts` — named `*.it.test.ts` because it imports `test/helpers/pg.ts` (`server/AGENTS.md:31`); gated with `dockerAvailable()` / `describe.skip` like `test/pulls-findings-counts.it.test.ts:16-17`. Docker checked 2026-10-17: `docker info` → server 29.1.3, so the test runs automatically, not as a manual step.
+Test: ONE `it` — "runsInPeriod returns exactly the counted runs of the workspace with decision counts joined through reviews.run_id". Setup: `startPg()` + `seed()`; insert directly with `pg.handle.db` (no service, no model): workspace W (seeded) and a second workspace W2; agents A and B in W; period `[2026-10-01T00:00Z, 2026-10-11T00:00Z)`. Runs and assertions:
+- Statuses (AC-2): A `done` and A `failed` in period → returned; A `running` and A `cancelled` in period → not returned.
+- Bounds (AC-2): a run at exactly `from` → returned; one at exactly `to` → not; one 1 ms before `from` → not.
+- Workspace (AC-2, NFR-11): a `done` run in W2 inside the period → not returned.
+- Deleted agent (AC-8): a `done` run with `agent_id = null` → returned with `agentId: null` (the pure function folds it into the Deleted row).
+- Decisions (AC-5): the A `done` run has a review with `run_id` = that run and 4 findings — 2 accepted, 1 dismissed, 1 pending → `accepted 2, dismissed 1, pending 1`; severities counted. A second review on the same PR with `run_id = null` and 3 accepted findings adds nothing to any run.
+- CI (AC-5, EC-1): a `source: 'ci'`, `done` run with no review → returned with `accepted 0, dismissed 0, pending 0` and its `costUsd` / `durationMs` intact.
+- Counts are numbers, not strings (`mapWith(Number)`).
+- End-to-end sum (AC-8): `aggregatePerformance` over the returned rows → `totals.runs` = Σ `rows.runs` and `totals.total_cost_usd` = Σ priced costs inserted.
+
+Manual (T-S7): `EXPLAIN ANALYZE` stays under 1 s on the seeded DB (NFR-12). No index is planned (D13).
+Verify: `pnpm typecheck && pnpm exec vitest run test/agent-performance-repository.it.test.ts` in `server/` (needs Docker)
 Skills: drizzle-orm-patterns, onion-architecture
 Depends on: T-S3
 
@@ -244,6 +256,7 @@ Depends on: T-S5
 AC: — (enables T-S1 to T-S6)
 Verify:
 - `pnpm typecheck && pnpm exec vitest run --exclude '**/*.it.test.ts'` in `server/`.
+- `pnpm exec vitest run test/agent-performance-repository.it.test.ts` in `server/` (Docker).
 - Manual, with `./scripts/dev.sh`:
   - `curl :3001/agent-performance` and `curl :3001/agents/<id>/stats` give the same numbers.
   - `EXPLAIN ANALYZE` of the T-S4 query takes < 1 s.
@@ -301,6 +314,7 @@ Keys:
 - `period.button|oneDay|thirtyDays|custom|from|to|apply|caption1d|caption30d`.
 - `kpi.totalRuns|totalCost|avgAcceptRate|mostActive|priced` ("{priced} of {runs} priced"), `kpi.decided` ("{accepted} / {decided} decided").
 - `table.agent|runs|avgCost|avgDuration|accept|lastRun|view|noRuns` ("No runs in period"), `table.deletedAgent`, `table.lowSample`, `table.sortAsc|sortDesc`.
+- `acceptLocalOnly` = "Local reviews only — CI runs store no findings" (NFR-15, A-13); used by the Accept column tooltip, the Avg accept rate card caption and the Stats tab's Accept rate card.
 - `breakdown.title|byAgent|byModel|unpriced` ("unpriced · {runs} runs"), `breakdown.unknownModel`.
 - `costBadge` = "Estimated by DevDigest (token prices)".
 - `stats.totalRuns|avgCost|avgDuration|acceptRate`.
@@ -342,7 +356,7 @@ Props: `{ rows: AgentPerformanceRow[]; period: PeriodParams }` (presentational).
 - The Deleted row sorts by the same rules.
 
 Columns (NFR-2): Agent · Runs · Avg cost (+ "N of M priced" when N < M) · Avg dur. · Accept (% + "x / y decided" + "low sample" chip) · Last run (relative, `title` = UTC) · View.
-- The Accept header is a button with the direction arrow.
+- The Accept header is a button with the direction arrow and a `title` tooltip from `acceptLocalOnly` (NFR-15).
 - A row click (not View) toggles an inline panel built from `row.by_model` (lines + unpriced line); several rows can be open at once (NFR-3).
 - View is `<a href="/agents/<id>?tab=stats&<periodSearch>">` (NFR-7). The Deleted row has no View link (A-9).
 - A `runs === 0` row renders the agent name plus one muted cell "No runs in period" and no numbers (AC-9).
@@ -355,6 +369,7 @@ Test:
   - NFR-3: a row click shows that row's model lines and the unpriced count; a second row also opens; clicking View does not toggle the row.
   - NFR-7: the View `href` equals `/agents/a1?tab=stats&period=custom&from=2026-10-01&to=2026-10-10`; the Deleted row has no link.
   - Names render as text (`<img …>` gives no `img` role).
+  - NFR-15: the Accept header carries the `acceptLocalOnly` tooltip.
 
 Verify: `pnpm typecheck && pnpm exec vitest run src/app/agent-performance` in `client/`
 Skills: frontend-architecture, react-best-practices, react-testing-library
@@ -393,7 +408,7 @@ Files: `client/src/app/agent-performance/page.tsx`, `client/src/app/agent-perfor
   - Otherwise four `KpiCard`s in NFR-1 order:
     - Total runs.
     - Total cost: `formatUsd` + `kpi.priced` + `costBadge`.
-    - Avg accept rate: `formatRate` + `kpi.decided`.
+    - Avg accept rate: `formatRate` + `kpi.decided` + `acceptLocalOnly` caption (NFR-15).
     - Most active: the name + its runs, or "—".
   - Each card caption carries `periodCaption`.
   - Then `PerformanceTable` and `CostBreakdown`.
@@ -424,7 +439,7 @@ Files: `.../AgentEditor/constants.ts`, `.../AgentEditor/AgentEditor.tsx`, `.../A
     - Total runs.
     - Avg cost / run, with `kpi.priced` and the `costBadge`.
     - Avg duration.
-    - Accept rate, with `kpi.decided` and the low-sample chip.
+    - Accept rate, with `kpi.decided`, the low-sample chip and the `acceptLocalOnly` caption (NFR-15).
   - Plus a `PeriodSelector`.
   - Loading, error (with retry) and `runs === 0` → empty-state branches as in T-C7. No severity or trend (A-11).
 
@@ -469,13 +484,13 @@ Depends on: T-C7, T-C8, T-S7
 | AC | task(s) | test (file › case) |
 |---|---|---|
 | AC-1 | T-S1, T-S3, T-S5, T-S6, T-C8 | `server/src/modules/agent-performance/routes.test.ts` › GET /agents/:id/stats equals that agent's row of GET /agent-performance for the same period, and no model adapter is called; `helpers.test.ts` › toAgentStats equals its row; `service.test.ts` › stats equals the dashboard row; `StatsTab.test.tsx` › hook called with the URL period, cards show the response values |
-| AC-2 | T-S2, T-S3, T-S4 | `helpers.period.test.ts` › run at `from` counted, at `to` not; running / cancelled / other workspace excluded; local + ci counted; `helpers.test.ts` › excluded runs add nothing to runs, cost or decisions; manual: SQL count on the seeded DB (T-S7) |
+| AC-2 | T-S2, T-S3, T-S4 | `helpers.period.test.ts` › run at `from` counted, at `to` not; running / cancelled / other workspace excluded; local + ci counted; `helpers.test.ts` › excluded runs add nothing to runs, cost or decisions; `test/agent-performance-repository.it.test.ts` › real SQL: done/failed returned, running/cancelled not, `[from, to)` bounds, foreign workspace not returned |
 | AC-3 | T-S1, T-S2, T-S5, T-C1, T-C4 | `agent-performance-contracts.test.ts` › PerfPeriodQuery accept / reject; `helpers.period.test.ts` › 1d / 30d / custom / default bounds; `service.test.ts` › default 30 d passed to the repo; `client/src/lib/agent-performance.test.ts` › invalid URL → 30d, round-trip; `PeriodSelector.test.tsx` › 1 day, custom, invalid range |
 | AC-4 | T-S1, T-S3, T-C1 | `helpers.test.ts` › averages over priced / timed runs only, null when none, priced_runs reported; `agent-performance.test.ts` (client) › `formatUsd(null)` → "—" |
-| AC-5 | T-S1, T-S3, T-S4, T-C1 | `helpers.test.ts` › 3/(3+1) with pending excluded, decided returned, null when decided = 0, CI-only agent, pooled totals; `agent-performance.test.ts` (client) › `formatRate(null)` → "—" |
+| AC-5 | T-S1, T-S3, T-S4, T-C1, T-C3, T-C5 | `helpers.test.ts` › 3/(3+1) with pending excluded, decided returned, null when decided = 0, CI-only agent, pooled totals; `test/agent-performance-repository.it.test.ts` › accepted/dismissed/pending joined through `reviews.run_id`, review without `run_id` not counted, CI run with no findings → 0/0/0; `agent-performance.test.ts` (client) › `formatRate(null)` → "—"; `PerformanceTable.test.tsx` › Accept header has the local-only tooltip (NFR-15) |
 | AC-6 | T-S3, T-C5 | `helpers.test.ts` › low_sample below 5; `PerformanceTable/helpers.test.ts` › low-sample rows last in both directions; `PerformanceTable.test.tsx` › Accept click keeps low-sample rows at the end |
 | AC-7 | T-S3, T-C7 | `helpers.test.ts` › tie → latest run, Deleted row not eligible, only deleted runs → null; `AgentPerformanceView.test.tsx` › Most active shows the name + runs, or "—" |
-| AC-8 | T-S3, T-C6 | `helpers.test.ts` › totals = Σ rows = Σ by_agent = Σ by_model, unpriced_runs on both breakdowns, null-model line; `CostBreakdown/helpers.test.ts` › unpriced line not a segment, shares sum to 100; `CostBreakdown.test.tsx` › both legends list every line |
+| AC-8 | T-S3, T-S4, T-C6 | `helpers.test.ts` › totals = Σ rows = Σ by_agent = Σ by_model, unpriced_runs on both breakdowns, null-model line; `test/agent-performance-repository.it.test.ts` › run without `agent_id` returned with `agentId: null`, totals over real rows = Σ rows; `CostBreakdown/helpers.test.ts` › unpriced line not a segment, shares sum to 100; `CostBreakdown.test.tsx` › both legends list every line |
 | AC-9 | T-S3, T-C5, T-C7 | `helpers.test.ts` › agent without runs → row with runs 0 and null metrics; `PerformanceTable.test.tsx` › "No runs in period", no digit in the row; `AgentPerformanceView.test.tsx` › agent without runs beside agents with runs |
 | AC-10 | T-C7, T-C8 | `AgentPerformanceView.test.tsx` › totals.runs 0 → empty state, no cards / table / breakdown; `StatsTab.test.tsx` › runs 0 → empty state |
 | AC-11 | T-C4, T-C7, T-C8 | `AgentPerformanceView.test.tsx` › loading without numbers; error without numbers + retry; `StatsTab.test.tsx` › loading / error without numbers + retry; `KpiCard.test.tsx` › null value → "—"; manual: throttle the network and look at the cards |
@@ -504,7 +519,7 @@ Depends on: T-C7, T-C8, T-S7
 | `reviews.run_id` has no FK; an inner join, or `count(*)`, gives wrong decision counts | `server/src/db/schema/reviews.ts:20`; server INSIGHTS 2026-09-20 | D-4: left joins, `count(findings.id) filter …` |
 | postgres.js returns `count` as a string | `server/src/modules/skills/repository.ts:66` | `.mapWith(Number)` on every count |
 | Float sums do not reconcile across groupings | AC-8 | D-5 integer nano-USD sums; tests use `toBeCloseTo(…, 9)` |
-| The repository SQL has no automated DB test (`.it` needs Docker) | `server/AGENTS.md` (integration split) | the rules are duplicated in the pure `isCountedRun` and tested; T-S7 manual SQL + `EXPLAIN` check |
+| The repository SQL is tested only with Docker (`.it` skips without it) | `server/AGENTS.md:15-16,31`; `test/helpers/pg.ts` `dockerAvailable` | Docker is up here (29.1.3); T-S4/T-S7 run the `.it` test; the rules are also in the pure `isCountedRun` |
 | No index on `agent_runs (workspace_id, ran_at)` | `server/src/db/schema/runs.ts:8-37` | none planned (D13, NG7); T-S7 measures against NFR-12, and any index goes in a follow-up spec |
 | Runs whose agent row is missing but `agent_id` is non-null (race with a delete) | `schema/runs.ts:13` | folded into the Deleted row (T-S3 case) |
 | The client cannot import zod values from `@devdigest/shared` | `client/src/lib/feature-models.ts:6-11` | D-9: mirrored period rules; both sides tested |
@@ -522,9 +537,14 @@ Depends on: T-C7, T-C8, T-S7
 
 ## Out of scope
 
-- `*.it.test.ts` for the repository query: Docker is not run during plan execution. It is worth a follow-up, together with any index that EXPLAIN shows is needed.
+- Any index on `agent_runs`: only if T-S7's EXPLAIN shows a need, in a follow-up.
 - Filling `trend` (`[]`) and showing `findings_by_severity`. Severity is computed but not rendered (A-11).
 - Carrying the period when switching agents in the editor sidebar (NFR-7 asks only for View).
 - Updating `server/README.md` (API map), `client/README.md`, `client/specs/pages.md` and the AGENTS.md lines: docs, done at merge time.
 - An e2e flow under `e2e/specs/`: no AC needs a real browser; the manual checks in T-C9 cover the demo.
 - Changing `formatCost` or the other screens' money format.
+
+## Changelog
+
+- 2026-10-17 — first version.
+- 2026-10-17 — T-S4 gets one repository integration test on real Postgres (`test/agent-performance-repository.it.test.ts`, AC-2, AC-5, AC-8); T-C3/T-C5/T-C7/T-C8 add the "local reviews only" accept-rate caption (NFR-15, A-13).
