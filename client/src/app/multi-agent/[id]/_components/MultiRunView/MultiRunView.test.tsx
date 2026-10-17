@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
-import { render, screen, cleanup, within } from "@testing-library/react";
+import { render, screen, cleanup, within, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { MultiRunDetail } from "@devdigest/shared";
 import messages from "../../../../../../messages/en/multiAgent.json";
@@ -13,6 +13,12 @@ vi.mock("@/lib/hooks/multi-agent", () => ({
   useMultiRun: () => ({ ...state, refetch: vi.fn() }),
   useMultiRunFindingAction: () => ({ mutate: vi.fn(), isPending: false }),
   isInProgress: (s: string | null) => s == null || s === "queued" || s === "running",
+}));
+const nav = { search: "", replace: vi.fn() };
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: nav.replace }),
+  usePathname: () => "/multi-agent/m1",
+  useSearchParams: () => new URLSearchParams(nav.search),
 }));
 vi.mock("@/lib/hooks/reviews", () => ({ useCancelRun: () => ({ mutate: vi.fn(), isPending: false }) }));
 vi.mock("@/components/app-shell", () => ({
@@ -28,6 +34,8 @@ beforeEach(() => {
   state.data = undefined;
   state.isLoading = false;
   state.isError = false;
+  nav.search = "";
+  nav.replace.mockReset();
 });
 
 const detail = (extra: Partial<MultiRunDetail> = {}): MultiRunDetail => ({
@@ -131,5 +139,43 @@ describe("MultiRunView", () => {
     state.isError = true;
     wrap();
     expect(screen.getByText(messages.page.loadErrorTitle)).toBeInTheDocument();
+  });
+
+  it("defaults to Columns: switch shows Columns pressed, agent columns rendered, no tabs", () => {
+    state.data = detail();
+    const { container } = wrap();
+    expect(screen.getByRole("button", { name: messages.page.view.columns })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: messages.page.view.tabs })).toHaveAttribute("aria-pressed", "false");
+    expect(container.querySelectorAll("[data-run-id]")).toHaveLength(2);
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+  });
+
+  it("?view=tabs renders the Tabs view instead of the columns", () => {
+    state.data = detail();
+    nav.search = "view=tabs";
+    const { container } = wrap();
+    expect(screen.getByRole("button", { name: messages.page.view.tabs })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getAllByRole("tab")).toHaveLength(2);
+    expect(container.querySelectorAll("[data-run-id]")).toHaveLength(0);
+  });
+
+  it("an unknown ?view falls back to Columns", () => {
+    state.data = detail();
+    nav.search = "view=grid";
+    wrap();
+    expect(screen.getByRole("button", { name: messages.page.view.columns })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("the switch writes the view to the URL: Tabs → ?view=tabs, Columns → no param, other params kept", () => {
+    state.data = detail();
+    nav.search = "foo=1";
+    wrap();
+    fireEvent.click(screen.getByRole("button", { name: messages.page.view.tabs }));
+    expect(nav.replace).toHaveBeenLastCalledWith("/multi-agent/m1?foo=1&view=tabs", { scroll: false });
+    cleanup();
+    nav.search = "foo=1&view=tabs";
+    wrap();
+    fireEvent.click(screen.getByRole("button", { name: messages.page.view.columns }));
+    expect(nav.replace).toHaveBeenLastCalledWith("/multi-agent/m1?foo=1", { scroll: false });
   });
 });

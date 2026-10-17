@@ -63,14 +63,33 @@ Return exactly these sections, in this order, as the Markdown body of `plan.md`:
    Every task names at least one AC-ID and the test that proves it. The test is written before the
    implementation it covers, inside the same task. A task with no AC (pure wiring) says
    `AC: — (enables T-n)` and still names how it is verified.
-5. **Traceability** — table `AC | task(s) | test (file › case)`, one row per AC of the spec, in
+5. **Execution order** — sessions in run order, each `Session N — <group> — T-a, T-b …` with
+   its `Depends on:` session(s). A group is `server` (`server/`, `reviewer-core/`) or `client`.
+   - A shared contract that tasks of more than one group depend on (both `vendor/shared` copies,
+     a shared type or route shape) is its own **Session 1 — server — contract**, holding only the
+     contract tasks and their tests. Every other session depends on it and on nothing else of the
+     other group unless a task really needs it.
+   - After Session 1 the server and client chains run **in parallel**; say so explicitly. Never
+     make the client wait for the whole server group when it only needs the contract.
+   - A single-group plan still lists its sessions (one session is fine).
+6. **Merge order** — REQUIRED when any file in **Files** is also changed by another active plan
+   or unmerged branch (check `specs/*/plan.md` and `<pkg>/specs/*.plan.md` not marked
+   implemented, and `git branch`-visible feature names in their headers): shared index/barrel
+   files, nav/sidebar, i18n namespaces, contracts, ledgers (`INSIGHTS.md`, `specs/README.md`,
+   showcase registries). Otherwise write `Merge order: none — no shared files with other active
+   plans.` When required, give:
+   - which plan/branch merges first, and why (fewer shared files, the other builds on it);
+   - what the second one does after the first is merged: `git merge <base>` into its branch
+     (merge, never rebase), re-run typecheck + tests, resolve the listed files;
+   - table `shared file | owner plan (which lines/section/keys) | other plan (which lines/section/keys) | conflict resolution`.
+7. **Traceability** — table `AC | task(s) | test (file › case)`, one row per AC of the spec, in
    spec order. No AC without a task; no AC without a test. An AC that only a running app can prove
    (rendered UI, a log line) names the automated test for its logic plus `manual: <what to look at>`.
-6. **Skills for the implementer** — table `skill | task(s) | why`, using directory names under
+8. **Skills for the implementer** — table `skill | task(s) | why`, using directory names under
    `.claude/skills/`.
-7. **Risks** — table `risk | where (file:line) | mitigation`. Include anything from INSIGHTS.md
+9. **Risks** — table `risk | where (file:line) | mitigation`. Include anything from INSIGHTS.md
    that bites here and every "Do not touch" rule the change comes near.
-8. **Out of scope** — what you deliberately left out and why; the spec's non-goals are not repeated.
+10. **Out of scope** — what you deliberately left out and why; the spec's non-goals are not repeated.
 
 ## Rules
 
@@ -82,4 +101,7 @@ Return exactly these sections, in this order, as the Markdown body of `plan.md`:
   a schema change is `db/schema/*.ts` + `pnpm db:generate`.
 - No code beyond signatures and short shapes. The plan says what and where, not how line by line.
 - Before you return, check the Traceability table against the spec: every `AC-n` of the spec
-  appears exactly once as a row, and every task appears in at least one row or enables one.
+  appears exactly once as a row, and every task appears in at least one row or enables one; and
+  check that every task appears in exactly one session of the Execution order.
+- When you are given several specs to plan together (parallel features), return one plan per spec,
+  each with its own Merge order naming the other plan.

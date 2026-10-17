@@ -56,7 +56,7 @@ export function AgentPerformanceView({ period, onPeriod }: { period: PeriodParam
                 <span style={s.line}>{t("kpi.priced", { priced: totals.priced_runs, runs: totals.runs })}</span>
               </>
             }
-            badge={<Badge>{t("costBadge")}</Badge>}
+            badge={<Badge style={s.costBadge}>{t("costBadge")}</Badge>}
           />
           <KpiCard
             label={t("kpi.avgAcceptRate")}

@@ -1,0 +1,46 @@
+import type { CSSProperties } from "react";
+
+/** Co-located styles for AgentTabs. */
+export const s = {
+  bar: {
+    display: "flex",
+    gap: 2,
+    borderBottom: "1px solid var(--border)",
+    overflowX: "auto",
+  } satisfies CSSProperties,
+  tab: (on: boolean): CSSProperties => ({
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "10px 14px",
+    border: "none",
+    background: "transparent",
+    borderBottom: `2px solid ${on ? "var(--accent)" : "transparent"}`,
+    marginBottom: -1,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+    fontSize: 13,
+    fontWeight: on ? 600 : 500,
+    color: on ? "var(--text-primary)" : "var(--text-secondary)",
+  }),
+  tabScore: { fontSize: 11, fontWeight: 700, color: "var(--text-muted)" } satisfies CSSProperties,
+  panel: { display: "flex", flexDirection: "column", gap: 14, paddingTop: 16, maxWidth: 860 } satisfies CSSProperties,
+  summary: {
+    display: "flex",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 16,
+    padding: "12px 16px",
+    borderRadius: 9,
+    border: "1px solid var(--border)",
+    borderLeft: "3px solid var(--accent)",
+    background: "var(--bg-elevated)",
+  } satisfies CSSProperties,
+  name: { fontSize: 14, fontWeight: 600, color: "var(--text-primary)" } satisfies CSSProperties,
+  stats: { display: "flex", flexWrap: "wrap", gap: 16, fontSize: 13, color: "var(--text-secondary)" } satisfies CSSProperties,
+  statValue: { color: "var(--text-primary)", fontWeight: 600, marginLeft: 6 } satisfies CSSProperties,
+  actions: { marginLeft: "auto", display: "flex", gap: 8 } satisfies CSSProperties,
+  error: { fontSize: 12, color: "var(--danger)", wordBreak: "break-word" } satisfies CSSProperties,
+  list: { display: "flex", flexDirection: "column", gap: 18 } satisfies CSSProperties,
+  conflict: { display: "flex", marginBottom: 6 } satisfies CSSProperties,
+} as const;
