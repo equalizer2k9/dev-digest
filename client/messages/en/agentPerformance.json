@@ -1,32 +1,62 @@
 {
   "title": "Agent Performance",
-  "subtitle": "Accept-rate is the headline quality signal · cost shown as a breakdown",
+  "crumb": "Agent Performance",
+  "loading": "Loading agent performance…",
   "loadError": "Could not load agent performance.",
-  "summary": {
-    "totalRuns": "Total runs",
-    "avgAcceptRate": "Avg accept-rate",
-    "totalCost": "Total cost",
-    "mostActive": "Most active"
+  "empty": {
+    "title": "No runs in this period",
+    "body": "Pick a different period, or run a review to populate per-agent performance."
   },
-  "costByAgent": "Cost by agent",
-  "costByModel": "Cost by model",
-  "noCost": "No cost recorded yet.",
-  "sort": {
-    "acceptRate": "accept-rate",
-    "runs": "runs",
-    "cost": "cost"
+  "period": {
+    "button": "Period",
+    "oneDay": "1 day",
+    "thirtyDays": "30 days",
+    "custom": "Custom",
+    "from": "From",
+    "to": "To",
+    "apply": "Apply",
+    "caption1d": "1D",
+    "caption30d": "30D"
+  },
+  "kpi": {
+    "totalRuns": "Total runs",
+    "totalCost": "Total cost",
+    "avgAcceptRate": "Avg accept rate",
+    "mostActive": "Most-active agent",
+    "priced": "{priced} of {runs} priced",
+    "decided": "{accepted} / {decided} decided",
+    "mostActiveRuns": "{runs} runs"
   },
   "table": {
     "agent": "Agent",
-    "accept": "Accept",
     "runs": "Runs",
-    "findings": "Findings",
-    "cost": "Cost",
-    "trend": "Trend"
+    "avgCost": "Avg cost",
+    "avgDuration": "Avg dur.",
+    "accept": "Accept",
+    "lastRun": "Last run",
+    "view": "View",
+    "noRuns": "No runs in period",
+    "deletedAgent": "Deleted agent",
+    "lowSample": "low sample",
+    "sortAsc": "Accept rate, ascending",
+    "sortDesc": "Accept rate, descending",
+    "expandedModels": "By model"
   },
-  "empty": {
-    "title": "No agent runs yet",
-    "body": "Run a review (manually) to populate per-agent performance."
+  "acceptLocalOnly": "Local reviews only — CI runs store no findings",
+  "breakdown": {
+    "title": "Cost breakdown",
+    "byAgent": "By agent",
+    "byModel": "By model",
+    "unpriced": "unpriced · {runs} runs",
+    "unknownModel": "Unknown model",
+    "runs": "{runs} runs",
+    "noCost": "No priced runs in this period."
   },
-  "perAgent": "Per-agent"
+  "costBadge": "Estimated by DevDigest (token prices)",
+  "stats": {
+    "totalRuns": "Total runs",
+    "avgCost": "Avg cost / run",
+    "avgDuration": "Avg duration",
+    "acceptRate": "Accept rate"
+  }
 }

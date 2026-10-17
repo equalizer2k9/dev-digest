@@ -13,11 +13,14 @@ export function Donut({
   size = 130,
   stroke = 22,
   valuePrefix = "$",
+  legend = true,
 }: {
   segments: DonutSegment[];
   size?: number;
   stroke?: number;
   valuePrefix?: string;
+  /** Built-in legend (label + `$value`). Pass false to render your own. */
+  legend?: boolean;
 }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
@@ -40,18 +43,20 @@ export function Donut({
           ))}
         </Pie>
       </PieChart>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {segments.map((s, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
-            <span style={{ width: 9, height: 9, borderRadius: 2, background: s.color }} />
-            <span style={{ color: "var(--text-secondary)", flex: 1 }}>{s.label}</span>
-            <span className="mono tnum" style={{ color: "var(--text-primary)", fontWeight: 600 }}>
-              {valuePrefix}
-              {s.value.toFixed(2)}
-            </span>
-          </div>
-        ))}
-      </div>
+      {legend && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {segments.map((s, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
+              <span style={{ width: 9, height: 9, borderRadius: 2, background: s.color }} />
+              <span style={{ color: "var(--text-secondary)", flex: 1 }}>{s.label}</span>
+              <span className="mono tnum" style={{ color: "var(--text-primary)", fontWeight: 600 }}>
+                {valuePrefix}
+                {s.value.toFixed(2)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

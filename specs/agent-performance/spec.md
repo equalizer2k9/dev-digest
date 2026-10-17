@@ -200,7 +200,13 @@ No model calls (D10)
 - NFR-14 (D14). Tests: the pure aggregation function (reconciling sums, unpriced cost, low sample,
   most-active tie, Deleted agent, period bounds); a route test (for one agent, its Stats response
   equals its dashboard row); component tests (loading, empty, agent without runs, error without
-  zeros, sort and expand issue no request). Each AC maps to at least one of them (Traceability).
+  zeros, sort and expand issue no request); one repository integration test on real Postgres
+  (statuses, period bounds, foreign workspace, run without agent, findings joined through the
+  review's run link, decisions, CI run without findings). Each AC maps to at least one of them
+  (Traceability).
+- NFR-15 (V-2, A-13). Wherever accept rate is shown (the Avg accept rate card, the table's Accept
+  column, the Stats tab's Accept rate card), a caption or tooltip states that it covers local reviews
+  only, because CI runs store no findings.
 
 ## Inputs and provenance
 
@@ -264,6 +270,9 @@ recorded below as an assumption, to be overridden by the user if wrong.
   carries those fields.
 - A-12. Total cost is the sum of priced runs; when no run of the period is priced, Total cost shows
   "—".
+- A-13. Accept rate is computed over local reviews only: CI runs store no findings, so they add
+  nothing to accepted, dismissed or pending (EC-1, V-2). No CI decision source is added; the UI says
+  so (NFR-15).
 
 ## Divergences from requirements and design
 
@@ -291,16 +300,22 @@ recorded below as an assumption, to be overridden by the user if wrong.
 | Decision | Covered by | Test level (D14) |
 |---|---|---|
 | D1 one aggregation for both routes | AC-1 | route test: Stats == dashboard row |
-| D2 run = done or failed, in period, local + CI; evals excluded | AC-2, EC-1, EC-3, NG8 | pure function (status, source, bounds) |
+| D2 run = done or failed, in period, local + CI; evals excluded | AC-2, EC-1, EC-3, NG8 | pure function (status, source, bounds) + repository integration test (statuses, bounds, foreign workspace) |
 | D3 averages over priced / timed runs, "N of M priced" | AC-4, EC-5, A-12 | pure function (null cost) |
-| D4 accept rate with denominator, pending excluded | AC-5, A-3, A-4 | pure function |
+| D4 accept rate with denominator, pending excluded; local reviews only | AC-5, A-3, A-4, A-13, NFR-15 | pure function + repository integration test (decisions via run link, CI run without findings) + component test (local-only caption) |
 | D5 low sample < 5, sorted last | AC-6, NFR-2 | pure function + component sort test |
 | D6 1 d / 30 d / custom, UTC, `to` inclusive, default 30 d, in URL | AC-3, AC-2, EC-9, EC-11, NFR-7, A-1, A-2 | pure function (period bounds) + component test |
 | D7 most-active, tie → latest run | AC-7, A-9 | pure function (tie) |
 | D8 agent without runs vs empty dashboard; loading / error without zeros | AC-9, AC-10, AC-11 | component tests |
-| D9 Deleted agent row | AC-8, EC-7, A-9 | pure function (Deleted agent) |
+| D9 Deleted agent row | AC-8, EC-7, A-9 | pure function (Deleted agent) + repository integration test (run without agent) |
 | D10 breakdowns reconcile, unpriced line, expansion from same response, no model calls | AC-8, AC-12, NFR-3, NFR-4, NFR-10 | pure function (sums) + component test (no request) + route test (no model call) |
 | D11 cost badge "Estimated by DevDigest (token prices)" | NFR-5, NG1 | component test |
 | D12 Stats tab, same cards and selector, View with same period; severity / trend optional | AC-1, NFR-6, NFR-7, NG4, A-11 | component test (View link) |
 | D13 no tables or migrations | NFR-9, NG7 | review of the change set |
 | D14 tests | NFR-14, this table | — |
+
+## Changelog
+
+- 2026-10-17 — approved (SPEC-06).
+- 2026-10-17 — NFR-14 adds a repository integration test on real Postgres (AC-2, AC-5, AC-8); A-13 and
+  NFR-15: accept rate covers local reviews only, and the UI says so.

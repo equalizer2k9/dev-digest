@@ -1,4 +1,5 @@
 import type { Severity } from "@devdigest/ui";
+import type { PeriodParams } from "../../lib/agent-performance";
 import type {
   Agent,
   BlastRadiusResponse,
@@ -365,3 +366,5 @@ export const SHOWCASE_MULTI_GROUPS: FindingGroup[] = [
     conflict: true,
   },
 ];
+
+export const SHOWCASE_PERF_PERIOD: PeriodParams = { period: "30d" };
